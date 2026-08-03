@@ -204,7 +204,11 @@ function drawAppearancePreview(canvasElement, appearance, { animationId = '', st
   if (!canvasElement || !appearance) return;
   const context = canvasElement.getContext('2d'); context.clearRect(0, 0, canvasElement.width, canvasElement.height); context.imageSmoothingEnabled = false;
   const rows = selectAppearanceFrame(appearance, { animationId, state: stateName, elapsed });
-  const scale = Math.max(1, Math.floor(Math.min(canvasElement.width / appearance.width, canvasElement.height / appearance.height) * 0.72));
+  const previewPadding = 8;
+  const scale = Math.max(1, Math.floor(Math.min(
+    (canvasElement.width - previewPadding) / appearance.width,
+    (canvasElement.height - previewPadding) / appearance.height,
+  )));
   const left = Math.floor((canvasElement.width - appearance.width * scale) / 2); const top = Math.floor((canvasElement.height - appearance.height * scale) / 2);
   rows.forEach((row, y) => [...row].forEach((token, x) => { const color = appearance.palette[Number.parseInt(token, 36)]; if (!color || color === 'transparent') return; context.fillStyle = color; context.fillRect(left + x * scale, top + y * scale, scale, scale); }));
 }
