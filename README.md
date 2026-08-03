@@ -23,6 +23,7 @@ Statischer No-Code-Level-Editor für das gemeinsame `franz-lola-level`-JSON-Form
 - Transaktionsbasiertes Undo/Redo: ein kompletter Zeichenstrich ist ein Schritt
 - Mehrere automatisch gespeicherte `localStorage`-Entwürfe
 - Import/Export einzelner Level sowie Export des vollständigen Originalkatalogs
+- Sicheres Veröffentlichen per Knopfdruck: Anmeldung, Prüfung, Pull Request, Merge und GitHub-Pages-Deploy laufen geführt und automatisch
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
 
 Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Der Zauberberg besitzt in Editor und Testlauf wieder seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und die animierte Musiknote. Musiknote und Bühnenlichter sind im Design-Tab einzeln auswählbar; Animation, Tempo und Stärke lassen sich ohne Code ändern.
@@ -49,3 +50,7 @@ npm run build         # statischer GitHub-Pages-Build
 ## Austauschformat
 
 Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `schemaVersion: 1`. Das Renderer-Repository liefert dazu ein JSON Schema. Es enthält keine ausführbare Logik und kann deshalb sicher versioniert, geprüft und zwischen Spiel, Editor und zukünftigen Werkzeugen ausgetauscht werden.
+
+## Veröffentlichen ohne Repository-Zugriff
+
+Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an, darf aber ausschließlich geprüfte Leveldateien veröffentlichen. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.

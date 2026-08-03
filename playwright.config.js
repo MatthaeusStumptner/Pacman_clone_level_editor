@@ -17,6 +17,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4187 --strictPort',
+    env: { ...process.env, VITE_PUBLISHER_URL: 'https://franz-lola-publisher.test.workers.dev' },
     url: 'http://127.0.0.1:4187',
     reuseExistingServer: false,
     timeout: 120_000,

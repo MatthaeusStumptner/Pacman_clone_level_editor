@@ -210,6 +210,45 @@ test('visible controls have an accessible name', async ({ page }) => {
   expect(unnamed).toEqual([]);
 });
 
+test('authorized editors publish a valid level and see when it is live', async ({ page }) => {
+  const errors = [];
+  const publishedLevels = [];
+  let statusChecks = 0;
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
+    if (path === '/api/publish') {
+      publishedLevels.push(request.postDataJSON().level);
+      return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', detail: 'GitHub prüft das Level.', prUrl: 'https://github.com/MatthaeusStumptner/Geburtstagsspiel/pull/42' } });
+    }
+    if (path === '/api/publications/42') {
+      statusChecks += 1;
+      return route.fulfill({ headers, json: statusChecks > 1
+        ? { state: 'published', detail: 'Das Level ist live.', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/', actionsUrl: 'https://github.com/MatthaeusStumptner/Geburtstagsspiel/actions' }
+        : { state: 'deploying', detail: 'Das Spiel wird veröffentlicht.', actionsUrl: 'https://github.com/MatthaeusStumptner/Geburtstagsspiel/actions' } });
+    }
+    return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
+  });
+  await page.goto('/#publisher_session=test.session-token');
+  await expect(page.locator('#level-canvas')).toBeVisible();
+  await expect.poll(() => page.url()).not.toContain('publisher_session');
+  await page.locator('[data-level-id="hals"]').click();
+  await page.locator('#publish-level').click();
+  await expect(page.locator('#publish-review')).toBeVisible();
+  await expect(page.locator('#publisher-user-name')).toHaveText('Franz-Lola-Redaktion');
+  await expect(page.locator('#publish-level-name')).toHaveText('Hals & Ilz');
+  await page.locator('#publisher-confirm').click();
+  await expect(page.locator('#publish-progress-title')).toHaveText('Level ist live!', { timeout: 10_000 });
+  await expect(page.locator('#publish-game-link')).toBeVisible();
+  expect(publishedLevels).toHaveLength(1);
+  expect(publishedLevels[0].id).toBe('hals');
+  expect(errors).toEqual([]);
+});
+
 test('@mobile editor remains usable without horizontal page overflow', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await expect(page.locator('#level-canvas')).toBeVisible();
@@ -219,6 +258,11 @@ test('@mobile editor remains usable without horizontal page overflow', async ({ 
   await page.locator('#help-button').click();
   await expect(page.locator('#help-dialog')).toBeVisible();
   await page.locator('#help-dialog .modal-close').click();
+  await page.locator('#publish-level').click();
+  await expect(page.locator('#publish-login')).toBeVisible();
+  const publishBounds = await page.locator('#publish-dialog').boundingBox();
+  expect(publishBounds?.width ?? Infinity).toBeLessThanOrEqual(await page.evaluate(() => innerWidth));
+  await page.locator('#publish-dialog .modal-close').click();
   await page.locator('[data-level-id="bschuett"]').scrollIntoViewIfNeeded();
   await page.locator('[data-level-id="bschuett"]').click();
   await page.locator('#playtest-button').click();
