@@ -1,0 +1,2006 @@
+{
+  "kind": "franz-lola-level-catalog",
+  "schemaVersion": 1,
+  "generatedFrom": "Geburtstagsspiel/src/main.js",
+  "sourceHash": "6e5d444844d4d09e1707762d24c9842a8f5748bfa6aa197e1f206210a4b40578",
+  "levels": [
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "home",
+      "icon": "⌂",
+      "name": {
+        "standard": "Dahoam · Am Bramerhof",
+        "dialect": "Dahoam · Am Bramerhof"
+      },
+      "description": {
+        "standard": "Franz und Lola starten an ihrem Zuhause. Das Haus ist Herzstück und Ziel dieser Runde.",
+        "dialect": "Da Franz und d'Lola startn dahoam. S'Haus is Herzstück und Ziel von dera Rundn."
+      },
+      "mission": {
+        "standard": "Rund um das Zuhause",
+        "dialect": "Oamoi rund ums Dahoam"
+      },
+      "location": {
+        "latitude": 48.58244,
+        "longitude": 13.48316,
+        "area": "ILZ · GRUBWEG"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "width": 7,
+            "height": 3
+          },
+          {
+            "x": 18,
+            "y": 2,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 7,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 9,
+            "y": 6,
+            "width": 7,
+            "height": 4
+          },
+          {
+            "x": 19,
+            "y": 7,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 14,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 19,
+            "y": 15,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 20,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        ]
+      },
+      "theme": {
+        "id": "neighborhood",
+        "landmark": "brahmahof-home",
+        "palette": {
+          "ground": [
+            "#20262a",
+            "#22292d",
+            "#1d2529",
+            "#252b2f"
+          ],
+          "curb": "#4d5e60",
+          "walls": [
+            "#4e4337",
+            "#604d3b",
+            "#454849",
+            "#67583e"
+          ],
+          "water": "#17657a"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 194,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 2,
+        "markerClass": "",
+        "home": true
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "hals",
+      "icon": "≋",
+      "name": {
+        "standard": "Hals & Ilz",
+        "dialect": "Hals & Ilz"
+      },
+      "description": {
+        "standard": "Enge Gassen, Ilzschleife und ein Eisvogel, wenn Lola ganz genau hinsieht.",
+        "dialect": "Enge Gassn, d'Ilzschleif und a Eisvogl, wenn d'Lola sauber hischaut."
+      },
+      "mission": {
+        "standard": "Einmal um Hals",
+        "dialect": "Oamoi um an Hals"
+      },
+      "location": {
+        "latitude": 48.588889,
+        "longitude": 13.463889,
+        "area": "ILZ · HALS"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 14,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 20,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 7,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 7,
+            "y": 7,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 7,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 20,
+            "y": 7,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 7,
+            "y": 11,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 15,
+            "y": 11,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 13,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 20,
+            "y": 13,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 7,
+            "y": 17,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 17,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 19,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 8,
+            "y": 21,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 19,
+            "width": 4,
+            "height": 4
+          }
+        ]
+      },
+      "theme": {
+        "id": "neighborhood",
+        "landmark": "dog-park",
+        "palette": {
+          "ground": [
+            "#17262c",
+            "#19282f",
+            "#15242b",
+            "#1b2a30"
+          ],
+          "curb": "#345b61",
+          "walls": [
+            "#174150",
+            "#194958",
+            "#293f4b",
+            "#3a3f48"
+          ],
+          "water": "#0a5368"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 0,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 0,
+        "markerClass": "",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "oberhaus",
+      "icon": "♜",
+      "name": {
+        "standard": "Veste Oberhaus",
+        "dialect": "Veste Oberhaus"
+      },
+      "description": {
+        "standard": "Hoch über den Flüssen warten Burgmauern, steile Wege und besonders flinke Katzen.",
+        "dialect": "Hoch über de Fliass wartn Burgmauern, steile Weg und sakrisch flinke Katzn."
+      },
+      "mission": {
+        "standard": "Runde um die Veste",
+        "dialect": "A Rundn um d'Veste"
+      },
+      "location": {
+        "latitude": 48.57809,
+        "longitude": 13.47035,
+        "area": "DONAU · GEORGEBERG"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 6,
+            "height": 3
+          },
+          {
+            "x": 10,
+            "y": 2,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 18,
+            "y": 2,
+            "width": 5,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 7,
+            "width": 3,
+            "height": 5
+          },
+          {
+            "x": 7,
+            "y": 7,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 6,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 20,
+            "y": 8,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 6,
+            "y": 13,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 15,
+            "y": 12,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 21,
+            "y": 14,
+            "width": 2,
+            "height": 5
+          },
+          {
+            "x": 7,
+            "y": 17,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 15,
+            "y": 17,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 21,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 21,
+            "width": 4,
+            "height": 2
+          }
+        ]
+      },
+      "theme": {
+        "id": "neighborhood",
+        "landmark": "dog-park",
+        "palette": {
+          "ground": [
+            "#26252a",
+            "#29272d",
+            "#232329",
+            "#2d2930"
+          ],
+          "curb": "#655a5c",
+          "walls": [
+            "#5b403c",
+            "#744b41",
+            "#4e3d42",
+            "#806049"
+          ],
+          "water": "#28687f"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 291,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 3,
+        "markerClass": "",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "dom",
+      "icon": "✦",
+      "name": {
+        "standard": "Dom St. Stephan",
+        "dialect": "Dom St. Stephan"
+      },
+      "description": {
+        "standard": "Eine verwinkelte Altstadtrunde zwischen Gassen, Plätzen und einem kleinen Glockengeheimnis.",
+        "dialect": "A verwinkelte Altstadtrundn zwischen Gassn, Platzln und am kloana Glockngeheimnis."
+      },
+      "mission": {
+        "standard": "Durch die Altstadt",
+        "dialect": "Durch d'Altstadt"
+      },
+      "location": {
+        "latitude": 48.574061,
+        "longitude": 13.465439,
+        "area": "ALTSTADT · DOM"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 7,
+            "y": 2,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 13,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 19,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 7,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 8,
+            "y": 6,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 14,
+            "y": 7,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 21,
+            "y": 7,
+            "width": 2,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 11,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 20,
+            "y": 13,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 6,
+            "y": 16,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 12,
+            "y": 16,
+            "width": 2,
+            "height": 4
+          },
+          {
+            "x": 16,
+            "y": 17,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 19,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 8,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 15,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 20,
+            "y": 19,
+            "width": 3,
+            "height": 4
+          }
+        ]
+      },
+      "theme": {
+        "id": "neighborhood",
+        "landmark": "dog-park",
+        "palette": {
+          "ground": [
+            "#26282a",
+            "#292b2c",
+            "#242628",
+            "#2c2c2b"
+          ],
+          "curb": "#686667",
+          "walls": [
+            "#655344",
+            "#7b604a",
+            "#4e5050",
+            "#8a7559"
+          ],
+          "water": "#287e9b"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 97,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 1,
+        "markerClass": "",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "dreifluesseeck",
+      "icon": "≈",
+      "name": {
+        "standard": "Dreiflüsseeck",
+        "dialect": "Dreiflüsseeck"
+      },
+      "description": {
+        "standard": "Wo Donau, Inn und Ilz zusammentreffen, wird die Gassi-Runde besonders wasserreich.",
+        "dialect": "Wo Donau, Inn und Ilz zamkemman, werd d'Gassi-Rundn bsonders wasserreich."
+      },
+      "mission": {
+        "standard": "Runde an drei Flüssen",
+        "dialect": "Rundn an drei Fliass"
+      },
+      "location": {
+        "latitude": 48.57371,
+        "longitude": 13.47681,
+        "area": "DONAU · INN · ILZ"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 8,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 2,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 8,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 9,
+            "y": 6,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 14,
+            "y": 6,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 19,
+            "y": 8,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 14,
+            "y": 16,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 20,
+            "y": 15,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 20,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        ]
+      },
+      "theme": {
+        "id": "neighborhood",
+        "landmark": "dog-park",
+        "palette": {
+          "ground": [
+            "#14262b",
+            "#17292d",
+            "#122329",
+            "#1a2d30"
+          ],
+          "curb": "#356269",
+          "walls": [
+            "#194651",
+            "#205666",
+            "#29464e",
+            "#385961"
+          ],
+          "water": "#177f8f"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 388,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 4,
+        "markerClass": "",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "uni",
+      "icon": "U",
+      "name": {
+        "standard": "Universität & Inn",
+        "dialect": "Uni & Inn"
+      },
+      "description": {
+        "standard": "Eine schnelle Runde am Innufer zwischen Campus, Promenade und neugierigen Nachbarskatzen.",
+        "dialect": "A flotte Rundn am Innufer zwischen Campus, Promenad und neugierige Nochbarskatzn."
+      },
+      "mission": {
+        "standard": "Am Inn entlang",
+        "dialect": "Am Inn entlang"
+      },
+      "location": {
+        "latitude": 48.5683,
+        "longitude": 13.4533,
+        "area": "INN · INNSTADT"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 3,
+            "height": 5
+          },
+          {
+            "x": 7,
+            "y": 2,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 20,
+            "y": 2,
+            "width": 3,
+            "height": 5
+          },
+          {
+            "x": 7,
+            "y": 6,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 15,
+            "y": 7,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 9,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 20,
+            "y": 9,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 7,
+            "y": 16,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 16,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 20,
+            "y": 15,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 21,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 9,
+            "y": 20,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 14,
+            "y": 20,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 19,
+            "y": 21,
+            "width": 4,
+            "height": 2
+          }
+        ]
+      },
+      "theme": {
+        "id": "neighborhood",
+        "landmark": "dog-park",
+        "palette": {
+          "ground": [
+            "#20262d",
+            "#222a31",
+            "#1d242b",
+            "#252d33"
+          ],
+          "curb": "#4d606c",
+          "walls": [
+            "#3b4855",
+            "#485a68",
+            "#3d4149",
+            "#59636d"
+          ],
+          "water": "#3cae9d"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 485,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 5,
+        "markerClass": "",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "bschuett",
+      "icon": "S",
+      "name": {
+        "standard": "Bschüttpark",
+        "dialect": "Bschüttpark"
+      },
+      "description": {
+        "standard": "Eine grüne Runde an der Ilz zwischen Betonpark, Streetball, Beachvolleyball und großen Spielflächen.",
+        "dialect": "A grüne Rundn an da Ilz zwischen Betonpark, Streetball, Beachvolleyball und vui Platz zum Austobn."
+      },
+      "mission": {
+        "standard": "Spielrunde im Bschüttpark",
+        "dialect": "A Spielrundn im Bschüttpark"
+      },
+      "location": {
+        "latitude": 48.580206,
+        "longitude": 13.475416,
+        "area": "ILZ · BSCHÜTT"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 14,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 19,
+            "y": 2,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 6,
+            "width": 3,
+            "height": 5
+          },
+          {
+            "x": 7,
+            "y": 7,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 15,
+            "y": 7,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 21,
+            "y": 6,
+            "width": 2,
+            "height": 5
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 15,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 20,
+            "y": 15,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 20,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        ]
+      },
+      "theme": {
+        "id": "bschuett",
+        "landmark": "bschuett",
+        "palette": {
+          "ground": [
+            "#173129",
+            "#19372d",
+            "#142c25",
+            "#1d3b30"
+          ],
+          "curb": "#4c7564",
+          "walls": [
+            "#234b3f",
+            "#2e5c49",
+            "#354c43",
+            "#426750"
+          ],
+          "water": "#14708a"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 582,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 6,
+        "markerClass": "park",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "tabakfabrik",
+      "icon": "TF",
+      "name": {
+        "standard": "Tabakfabrik",
+        "dialect": "Tabakfabrik"
+      },
+      "description": {
+        "standard": "Backstein, Proberäume und eine kleine Bühne: Passauer Subkultur in einem alten Industriegebäude.",
+        "dialect": "Backstoa, Proberäum und a kloane Bühn: Passauer Subkultur in am oidn Industriegebäude."
+      },
+      "mission": {
+        "standard": "Guttis zwischen Proberäumen",
+        "dialect": "Guttis zwischen de Proberäum"
+      },
+      "location": {
+        "latitude": 48.5688,
+        "longitude": 13.4719,
+        "area": "MÜHLTAL · INNSTADT"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 8,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 2,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 8,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 9,
+            "y": 6,
+            "width": 7,
+            "height": 4
+          },
+          {
+            "x": 19,
+            "y": 8,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 7,
+            "y": 16,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 16,
+            "width": 4,
+            "height": 2
+          },
+          {
+            "x": 20,
+            "y": 15,
+            "width": 3,
+            "height": 4
+          },
+          {
+            "x": 2,
+            "y": 21,
+            "width": 5,
+            "height": 2
+          },
+          {
+            "x": 9,
+            "y": 20,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 14,
+            "y": 20,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 19,
+            "y": 21,
+            "width": 4,
+            "height": 2
+          }
+        ]
+      },
+      "theme": {
+        "id": "tabakfabrik",
+        "landmark": "tabakfabrik",
+        "palette": {
+          "ground": [
+            "#272322",
+            "#2d2724",
+            "#24201f",
+            "#302825"
+          ],
+          "curb": "#76564a",
+          "walls": [
+            "#704336",
+            "#834a38",
+            "#593b36",
+            "#925945"
+          ],
+          "water": "#37606d"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 679,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 7,
+        "markerClass": "industrial",
+        "home": false
+      },
+      "decorations": []
+    },
+    {
+      "kind": "franz-lola-level",
+      "schemaVersion": 1,
+      "id": "zauberberg",
+      "icon": "⚡",
+      "name": {
+        "standard": "Zauberberg",
+        "dialect": "Zauberberg"
+      },
+      "description": {
+        "standard": "Verstärker auf elf: Franz und Lola geraten in ein Pixelkonzert mit Rock, Punk und Metal.",
+        "dialect": "D'Verstärker auf elf: Da Franz und d'Lola landn in am Pixelkonzert mit Rock, Punk und Metal."
+      },
+      "mission": {
+        "standard": "Gassi vor der Bühne",
+        "dialect": "Gassi vor da Bühn"
+      },
+      "location": {
+        "latitude": 48.570405,
+        "longitude": 13.455266,
+        "area": "HAIDENHOF · LIVE-CLUB"
+      },
+      "board": {
+        "columns": 25,
+        "rows": 25,
+        "tileSize": 24,
+        "tunnelRows": [
+          12
+        ],
+        "walls": [
+          {
+            "x": 2,
+            "y": 2,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "width": 7,
+            "height": 2
+          },
+          {
+            "x": 18,
+            "y": 2,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 7,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 8,
+            "y": 5,
+            "width": 9,
+            "height": 5
+          },
+          {
+            "x": 19,
+            "y": 7,
+            "width": 4,
+            "height": 4
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 16,
+            "y": 12,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 2,
+            "y": 15,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 15,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          },
+          {
+            "x": 19,
+            "y": 15,
+            "width": 4,
+            "height": 3
+          },
+          {
+            "x": 2,
+            "y": 20,
+            "width": 5,
+            "height": 3
+          },
+          {
+            "x": 9,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 14,
+            "y": 21,
+            "width": 3,
+            "height": 2
+          },
+          {
+            "x": 19,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        ]
+      },
+      "theme": {
+        "id": "zauberberg",
+        "landmark": "zauberberg",
+        "palette": {
+          "ground": [
+            "#211829",
+            "#261b31",
+            "#1d1625",
+            "#2b1d35"
+          ],
+          "curb": "#704b78",
+          "walls": [
+            "#4b285b",
+            "#623166",
+            "#3b2949",
+            "#7a354e"
+          ],
+          "water": "#2e5375"
+        }
+      },
+      "actors": {
+        "player": {
+          "x": 12,
+          "y": 20,
+          "renderer": "franz-lola"
+        },
+        "cats": [
+          {
+            "x": 11,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#ff6b5f",
+            "accent": "#9e302e"
+          },
+          {
+            "x": 12,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#f2a65a",
+            "accent": "#a6532c"
+          },
+          {
+            "x": 13,
+            "y": 12,
+            "renderer": "cat",
+            "color": "#b792e8",
+            "accent": "#66509d"
+          }
+        ]
+      },
+      "collectibles": {
+        "powerUps": [
+          {
+            "x": 1,
+            "y": 1
+          },
+          {
+            "x": 23,
+            "y": 1
+          },
+          {
+            "x": 1,
+            "y": 23
+          },
+          {
+            "x": 23,
+            "y": 23
+          }
+        ]
+      },
+      "gameplay": {
+        "pelletSeed": 776,
+        "treatTargets": {
+          "easy": 70,
+          "normal": 110,
+          "hard": 160
+        }
+      },
+      "source": {
+        "catalog": "Geburtstagsspiel",
+        "gameLayout": 8,
+        "markerClass": "music",
+        "home": false
+      },
+      "decorations": []
+    }
+  ]
+}
