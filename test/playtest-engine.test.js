@@ -54,3 +54,13 @@ test('uses authored difficulty values and actor behavior without editor-only sho
   assert.equal(engine.lives, 8);
   assert.deepEqual({ x: engine.cats[0].x, y: engine.cats[0].y }, { x: 5, y: 5 });
 });
+
+test('plays authored localized events and applies their reward', () => {
+  const document = level();
+  document.events = [{ id: 'fund', name: { standard: 'Fund', dialect: 'A Fund' }, message: { standard: 'Entdeckt', dialect: 'Gfundn' }, reward: 123, trigger: { type: 'zone', zones: [{ x: 3, y: 3, width: 1, height: 1 }] }, visual: { type: 'custom', x: 3.5, y: 3.5, label: '!' } }];
+  const engine = new PlaytestEngine(document, 'easy', { pellets: ['1,1'] });
+  const event = engine.step(1 / 120).find((entry) => entry.type === 'level-event');
+  assert.equal(event.event.message.standard, 'Entdeckt');
+  assert.equal(event.reward, 123);
+  assert.equal(engine.score, 123);
+});

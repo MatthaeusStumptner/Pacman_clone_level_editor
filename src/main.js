@@ -26,12 +26,16 @@ let playtestLoop = null;
 let playtestPaused = false;
 let playtestCameraEnabled = true;
 let playtestGesture = null;
+let playtestEventTimeout = null;
+let playtestLanguage = 'standard';
+let currentPlaytestEvent = null;
 let renderedRevision = -1;
 let renderedLevel = null;
 let spritePainting = false;
 let spriteAnimationId = 'base';
 let spriteFrameIndex = 0;
 let spritePreviewFrame = null;
+let selectedEventIndex = -1;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -48,9 +52,15 @@ const profileFields = {
   playerSpeed: $('#profile-player-speed'), catSpeed: $('#profile-cat-speed'), frightenedSpeed: $('#profile-frightened-speed'), catCount: $('#profile-cat-count'), lives: $('#profile-lives'), powerDuration: $('#profile-power-duration'), wander: $('#profile-wander'), grace: $('#profile-grace'),
 };
 
+const eventFields = {
+  id: $('#event-id'), name: $('#event-name'), dialect: $('#event-name-dialect'), message: $('#event-message'), messageDialect: $('#event-message-dialect'), reward: $('#event-reward'), scope: $('#event-scope'),
+  triggerType: $('#event-trigger-type'), sequence: $('#event-sequence'), seconds: $('#event-seconds'), visualType: $('#event-visual-type'), visualX: $('#event-visual-x'), visualY: $('#event-visual-y'), color: $('#event-color'), accent: $('#event-accent'), label: $('#event-label'), visibility: $('#event-visibility'),
+};
+
 const toolHelp = {
   select: 'Auswahl: Figur oder Dekoration anklicken', wall: 'Stift: ziehen malt Wände · Rechtsklick radiert', line: 'Linie: Start und Ende aufziehen', rectangle: 'Rechteck: gefüllten Bereich aufziehen',
   fill: 'Füllen: zusammenhängende freie oder Wandfläche anklicken', erase: 'Radierer: ziehen entfernt Wände', player: 'Franz & Lola: Startfeld anklicken', cat: 'Katze: Feld anklicken', power: 'Power: Feld anklicken zum Setzen oder Entfernen', decoration: 'Deko: Stempel im Design-Tab einstellen',
+  'event-zone': 'Event-Zone: Triggerbereich des ausgewählten Ereignisses aufziehen', 'event-visual': 'Event-Symbol: sichtbares Ereignissymbol im Raster platzieren',
 };
 
 function shade(hex, amount) {
@@ -153,7 +163,7 @@ function renderDraftList() {
 
 function loadLevel(level, message = 'Level geladen', { save = false } = {}) {
   if (!level) return;
-  state = new EditorState(level); renderedRevision = -1; renderedLevel = null; cursor = null; gesture = null; syncFields(); render(); renderCatalog();
+  state = new EditorState(level); renderedRevision = -1; renderedLevel = null; cursor = null; gesture = null; selectedEventIndex = -1; syncFields(); render(); renderCatalog();
   $('#draft-status').textContent = save ? 'Neuer Entwurf' : 'Vorlage geladen';
   if (save) scheduleSave();
   showToast(message);
@@ -211,6 +221,55 @@ function renderSelectionCard() {
   }
 }
 
+function selectedLevelEvent() { return state.document.events[selectedEventIndex] ?? null; }
+
+function renderEventList() {
+  const events = state.document.events; $('#event-count').textContent = String(events.length);
+  $('#event-list').replaceChildren(...events.map((event, index) => {
+    const button = document.createElement('button'); button.type = 'button'; button.className = index === selectedEventIndex ? 'active' : '';
+    const icon = { kingfisher: '🐦', paw: '🐾', bell: '🔔', custom: event.visual.label, none: '○' }[event.visual.type];
+    const symbol = document.createElement('span'); symbol.textContent = icon; const copy = document.createElement('span'); const name = document.createElement('strong'); name.textContent = event.name.standard; const detail = document.createElement('small'); detail.textContent = `${event.trigger.type} · +${event.reward}`; copy.append(name, detail); button.append(symbol, copy);
+    button.addEventListener('click', () => { selectedEventIndex = index; renderEventList(); renderEventEditor(); render(); }); return button;
+  }));
+  renderEventEditor();
+}
+
+function renderEventEditor() {
+  const event = selectedLevelEvent(); $('#event-empty').hidden = Boolean(event); $('#event-editor').hidden = !event;
+  if (!event) return;
+  eventFields.id.value = event.id; eventFields.name.value = event.name.standard; eventFields.dialect.value = event.name.dialect; eventFields.message.value = event.message.standard; eventFields.messageDialect.value = event.message.dialect;
+  eventFields.reward.value = event.reward; eventFields.scope.value = event.scope; eventFields.triggerType.value = event.trigger.type; eventFields.sequence.value = event.trigger.sequence.join(', '); eventFields.seconds.value = event.trigger.seconds;
+  eventFields.visualType.value = event.visual.type; eventFields.visualX.value = event.visual.x; eventFields.visualY.value = event.visual.y; eventFields.color.value = event.visual.color; eventFields.accent.value = event.visual.accent; eventFields.label.value = event.visual.label; eventFields.visibility.value = event.visual.visibility;
+  $('#event-zone-controls').hidden = event.trigger.type !== 'zone'; $('#event-sequence-control').hidden = event.trigger.type !== 'direction-sequence'; $('#event-time-control').hidden = event.trigger.type !== 'time';
+  $('#event-zone-list').replaceChildren(...event.trigger.zones.map((zone, index) => {
+    const row = document.createElement('div'); const copy = document.createElement('span'); copy.textContent = `Zone ${index + 1}: ${zone.x}, ${zone.y} · ${zone.width}×${zone.height}`;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.disabled = event.trigger.zones.length <= 1; remove.title = remove.disabled ? 'Ein Zonen-Ereignis benötigt mindestens eine Triggerzone' : 'Triggerzone entfernen'; remove.setAttribute('aria-label', `Triggerzone ${index + 1} entfernen`); remove.addEventListener('click', () => {
+      state.mutate('Triggerzone entfernen', (draft) => { draft.document.events[selectedEventIndex].trigger.zones.splice(index, 1); }); render(); scheduleSave();
+    }); row.append(copy, remove); return row;
+  }));
+}
+
+function applyEventFields() {
+  if (!selectedLevelEvent()) return;
+  state.mutate('Ereignis ändern', (draft) => {
+    const event = draft.document.events[selectedEventIndex];
+    event.id = eventFields.id.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || `event-${selectedEventIndex + 1}`;
+    event.name = { standard: eventFields.name.value, dialect: eventFields.dialect.value }; event.message = { standard: eventFields.message.value, dialect: eventFields.messageDialect.value };
+    event.reward = Number(eventFields.reward.value); event.scope = eventFields.scope.value; event.trigger.type = eventFields.triggerType.value;
+    event.trigger.sequence = eventFields.sequence.value.toLowerCase().split(/[\s,;]+/).filter((direction) => ['up', 'down', 'left', 'right'].includes(direction)); event.trigger.seconds = Number(eventFields.seconds.value);
+    event.visual = { ...event.visual, type: eventFields.visualType.value, x: Number(eventFields.visualX.value), y: Number(eventFields.visualY.value), color: eventFields.color.value, accent: eventFields.accent.value, label: eventFields.label.value, visibility: eventFields.visibility.value };
+  });
+  render(); scheduleSave();
+}
+
+function addLevelEvent() {
+  state.mutate('Ereignis anlegen', (draft) => {
+    const index = draft.document.events.length; const player = draft.document.actors.player;
+    draft.document.events.push({ id: `event-${index + 1}`, kind: 'easter-egg', name: { standard: `Neues Ereignis ${index + 1}`, dialect: `Neis Ereignis ${index + 1}` }, message: { standard: 'Geheimnis entdeckt!', dialect: 'Geheimnis gfundn!' }, reward: 100, scope: 'global', trigger: { type: 'zone', zones: [{ x: player.x, y: player.y, width: 1, height: 1 }], sequence: [], seconds: 10 }, visual: { type: 'custom', x: player.x + 0.5, y: player.y + 0.5, color: '#55d9dd', accent: '#f5c451', label: '◆', visibility: 'after-trigger' } });
+  });
+  selectedEventIndex = state.document.events.length - 1; switchInspector('events'); render(); scheduleSave();
+}
+
 function validationView(level, pellets) {
   const result = validateLevelDocument(level); const issues = result.errors.length + result.warnings.length;
   $('#problem-count').textContent = String(issues); $('#problem-count').classList.toggle('has-problems', issues > 0);
@@ -219,7 +278,7 @@ function validationView(level, pellets) {
   $('#validation-errors').replaceChildren(...(result.errors.length ? result.errors : ['Keine Fehler.']).map((message) => Object.assign(document.createElement('li'), { textContent: message })));
   $('#validation-warnings').replaceChildren(...(result.warnings.length ? result.warnings : ['Keine Hinweise.']).map((message) => Object.assign(document.createElement('li'), { textContent: message })));
   $('#metric-reachable').textContent = String(result.metrics.reachableTiles); $('#metric-walls').textContent = String(result.metrics.wallRectangles); $('#metric-guttis').textContent = String(pellets.size);
-  $('#metric-objects').textContent = String(level.actors.cats.length + level.collectibles.powerUps.length + level.decorations.length + 1);
+  $('#metric-objects').textContent = String(level.actors.cats.length + level.collectibles.powerUps.length + level.decorations.length + level.events.length + 1);
   return result;
 }
 
@@ -232,21 +291,21 @@ function render() {
   const level = renderedLevel;
   const pellets = $('#show-guttis').checked ? previewGuttis(level, $('#preview-difficulty').value) : new Set();
   const powerUps = new Set(level.collectibles.powerUps.map((point) => tileKey(point.x, point.y)));
-  renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: performance.now() / 1000 }, { cameraEnabled: false, editor: { showGrid: $('#show-grid').checked, cursor } });
+  renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: performance.now() / 1000 }, { cameraEnabled: false, editor: { showGrid: $('#show-grid').checked, showEvents: $('#show-events').checked, showEventZones: $('#show-events').checked, cursor } });
   $('#stage-level-name').textContent = level.name.standard; $('#stage-level-id').textContent = level.id; $('#undo').disabled = state.history.length === 0; $('#redo').disabled = state.future.length === 0;
   $('#restore-template').disabled = !passauCatalog.some((entry) => entry.id === level.id);
-  validationView(level, pellets); renderActorList();
+  validationView(level, pellets); renderActorList(); renderEventList();
   canvas.style.aspectRatio = `${level.board.columns} / ${level.board.rows}`;
 }
 
 function animateEditorCanvas(timestamp) {
   const level = renderedLevel;
-  const hasAnimation = level && (level.decorations.some((item) => item.animation?.type !== 'none')
+  const hasAnimation = level && (level.theme.landmark === 'zauberberg' || level.events.length > 0 || level.decorations.some((item) => item.animation?.type !== 'none')
     || [level.actors.player, ...level.actors.cats].some((actor) => actor.appearance?.animations?.length));
   if (hasAnimation) {
     const pellets = $('#show-guttis').checked ? previewGuttis(level, $('#preview-difficulty').value) : new Set();
     const powerUps = new Set(level.collectibles.powerUps.map((point) => tileKey(point.x, point.y)));
-    renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, { cameraEnabled: false, alpha: 1, editor: { showGrid: $('#show-grid').checked, cursor } });
+    renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, { cameraEnabled: false, alpha: 1, editor: { showGrid: $('#show-grid').checked, showEvents: $('#show-events').checked, showEventZones: $('#show-events').checked, cursor } });
   }
   requestAnimationFrame(animateEditorCanvas);
 }
@@ -258,7 +317,7 @@ function pointFromEvent(event) {
 }
 
 function cursorForGesture(point) {
-  if (!gesture || !['line', 'rectangle'].includes(tool)) return { ...point };
+  if (!gesture || !['line', 'rectangle', 'event-zone'].includes(tool)) return { ...point };
   return { x: Math.min(gesture.start.x, point.x), y: Math.min(gesture.start.y, point.y), width: Math.abs(point.x - gesture.start.x) + 1, height: Math.abs(point.y - gesture.start.y) + 1, color: 'rgba(85,217,221,.34)' };
 }
 
@@ -279,6 +338,10 @@ function applySingleTool(point, eraseOverride = false) {
   else if (chosen === 'cat') state.mutate('Katze setzen', (draft) => draft.addCat(point, { color: fields.cat.value, accent: fields.accent.value, appearance: nextCatAppearance }));
   else if (chosen === 'power') state.mutate('Schnüffel-Power setzen', (draft) => draft.togglePowerUp(point));
   else if (chosen === 'decoration') state.mutate('Dekoration setzen', (draft) => draft.addDecoration(point, decorationSettings()));
+  else if (chosen === 'event-visual') {
+    if (!selectedLevelEvent()) { switchInspector('events'); showToast('Bitte zuerst ein Ereignis auswählen'); return; }
+    state.mutate('Ereignissymbol setzen', (draft) => { const visual = draft.document.events[selectedEventIndex].visual; visual.x = point.x + 0.5; visual.y = point.y + 0.5; });
+  }
   render(); scheduleSave();
 }
 
@@ -286,7 +349,10 @@ canvas.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 && event.button !== 2) return; event.preventDefault(); const point = pointFromEvent(event); canvas.setPointerCapture(event.pointerId);
   if (['wall', 'erase'].includes(tool) || event.button === 2) {
     const chosen = event.button === 2 ? 'erase' : tool; state.beginTransaction(chosen === 'wall' ? 'Wände zeichnen' : 'Wände radieren'); state.setWall(point.x, point.y, chosen === 'wall'); gesture = { pointerId: event.pointerId, start: point, last: point, mode: chosen };
-  } else if (['line', 'rectangle'].includes(tool)) gesture = { pointerId: event.pointerId, start: point, last: point, mode: tool };
+  } else if (['line', 'rectangle', 'event-zone'].includes(tool)) {
+    if (tool === 'event-zone' && !selectedLevelEvent()) { switchInspector('events'); showToast('Bitte zuerst ein Ereignis auswählen'); return; }
+    gesture = { pointerId: event.pointerId, start: point, last: point, mode: tool };
+  }
   else applySingleTool(point, event.button === 2);
   cursor = cursorForGesture(point); render();
 });
@@ -306,6 +372,10 @@ function finishGesture(event) {
   const point = pointFromEvent(event);
   if (gesture.mode === 'line') { state.beginTransaction('Wandlinie'); state.applyWallPoints(linePoints(gesture.start, point), true); state.endTransaction(); }
   else if (gesture.mode === 'rectangle') { state.beginTransaction('Wandrechteck'); state.applyWallPoints(rectanglePoints(gesture.start, point), true); state.endTransaction(); }
+  else if (gesture.mode === 'event-zone') {
+    const zone = { x: Math.min(gesture.start.x, point.x), y: Math.min(gesture.start.y, point.y), width: Math.abs(point.x - gesture.start.x) + 1, height: Math.abs(point.y - gesture.start.y) + 1 };
+    state.mutate('Triggerzone zeichnen', (draft) => { const trigger = draft.document.events[selectedEventIndex].trigger; trigger.type = 'zone'; trigger.zones.push(zone); });
+  }
   else state.endTransaction();
   gesture = null; cursor = { ...point }; render(); scheduleSave();
 }
@@ -317,6 +387,7 @@ canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 function setTool(next) {
   if (!toolHelp[next]) return; tool = next; $$('.tool').forEach((button) => button.classList.toggle('active', button.dataset.tool === tool)); $('#tool-help').textContent = toolHelp[tool];
   if (tool === 'decoration') switchInspector('design');
+  if (tool.startsWith('event-')) switchInspector('events');
 }
 
 function switchInspector(name) {
@@ -402,21 +473,26 @@ function startPlaytest() {
 
 function resetPlaytest(level = state.toDocument()) {
   playtest = new PlaytestEngine(level, $('#preview-difficulty').value); const playCanvas = $('#playtest-canvas'); playtestRenderer = new PassauPixelRenderer(playCanvas, { zoom: 1.12 }); playtestRenderer.setLevel(playtest.level);
-  playtestLoop = new FixedStepLoop({ updatesPerSecond: 120 }); playtestPaused = false; $('#playtest-pause').textContent = 'Ⅱ Pause'; renderPlaytest(0);
+  playtestLoop = new FixedStepLoop({ updatesPerSecond: 120 }); playtestPaused = false; currentPlaytestEvent = null; $('#playtest-pause').textContent = 'Ⅱ Pause'; clearTimeout(playtestEventTimeout); $('#playtest-event').hidden = true; renderPlaytest(0);
 }
 
 function startPlaytestLoop() {
   cancelAnimationFrame(playtestFrame); playtestLoop.reset();
   const frame = (timestamp) => {
     if (!$('#playtest-dialog').open || !playtest) return;
-    if (!playtestPaused) playtestLoop.advance(timestamp, (dt) => playtest.step(dt)); else playtestLoop.reset(timestamp);
+    if (!playtestPaused) playtestLoop.advance(timestamp, (dt) => { playtest.step(dt).filter((event) => event.type === 'level-event').forEach(showPlaytestEvent); }); else playtestLoop.reset(timestamp);
     renderPlaytest(playtestLoop.interpolationAlpha); playtestFrame = requestAnimationFrame(frame);
   };
   playtestFrame = requestAnimationFrame(frame);
 }
 
+function showPlaytestEvent(payload) {
+  currentPlaytestEvent = payload; const event = payload.event; $('#playtest-event-name').textContent = event.name[playtestLanguage]; $('#playtest-event-message').textContent = event.message[playtestLanguage]; $('#playtest-event-reward').textContent = `${payload.reward >= 0 ? '+' : ''}${payload.reward} Punkte`; $('#playtest-event').hidden = false;
+  clearTimeout(playtestEventTimeout); playtestEventTimeout = setTimeout(() => { $('#playtest-event').hidden = true; }, 4500);
+}
+
 function stopPlaytest() {
-  cancelAnimationFrame(playtestFrame); playtestFrame = null; playtestLoop = null; playtest = null; playtestRenderer = null;
+  cancelAnimationFrame(playtestFrame); clearTimeout(playtestEventTimeout); playtestFrame = null; playtestLoop = null; playtest = null; playtestRenderer = null;
   $('#playtest-dialog').classList.remove('immersive');
   if (document.fullscreenElement === $('#playtest-stage')) document.exitFullscreen().catch(() => {});
 }
@@ -446,9 +522,10 @@ $$('.tool').forEach((button) => button.addEventListener('click', () => setTool(b
 $$('.inspector-tabs [role=tab]').forEach((button) => button.addEventListener('click', () => switchInspector(button.dataset.panel)));
 Object.values(fields).filter((field) => !field.id.startsWith('cat-') && !field.id.startsWith('decoration-')).forEach((field) => field.addEventListener('change', applyFields));
 Object.values(profileFields).forEach((field) => field.addEventListener('change', applyProfileFields));
+Object.values(eventFields).forEach((field) => field.addEventListener('change', applyEventFields));
 $('#catalog-search').addEventListener('input', () => renderCatalog()); $('#undo').addEventListener('click', () => { if (state.undo()) { syncFields(); render(); scheduleSave(); } }); $('#redo').addEventListener('click', () => { if (state.redo()) { syncFields(); render(); scheduleSave(); } });
 $('#new-level').addEventListener('click', () => loadLevel(createStarterLevel(), 'Leeres Level angelegt', { save: true })); $('#clear-cats').addEventListener('click', () => { state.mutate('Alle Katzen entfernen', (draft) => { draft.document.actors.cats = []; draft.selected = null; }); render(); scheduleSave(); });
-$('#show-guttis').addEventListener('change', render); $('#show-grid').addEventListener('change', render); $('#preview-difficulty').addEventListener('change', () => { syncProfileFields(); render(); });
+$('#show-guttis').addEventListener('change', render); $('#show-grid').addEventListener('change', render); $('#show-events').addEventListener('change', render); $('#preview-difficulty').addEventListener('change', () => { syncProfileFields(); render(); });
 $('#zoom-level').addEventListener('input', (event) => { const zoom = Number(event.target.value); $('#zoom-copy').textContent = `${zoom}%`; canvas.style.width = `${zoom}%`; renderer.resize(); render(); });
 $('#help-button').addEventListener('click', () => $('#help-dialog').showModal()); $('#quick-tour').addEventListener('click', () => $('#help-dialog').showModal()); $('#sprite-designer-button').addEventListener('click', openSpriteDesigner);
 $('#sprite-add-color').addEventListener('click', () => { const color = $('#sprite-color').value; if (!spriteDraft.palette.includes(color) && spriteDraft.palette.length < 10) spriteDraft.palette.push(color); spritePaletteIndex = spriteDraft.palette.indexOf(color); renderSpriteDesigner(); });
@@ -472,8 +549,13 @@ $('#sprite-grid').addEventListener('pointerdown', (event) => { const pixel = eve
 $('#sprite-grid').addEventListener('pointermove', (event) => { if (!spritePainting || event.buttons === 0) return; const pixel = event.target.closest('button[data-x]'); if (pixel) paintSpritePixel(Number(pixel.dataset.x), Number(pixel.dataset.y), (event.buttons & 2) ? 0 : spritePaletteIndex); });
 window.addEventListener('pointerup', () => { spritePainting = false; });
 $('#sprite-dialog').addEventListener('close', () => { cancelAnimationFrame(spritePreviewFrame); spritePreviewFrame = null; });
+$('#add-event').addEventListener('click', addLevelEvent);
+$('#draw-event-zone').addEventListener('click', () => setTool('event-zone'));
+$('#place-event-visual').addEventListener('click', () => setTool('event-visual'));
+$('#delete-event').addEventListener('click', () => { if (!selectedLevelEvent()) return; state.mutate('Ereignis entfernen', (draft) => draft.document.events.splice(selectedEventIndex, 1)); selectedEventIndex = -1; render(); scheduleSave(); });
 $('#playtest-button').addEventListener('click', startPlaytest); $('#playtest-reset').addEventListener('click', () => resetPlaytest());
 $('#playtest-pause').addEventListener('click', () => { playtestPaused = !playtestPaused; $('#playtest-pause').textContent = playtestPaused ? '▶ Weiter' : 'Ⅱ Pause'; renderPlaytest(playtestLoop?.interpolationAlpha ?? 1); });
+$('#playtest-language').addEventListener('click', () => { playtestLanguage = playtestLanguage === 'standard' ? 'dialect' : 'standard'; $('#playtest-language').textContent = playtestLanguage === 'standard' ? 'DE · Schön' : 'BAY · Dialekt*'; if (currentPlaytestEvent && !$('#playtest-event').hidden) showPlaytestEvent(currentPlaytestEvent); });
 $('#playtest-camera').addEventListener('click', () => { playtestCameraEnabled = !playtestCameraEnabled; $('#playtest-camera').setAttribute('aria-pressed', String(playtestCameraEnabled)); $('#playtest-camera').textContent = playtestCameraEnabled ? '◎ Kamera' : '▣ Ganzes Level'; renderPlaytest(playtestLoop?.interpolationAlpha ?? 1); });
 $('#playtest-fullscreen').addEventListener('click', togglePlaytestFullscreen);
 $$('[data-play-direction]').forEach((button) => button.addEventListener('pointerdown', (event) => { event.preventDefault(); playDirection(button.dataset.playDirection); }));
@@ -497,7 +579,7 @@ document.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.code === 'KeyY') { event.preventDefault(); if (state.redo()) { syncFields(); render(); scheduleSave(); } return; }
   if ((event.ctrlKey || event.metaKey) && event.code === 'KeyS') { event.preventDefault(); $('#export-level').click(); return; }
   if ((event.ctrlKey || event.metaKey) && event.code === 'KeyN') { event.preventDefault(); $('#new-level').click(); return; }
-  const shortcut = { KeyV: 'select', KeyB: 'wall', KeyL: 'line', KeyR: 'rectangle', KeyF: 'fill', KeyE: 'erase', KeyP: 'player', KeyK: 'cat', KeyG: 'power', KeyD: 'decoration' }[event.code];
+  const shortcut = { KeyV: 'select', KeyB: 'wall', KeyL: 'line', KeyR: 'rectangle', KeyF: 'fill', KeyE: 'erase', KeyP: 'player', KeyK: 'cat', KeyG: 'power', KeyD: 'decoration', KeyZ: 'event-zone', KeyI: 'event-visual' }[event.code];
   if (shortcut) { event.preventDefault(); setTool(shortcut); }
   if ((event.code === 'Delete' || event.code === 'Backspace') && state.selected) { state.mutate('Objekt entfernen', (draft) => draft.deleteSelected()); render(); scheduleSave(); }
 });

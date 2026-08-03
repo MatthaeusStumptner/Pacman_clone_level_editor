@@ -66,3 +66,10 @@ test('placing walls removes conflicting cats and power-ups', () => {
   assert.deepEqual(state.toDocument().actors.cats, []);
   assert.deepEqual(state.toDocument().collectibles.powerUps, []);
 });
+
+test('keeps localized event triggers and visuals through history and export', () => {
+  const state = new EditorState(createStarterLevel());
+  state.mutate('Ereignis', (draft) => { draft.document.events.push({ id: 'eisvogel', name: { standard: 'Eisvogel', dialect: 'Eisvogl' }, message: { standard: 'Entdeckt', dialect: 'Gfundn' }, reward: 150, trigger: { type: 'zone', zones: [{ x: 1, y: 12, width: 2, height: 1 }] }, visual: { type: 'kingfisher', x: 0.375, y: 6 } }); });
+  const exported = state.toDocument(); assert.equal(exported.events[0].message.dialect, 'Gfundn'); assert.equal(exported.events[0].visual.type, 'kingfisher');
+  assert.equal(state.undo(), true); assert.equal(state.toDocument().events.length, 0); assert.equal(state.redo(), true); assert.equal(state.toDocument().events[0].reward, 150);
+});

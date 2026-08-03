@@ -125,6 +125,35 @@ test('authored cat behavior, difficulty, camera and fullscreen use the game simu
   expect(errors).toEqual([]);
 });
 
+test('original easter eggs include triggers, dialect text and live testlauf events', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await page.locator('[data-level-id="home"]').click();
+  await page.locator('[data-panel="events"]').click();
+  await expect(page.locator('#event-count')).toHaveText('2');
+  await expect(page.locator('#event-list')).toContainText('Eisvogel an der Ilz');
+  await expect(page.locator('#event-list')).toContainText('Lolas Lieblingsplatz');
+  await page.locator('#event-list button').first().click();
+  await expect(page.locator('#event-message')).toHaveValue('Donnerwetter, ein Eisvogel an der Ilz!');
+  await expect(page.locator('#event-message-dialect')).toHaveValue('Sakradi, a Eisvogl an da Ilz!');
+  await expect(page.locator('#event-zone-list > div')).toHaveCount(2);
+
+  await page.locator('#new-level').click(); await page.locator('[data-panel="events"]').click(); await page.locator('#add-event').click();
+  await page.locator('#event-name').fill('Ilz-Fund'); await page.locator('#event-name').blur();
+  await page.locator('#event-message').fill('Ein Ereignis im Testlauf!'); await page.locator('#event-message').blur();
+  await page.locator('#event-message-dialect').fill('A Ereignis im Testlauf!'); await page.locator('#event-message-dialect').blur();
+  await page.locator('#draw-event-zone').click();
+  const start = await canvasPoint(page, 2, 2); const end = await canvasPoint(page, 4, 3);
+  await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 3 }); await page.mouse.up();
+  await expect(page.locator('#event-zone-list > div')).toHaveCount(2);
+  await page.locator('#place-event-visual').click(); const visual = await canvasPoint(page, 6, 6); await page.mouse.click(visual.x, visual.y);
+  await expect(page.locator('#event-visual-x')).toHaveValue('6.5'); await expect(page.locator('#event-visual-y')).toHaveValue('6.5');
+  await page.locator('#playtest-button').click();
+  await expect(page.locator('#playtest-event')).toBeVisible(); await expect(page.locator('#playtest-event-name')).toHaveText('Ilz-Fund'); await expect(page.locator('#playtest-event-message')).toHaveText('Ein Ereignis im Testlauf!'); await expect(page.locator('#playtest-event-reward')).toHaveText('+100 Punkte');
+  await page.locator('#playtest-language').click(); await expect(page.locator('#playtest-event-message')).toHaveText('A Ereignis im Testlauf!');
+  await page.locator('#playtest-dialog .modal-close').click();
+  expect(errors).toEqual([]);
+});
+
 test('playtest opens, moves, resets repeatedly and closes without deadlock', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await page.locator('[data-level-id="hals"]').click();

@@ -11,6 +11,8 @@ Statischer No-Code-Level-Editor für das gemeinsame `franz-lola-level`-JSON-Form
 - Eigene Pixel-Figuren mit Palette, benannten Animationen, beliebig vielen Frames, FPS und Schleifenmodus
 - Verhalten pro Figur: direkte Steuerung, Autopilot, Patrouille sowie unterschiedliche Jagd-, Hinterhalt-, Wach-, Streu- und Zufallsstrategien
 - Animierbare Dekorationen mit Schweben, Pulsieren, Blinken und Drehen
+- No-Code-Ereignisse mit Triggerzonen, Tast-/Wischfolgen oder Zeittriggern, Punktbelohnungen und globalem, Level- oder Rundengültigkeitsbereich
+- Standarddeutsche und niederbairische Ereignistexte sowie Eisvogel-, Pfoten-, Glocken- oder frei gestaltbare Symbole
 - Frei anpassbare Physikprofile pro Schwierigkeit (Tempo, Katzenzahl, Leben, Power-Dauer, Zufall und Startschutz)
 - Freie Raster von 9×9 bis 45×45, Tunnelzeilen, Farben, Landmarken und Kartenkoordinaten
 - Live-Vorschau für 70, 110 oder 160 Guttis mit exakt derselben Verteilung wie im Spiel
@@ -21,6 +23,8 @@ Statischer No-Code-Level-Editor für das gemeinsame `franz-lola-level`-JSON-Form
 - Mehrere automatisch gespeicherte `localStorage`-Entwürfe
 - Import/Export einzelner Level sowie Export des vollständigen Originalkatalogs
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
+
+Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Der Zauberberg besitzt in Editor und Testlauf wieder seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und die animierte Musiknote.
 
 Eine bloß geöffnete Originalvorlage wird nicht als Entwurf gespeichert. Erst die erste echte Änderung erzeugt eine lokale Kopie; über „Originalvorlage wiederherstellen“ lässt sie sich jederzeit zurücksetzen.
 

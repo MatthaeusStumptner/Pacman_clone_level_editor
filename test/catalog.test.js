@@ -10,6 +10,9 @@ const expected = [
   ['dom', 1, 19, 'dog-park'], ['dreifluesseeck', 4, 18, 'dog-park'], ['uni', 5, 18, 'dog-park'],
   ['bschuett', 6, 18, 'bschuett'], ['tabakfabrik', 7, 17, 'tabakfabrik'], ['zauberberg', 8, 16, 'zauberberg'],
 ];
+const expectedEvents = {
+  home: ['ilzvogel', 'hundewiese'], hals: ['ilzvogel'], oberhaus: ['kirchenglockn'], dom: ['kirchenglockn'], dreifluesseeck: ['ilzvogel'], uni: [], bschuett: ['ilzvogel', 'hundewiese'], tabakfabrik: [], zauberberg: [],
+};
 
 test('catalog is pinned to the reviewed Geburtstagsspiel source snapshot', () => {
   const catalog = catalogDocument();
@@ -35,6 +38,8 @@ test('every original level validates and produces exact difficulty Gutti counts'
     assert.equal(level.actors.cats.length, 3);
     assert.deepEqual(level.actors.cats.map((cat) => cat.behavior.strategy), ['chase', 'ambush', 'scatter-chase']);
     assert.equal(level.gameplay.difficulties.easy.lives, 5);
+    assert.deepEqual(level.events.map((event) => event.id), expectedEvents[level.id], `${level.id} events`);
+    level.events.forEach((event) => { assert.ok(event.message.standard); assert.ok(event.message.dialect); assert.ok(event.reward > 0); });
     assert.deepEqual(level.collectibles.powerUps, [{ x: 1, y: 1 }, { x: 23, y: 1 }, { x: 1, y: 23 }, { x: 23, y: 23 }]);
   }
 });

@@ -56,11 +56,15 @@
             <button class="tool" data-tool="cat" type="button" title="Katze setzen (K)"><span>◆</span>Katze<kbd>K</kbd></button>
             <button class="tool" data-tool="power" type="button" title="Schnüffel-Power setzen (G)"><span>✦</span>Power<kbd>G</kbd></button>
             <button class="tool" data-tool="decoration" type="button" title="Dekoration setzen (D)"><span>♣</span>Deko<kbd>D</kbd></button>
+            <span class="tool-divider"></span>
+            <button class="tool" data-tool="event-zone" type="button" title="Triggerzone des ausgewählten Ereignisses zeichnen (Z)"><span>▧</span>Event-Zone<kbd>Z</kbd></button>
+            <button class="tool" data-tool="event-visual" type="button" title="Symbol des ausgewählten Ereignisses setzen (I)"><span>!</span>Event-Symbol<kbd>I</kbd></button>
           </nav>
           <div class="canvas-toolbar">
             <label>Vorschau <select id="preview-difficulty"><option value="easy">Spaziergang · 70</option><option value="normal">Gassirunde · 110</option><option value="hard">Abenteuer · 160</option></select></label>
             <label class="switch"><input id="show-guttis" type="checkbox" checked /><span>Guttis</span></label>
             <label class="switch"><input id="show-grid" type="checkbox" checked /><span>Raster</span></label>
+            <label class="switch"><input id="show-events" type="checkbox" checked /><span>Ereignisse</span></label>
             <span id="zoom-copy">100%</span>
             <input id="zoom-level" type="range" min="70" max="160" value="100" aria-label="Zoom" />
           </div>
@@ -81,6 +85,7 @@
             <button role="tab" aria-selected="true" data-panel="level">Level</button>
             <button role="tab" aria-selected="false" data-panel="design">Design</button>
             <button role="tab" aria-selected="false" data-panel="figures">Figuren</button>
+            <button role="tab" aria-selected="false" data-panel="events">Ereignisse <span id="event-count">0</span></button>
             <button role="tab" aria-selected="false" data-panel="check">Prüfung <span id="problem-count">0</span></button>
           </div>
 
@@ -136,6 +141,36 @@
               <button id="clear-cats" class="danger-subtle" type="button">Alle Katzen entfernen</button>
             </section>
 
+            <section class="inspector-section" data-inspector="events">
+              <h2>Geheimnisse & Ereignisse</h2>
+              <p class="hint">Ein Ereignis verbindet Trigger, lokalisierten Text, Bonus und ein sichtbares Symbol. Triggerzonen kannst du direkt ins Level zeichnen.</p>
+              <div id="event-list" class="event-list"></div>
+              <button id="add-event" type="button">＋ Neues Ereignis</button>
+              <div id="event-empty" class="selection-card"><p>Ereignis auswählen oder ein neues anlegen.</p></div>
+              <div id="event-editor" class="event-editor" hidden>
+                <h2>Ereignis bearbeiten</h2>
+                <label>ID <input id="event-id" pattern="[a-z0-9-]+" /></label>
+                <label>Name <input id="event-name" /></label>
+                <label>Name im Dialekt <input id="event-name-dialect" /></label>
+                <label>Meldung <textarea id="event-message" rows="2"></textarea></label>
+                <label>Meldung im Dialekt <textarea id="event-message-dialect" rows="2"></textarea></label>
+                <div class="field-row"><label>Bonus-Punkte <input id="event-reward" type="number" min="-9999" max="9999" /></label><label>Gültigkeit <select id="event-scope"><option value="global">Spielstandweit einmal</option><option value="level">Pro Level einmal</option><option value="run">Pro Testlauf einmal</option></select></label></div>
+                <h3>Auslöser</h3>
+                <label>Typ <select id="event-trigger-type"><option value="zone">Triggerzone betreten</option><option value="direction-sequence">Richtungsfolge eingeben</option><option value="time">Zeit im Level</option></select></label>
+                <div id="event-zone-controls"><div id="event-zone-list" class="event-zone-list"></div><button id="draw-event-zone" type="button">▧ Neue Zone im Raster aufziehen</button></div>
+                <label id="event-sequence-control">Richtungsfolge <input id="event-sequence" placeholder="up, up, down, down, left, right" /></label>
+                <label id="event-time-control">Nach Sekunden <input id="event-seconds" type="number" min="0" max="3600" step="0.5" /></label>
+                <h3>Darstellung</h3>
+                <label>Symbol <select id="event-visual-type"><option value="kingfisher">Eisvogel</option><option value="paw">Lolas Pfote</option><option value="bell">Kirchenglocke</option><option value="custom">Freies Symbol</option><option value="none">Unsichtbar</option></select></label>
+                <div class="field-row"><label>Position X <input id="event-visual-x" type="number" min="0" step="0.125" /></label><label>Position Y <input id="event-visual-y" type="number" min="0" step="0.125" /></label></div>
+                <div class="field-row compact"><label>Farbe <input id="event-color" type="color" /></label><label>Aktiv-Farbe <input id="event-accent" type="color" /></label></div>
+                <label>Freies Symbol <input id="event-label" maxlength="8" /></label>
+                <label>Sichtbarkeit <select id="event-visibility"><option value="after-trigger">Erst nach Entdeckung</option><option value="always">Immer sichtbar</option></select></label>
+                <button id="place-event-visual" type="button">! Symbolposition im Raster setzen</button>
+                <button id="delete-event" class="danger-subtle" type="button">Ereignis entfernen</button>
+              </div>
+            </section>
+
             <section class="inspector-section" data-inspector="check">
               <div id="validation-status" class="validation-status"></div>
               <div class="metric-grid"><div><strong id="metric-reachable">0</strong><span>erreichbar</span></div><div><strong id="metric-walls">0</strong><span>Wandblöcke</span></div><div><strong id="metric-guttis">0</strong><span>Guttis</span></div><div><strong id="metric-objects">0</strong><span>Objekte</span></div></div>
@@ -177,8 +212,9 @@
     <dialog id="playtest-dialog" class="playtest-dialog">
       <div id="playtest-stage" class="playtest-stage">
         <canvas id="playtest-canvas" aria-label="Spielbare Levelvorschau"></canvas>
-        <div class="playtest-header playtest-overlay"><div><span class="eyebrow">GAME-SIMULATION · 120 TICKS</span><h2>Testlauf</h2></div><div class="playtest-actions"><button id="playtest-camera" type="button" aria-pressed="true">◎ Kamera</button><button id="playtest-fullscreen" type="button">⛶ Vollbild</button><form method="dialog"><button class="modal-close" aria-label="Testlauf schließen">×</button></form></div></div>
+        <div class="playtest-header playtest-overlay"><div><span class="eyebrow">GAME-SIMULATION · 120 TICKS</span><h2>Testlauf</h2></div><div class="playtest-actions"><button id="playtest-language" type="button" title="Niederbairisch ist amtlich natürlich keine eigene Sprache – sagt zumindest das Formular.">DE · Schön</button><button id="playtest-camera" type="button" aria-pressed="true">◎ Kamera</button><button id="playtest-fullscreen" type="button">⛶ Vollbild</button><form method="dialog"><button class="modal-close" aria-label="Testlauf schließen">×</button></form></div></div>
         <div class="playtest-hud playtest-overlay"><span>GUTTIS <strong id="playtest-score">0 / 0</strong></span><span>PUNKTE <strong id="playtest-points">0</strong></span><span>LEBEN <strong id="playtest-lives">0</strong></span><span id="playtest-state">PFEILTASTEN ODER WASD</span><button id="playtest-pause" type="button">Ⅱ Pause</button><button id="playtest-reset" type="button">↺ Neu starten</button></div>
+        <div id="playtest-event" class="playtest-event playtest-overlay" hidden><strong id="playtest-event-name"></strong><span id="playtest-event-message"></span><em id="playtest-event-reward"></em></div>
         <div class="mobile-dpad playtest-overlay" aria-label="Mobile Teststeuerung"><button data-play-direction="up">▲</button><button data-play-direction="left">◀</button><button data-play-direction="down">▼</button><button data-play-direction="right">▶</button></div>
       </div>
     </dialog>
