@@ -1,6 +1,7 @@
 import './style.css';
-import { FixedStepLoop, PassauPixelRenderer, parseLevelDocument, selectAppearanceFrame, tileKey, validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { DirectionalSwipeInput, FixedStepLoop, PassauPixelRenderer, parseLevelDocument, selectAppearanceFrame, stateAnimationId, tileKey, validateLevelDocument } from '@franz-lola/pixel-renderer';
 import { catalogDocument, catalogLevel, passauCatalog, searchCatalog } from './catalog.js';
+import { PLAYER_STATES, createFranzLolaAppearance } from './character-template.js';
 import { DraftRepository } from './draft-repository.js';
 import { createStarterLevel, EditorState } from './editor-state.js';
 import { floodFillPoints, linePoints, previewGuttis, rectanglePoints, worldPointFromScreen } from './editor-tools.js';
@@ -25,7 +26,7 @@ let playtestFrame = null;
 let playtestLoop = null;
 let playtestPaused = false;
 let playtestCameraEnabled = true;
-let playtestGesture = null;
+const playtestSwipe = new DirectionalSwipeInput({ activationDistance: 4, dominanceRatio: 1.08 });
 let playtestEventTimeout = null;
 let playtestLanguage = 'standard';
 let currentPlaytestEvent = null;
@@ -35,7 +36,16 @@ let spritePainting = false;
 let spriteAnimationId = 'base';
 let spriteFrameIndex = 0;
 let spritePreviewFrame = null;
+let spriteActiveState = 'idle';
 let selectedEventIndex = -1;
+let selectedThemeElementIndex = -1;
+
+const playerStateLabels = { idle: 'Idle', up: 'Oben', right: 'Rechts', down: 'Unten', left: 'Links' };
+const playerStateIcons = { idle: '•', up: '↑', right: '→', down: '↓', left: '←' };
+const defaultThemeElements = (landmark) => landmark === 'zauberberg' ? [
+  { id: 'stage-note', animation: { type: 'bob', speed: 1.1, amplitude: 0.125 } },
+  { id: 'stage-lights', animation: { type: 'none', speed: 1, amplitude: 0.15 } },
+] : [];
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -134,7 +144,8 @@ function applyFields() {
     draft.document.actors.cats = draft.document.actors.cats.filter((actor) => actor.x < columns && actor.y < rows);
     draft.document.collectibles.powerUps = draft.document.collectibles.powerUps.filter((point) => point.x < columns && point.y < rows);
     draft.document.decorations = draft.document.decorations.filter((item) => item.x < columns && item.y < rows);
-    draft.document.theme = { id: fields.theme.value, landmark: fields.theme.value, palette: { ground: [fields.ground.value, shade(fields.ground.value, 7), shade(fields.ground.value, -7), shade(fields.ground.value, 13)], curb: fields.curb.value, walls: [fields.wall.value, shade(fields.wall.value, 10), shade(fields.wall.value, -10), shade(fields.wall.value, 18)], water: fields.water.value } };
+    const themeElements = draft.document.theme.landmark === fields.theme.value ? draft.document.theme.elements : defaultThemeElements(fields.theme.value);
+    draft.document.theme = { id: fields.theme.value, landmark: fields.theme.value, palette: { ground: [fields.ground.value, shade(fields.ground.value, 7), shade(fields.ground.value, -7), shade(fields.ground.value, 13)], curb: fields.curb.value, walls: [fields.wall.value, shade(fields.wall.value, 10), shade(fields.wall.value, -10), shade(fields.wall.value, 18)], water: fields.water.value }, elements: themeElements };
   });
   syncFields(); render(); scheduleSave();
 }
@@ -163,10 +174,68 @@ function renderDraftList() {
 
 function loadLevel(level, message = 'Level geladen', { save = false } = {}) {
   if (!level) return;
-  state = new EditorState(level); renderedRevision = -1; renderedLevel = null; cursor = null; gesture = null; selectedEventIndex = -1; syncFields(); render(); renderCatalog();
+  state = new EditorState(level); renderedRevision = -1; renderedLevel = null; cursor = null; gesture = null; selectedEventIndex = -1; selectedThemeElementIndex = -1; syncFields(); render(); renderCatalog();
   $('#draft-status').textContent = save ? 'Neuer Entwurf' : 'Vorlage geladen';
   if (save) scheduleSave();
   showToast(message);
+}
+
+function renderThemeElements() {
+  const elements = state.document.theme.elements ?? [];
+  if (selectedThemeElementIndex >= elements.length) selectedThemeElementIndex = elements.length - 1;
+  const labels = { 'stage-note': ['♪', 'Zauberberg-Note'], 'stage-lights': ['⌁', 'Bühnenlichter'] };
+  $('#theme-element-list').replaceChildren(...elements.map((element, index) => {
+    const button = document.createElement('button'); button.type = 'button'; button.className = index === selectedThemeElementIndex ? 'active' : '';
+    const [icon, name] = labels[element.id] ?? ['◆', element.id]; button.innerHTML = `<span>${icon} ${name}</span><small>${element.animation.type}</small>`;
+    button.addEventListener('click', () => { selectedThemeElementIndex = index; renderThemeElements(); }); return button;
+  }));
+  const selected = elements[selectedThemeElementIndex]; $('#theme-element-empty').hidden = elements.length > 0; $('#theme-element-editor').hidden = !selected;
+  if (!selected) return;
+  $('#theme-element-name').textContent = labels[selected.id]?.[1] ?? selected.id; $('#theme-element-animation').value = selected.animation.type; $('#theme-element-speed').value = selected.animation.speed; $('#theme-element-amplitude').value = selected.animation.amplitude;
+}
+
+function applyThemeElementFields() {
+  if (selectedThemeElementIndex < 0) return;
+  state.mutate('Kulissenanimation ändern', (draft) => { const animation = draft.document.theme.elements[selectedThemeElementIndex]?.animation; if (!animation) return; animation.type = $('#theme-element-animation').value; animation.speed = Number($('#theme-element-speed').value); animation.amplitude = Number($('#theme-element-amplitude').value); });
+  render(); scheduleSave();
+}
+
+function drawAppearancePreview(canvasElement, appearance, { animationId = '', stateName = 'idle', elapsed = 0 } = {}) {
+  if (!canvasElement || !appearance) return;
+  const context = canvasElement.getContext('2d'); context.clearRect(0, 0, canvasElement.width, canvasElement.height); context.imageSmoothingEnabled = false;
+  const rows = selectAppearanceFrame(appearance, { animationId, state: stateName, elapsed });
+  const scale = Math.max(1, Math.floor(Math.min(canvasElement.width / appearance.width, canvasElement.height / appearance.height) * 0.72));
+  const left = Math.floor((canvasElement.width - appearance.width * scale) / 2); const top = Math.floor((canvasElement.height - appearance.height * scale) / 2);
+  rows.forEach((row, y) => [...row].forEach((token, x) => { const color = appearance.palette[Number.parseInt(token, 36)]; if (!color || color === 'transparent') return; context.fillStyle = color; context.fillRect(left + x * scale, top + y * scale, scale, scale); }));
+}
+
+function renderPlayerCharacterPreview(timestamp = performance.now()) {
+  const player = renderedLevel?.actors.player ?? state.toDocument().actors.player;
+  const appearance = player.appearance ?? createFranzLolaAppearance();
+  const stateName = PLAYER_STATES[Math.floor(timestamp / 1400) % PLAYER_STATES.length];
+  drawAppearancePreview($('#player-character-preview'), appearance, { stateName, elapsed: timestamp / 1000 });
+}
+
+function renderPlayerStudio() {
+  const player = state.toDocument().actors.player;
+  const custom = Boolean(player.appearance);
+  const appearance = player.appearance ?? createFranzLolaAppearance();
+  $('#player-character-status').textContent = custom ? `${appearance.animations.length} Animationen · editierbar` : 'Originaldarstellung · editierbare Vorlage bereit';
+  $('#reset-player-character').disabled = !custom;
+  $('#player-state-list').replaceChildren(...PLAYER_STATES.map((stateName) => {
+    const row = document.createElement('div'); row.className = 'player-state-row';
+    const label = document.createElement('strong'); label.textContent = `${playerStateIcons[stateName]} ${playerStateLabels[stateName]}`;
+    const select = document.createElement('select'); select.setAttribute('aria-label', `Animation für ${playerStateLabels[stateName]}`);
+    select.append(...appearance.animations.map((animation) => new Option(animation.id, animation.id))); select.value = stateAnimationId(appearance, stateName);
+    select.addEventListener('change', () => {
+      state.mutate(`${playerStateLabels[stateName]}-Animation zuordnen`, (draft) => {
+        const actor = draft.document.actors.player; actor.appearance ??= createFranzLolaAppearance(); actor.appearance.stateAnimations ??= {}; actor.appearance.stateAnimations[stateName] = select.value; actor.animation = ''; actor.renderer = 'pixel-art';
+      }); render(); scheduleSave();
+    });
+    const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Bearbeiten'; edit.addEventListener('click', () => openSpriteDesigner({ target: 'player', state: stateName, separate: true }));
+    row.append(label, select, edit); return row;
+  }));
+  renderPlayerCharacterPreview();
 }
 
 function renderActorList() {
@@ -176,6 +245,7 @@ function renderActorList() {
     button.innerHTML = `<span style="--actor-color:${item.actor.color ?? '#4ce0b3'}">${item.kind === 'player' ? '●' : '◆'}</span><strong>${item.name}</strong><small>${item.actor.x}, ${item.actor.y}${item.actor.appearance ? ' · EIGENE PIXEL' : ''}</small>`;
     button.addEventListener('click', () => { state.selected = { kind: item.kind, index: item.index }; switchInspector('figures'); render(); }); return button;
   }));
+  renderPlayerStudio();
   renderSelectionCard();
 }
 
@@ -196,7 +266,7 @@ function renderSelectionCard() {
     settings.innerHTML = `<label class="wide">Animation<select data-setting="animationType"><option value="none">Keine</option><option value="bob">Schweben</option><option value="pulse">Pulsieren</option><option value="blink">Blinken</option><option value="spin">Drehen</option></select></label><label>Tempo<input data-setting="animationSpeed" type="number" min="0.1" max="12" step="0.1" value="${object.animation.speed}"></label><label>Stärke<input data-setting="animationAmplitude" type="number" min="0" max="1" step="0.05" value="${object.animation.amplitude}"></label>`;
     settings.querySelector('[data-setting="animationType"]').value = object.animation.type;
   }
-  if (['player', 'cat'].includes(state.selected.kind) && object.appearance?.animations?.length) {
+  if (state.selected.kind === 'cat' && object.appearance?.animations?.length) {
     const labelElement = document.createElement('label'); labelElement.className = 'wide'; labelElement.textContent = 'Animation im Spiel';
     const select = document.createElement('select'); select.dataset.setting = 'actorAnimation'; select.append(new Option('Automatisch (idle / walk)', ''), ...object.appearance.animations.map((animation) => new Option(animation.id, animation.id))); select.value = object.animation ?? ''; labelElement.append(select); settings.append(labelElement);
   }
@@ -295,6 +365,7 @@ function render() {
   $('#stage-level-name').textContent = level.name.standard; $('#stage-level-id').textContent = level.id; $('#undo').disabled = state.history.length === 0; $('#redo').disabled = state.future.length === 0;
   $('#restore-template').disabled = !passauCatalog.some((entry) => entry.id === level.id);
   validationView(level, pellets); renderActorList(); renderEventList();
+  renderThemeElements();
   canvas.style.aspectRatio = `${level.board.columns} / ${level.board.rows}`;
 }
 
@@ -307,6 +378,7 @@ function animateEditorCanvas(timestamp) {
     const powerUps = new Set(level.collectibles.powerUps.map((point) => tileKey(point.x, point.y)));
     renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, { cameraEnabled: false, alpha: 1, editor: { showGrid: $('#show-grid').checked, showEvents: $('#show-events').checked, showEventZones: $('#show-events').checked, cursor } });
   }
+  renderPlayerCharacterPreview(timestamp);
   requestAnimationFrame(animateEditorCanvas);
 }
 
@@ -404,12 +476,42 @@ function defaultSprite() {
   return { width: 8, height: 8, palette: ['transparent', '#ff6b5f', '#f4eee0', '#17212a'], pixels: ['00111100', '01111110', '11211211', '11122111', '11111111', '01111110', '01000010', '00100100'], animations: [] };
 }
 
-function openSpriteDesigner() {
-  const object = state.selectedObject(); spriteDraft = clone(object?.appearance ?? nextCatAppearance ?? defaultSprite());
-  spriteDraft.animations ??= [];
+function spriteAppearanceForTarget(targetValue) {
+  if (targetValue === 'player') return state.document.actors.player.appearance ?? createFranzLolaAppearance();
+  if (targetValue.startsWith('cat-')) return state.document.actors.cats[Number(targetValue.split('-')[1])]?.appearance ?? defaultSprite();
+  return nextCatAppearance ?? defaultSprite();
+}
+
+function activateSpriteState(stateName, { separate = false } = {}) {
+  if ($('#sprite-target').value !== 'player' || !PLAYER_STATES.includes(stateName)) return;
+  spriteDraft.stateAnimations ??= {};
+  let animationId = spriteDraft.stateAnimations[stateName];
+  const animation = spriteDraft.animations.find((item) => item.id === animationId);
+  const shared = PLAYER_STATES.some((other) => other !== stateName && spriteDraft.stateAnimations[other] === animationId);
+  if (!animation || (separate && shared)) {
+    const sourceFrames = animation?.frames?.length
+      ? animation.frames.map((frame) => ({ pixels: [...frame.pixels] }))
+      : [{ pixels: [...spriteDraft.pixels] }, { pixels: [...spriteDraft.pixels] }];
+    let candidate = stateName; let suffix = 2;
+    while (spriteDraft.animations.some((item) => item.id === candidate)) { candidate = `${stateName}-${suffix}`; suffix += 1; }
+    spriteDraft.animations.push({ id: candidate, fps: animation?.fps ?? (stateName === 'idle' ? 2 : 8), loop: animation?.loop ?? true, frames: sourceFrames });
+    animationId = candidate; spriteDraft.stateAnimations[stateName] = animationId;
+  }
+  spriteActiveState = stateName; spriteAnimationId = animationId; spriteFrameIndex = 0;
+}
+
+function loadSpriteTarget(targetValue, { stateName = 'idle', separate = false } = {}) {
+  spriteDraft = clone(spriteAppearanceForTarget(targetValue)); spriteDraft.animations ??= []; spriteDraft.stateAnimations ??= {};
+  spritePaletteIndex = Math.min(1, spriteDraft.palette.length - 1); spriteAnimationId = 'base'; spriteFrameIndex = 0; spriteActiveState = stateName;
+  if (targetValue === 'player') activateSpriteState(stateName, { separate });
+  renderSpriteDesigner();
+}
+
+function openSpriteDesigner(options = {}) {
+  if (options instanceof Event) options = {};
   const target = $('#sprite-target'); target.replaceChildren(new Option('Nächste Katze', 'next-cat'), new Option('Franz & Lola', 'player'), ...state.document.actors.cats.map((_, index) => new Option(`Katze ${index + 1}`, `cat-${index}`)));
-  if (state.selected?.kind === 'player') target.value = 'player'; else if (state.selected?.kind === 'cat') target.value = `cat-${state.selected.index}`; else target.value = 'next-cat';
-  spritePaletteIndex = 1; spriteAnimationId = 'base'; spriteFrameIndex = 0; renderSpriteDesigner(); $('#sprite-dialog').showModal(); startSpritePreview();
+  const targetValue = options.target ?? (state.selected?.kind === 'player' ? 'player' : state.selected?.kind === 'cat' ? `cat-${state.selected.index}` : 'next-cat'); target.value = targetValue;
+  loadSpriteTarget(targetValue, { stateName: options.state ?? 'idle', separate: Boolean(options.separate) }); $('#sprite-dialog').showModal(); startSpritePreview();
 }
 
 function selectedSpriteAnimation() { return spriteDraft.animations.find((animation) => animation.id === spriteAnimationId) ?? null; }
@@ -434,11 +536,20 @@ function renderSpriteDesigner() {
   $('#sprite-delete-animation').disabled = !animation;
   $('#sprite-fps').disabled = !animation; $('#sprite-loop').disabled = !animation;
   $('#sprite-fps').value = animation?.fps ?? 6; $('#sprite-loop').checked = animation?.loop ?? true;
+  const playerTarget = $('#sprite-target').value === 'player'; $('#sprite-state-panel').hidden = !playerTarget;
+  if (playerTarget) {
+    $('#sprite-state-tabs').replaceChildren(...PLAYER_STATES.map((stateName) => {
+      const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(stateName === spriteActiveState)); button.className = stateName === spriteActiveState ? 'active' : ''; button.textContent = playerStateIcons[stateName]; button.title = playerStateLabels[stateName];
+      button.addEventListener('click', () => { activateSpriteState(stateName); renderSpriteDesigner(); }); return button;
+    }));
+    $('#sprite-state-copy').textContent = `${playerStateLabels[spriteActiveState]} verwendet „${spriteDraft.stateAnimations[spriteActiveState] || 'keine Animation'}“. Die Animationsauswahl darunter ändert diese Zuordnung.`;
+  }
   const grid = $('#sprite-grid'); grid.style.setProperty('--sprite-columns', spriteDraft.width); grid.replaceChildren();
   currentSpriteRows().forEach((row, y) => [...row].forEach((token, x) => {
     const index = Number.parseInt(token, 36); const button = document.createElement('button'); button.type = 'button'; button.dataset.x = x; button.dataset.y = y;
     button.style.background = spriteDraft.palette[index] === 'transparent' ? 'transparent' : spriteDraft.palette[index]; button.setAttribute('aria-label', `Pixel ${x}, ${y}`); grid.append(button);
   }));
+  $('#sprite-frame-list').replaceChildren(...(animation?.frames ?? []).map((_, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = index === spriteFrameIndex ? 'active' : ''; button.textContent = String(index + 1); button.setAttribute('aria-label', `Frame ${index + 1}`); button.addEventListener('click', () => { spriteFrameIndex = index; renderSpriteDesigner(); }); return button; }));
   $('#sprite-palette').replaceChildren(...spriteDraft.palette.map((color, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = index === spritePaletteIndex ? 'active' : ''; button.style.setProperty('--palette-color', color === 'transparent' ? '#101820' : color); button.textContent = index === 0 ? '⌫' : String(index); button.addEventListener('click', () => { spritePaletteIndex = index; renderSpriteDesigner(); }); return button; }));
 }
 
@@ -461,7 +572,7 @@ function startSpritePreview() {
 function saveSprite() {
   const target = $('#sprite-target').value;
   if (target === 'next-cat') nextCatAppearance = clone(spriteDraft);
-  else state.mutate('Pixel-Figur gestalten', (draft) => { draft.selected = target === 'player' ? { kind: 'player', index: 0 } : { kind: 'cat', index: Number(target.split('-')[1]) }; draft.setSelectedAppearance(spriteDraft); });
+  else state.mutate('Pixel-Figur gestalten', (draft) => { draft.selected = target === 'player' ? { kind: 'player', index: 0 } : { kind: 'cat', index: Number(target.split('-')[1]) }; draft.setSelectedAppearance(spriteDraft); if (target === 'player') draft.document.actors.player.animation = ''; });
   $('#sprite-dialog').close(); render(); scheduleSave(); showToast('Pixel-Figur übernommen');
 }
 
@@ -493,6 +604,7 @@ function showPlaytestEvent(payload) {
 
 function stopPlaytest() {
   cancelAnimationFrame(playtestFrame); clearTimeout(playtestEventTimeout); playtestFrame = null; playtestLoop = null; playtest = null; playtestRenderer = null;
+  playtestSwipe.cancel();
   $('#playtest-dialog').classList.remove('immersive');
   if (document.fullscreenElement === $('#playtest-stage')) document.exitFullscreen().catch(() => {});
 }
@@ -504,6 +616,8 @@ function renderPlaytest(alpha = 1) {
   $('#playtest-score').textContent = `${snapshot.collected} / ${total}`; $('#playtest-points').textContent = String(snapshot.score); $('#playtest-lives').textContent = String(snapshot.lives);
   const copy = playtestPaused ? 'PAUSE' : snapshot.state === 'won' ? '✓ LEVEL GESCHAFFT' : snapshot.state === 'lost' ? 'KEINE LEBEN MEHR' : snapshot.state === 'hit' ? 'AUTSCH!' : snapshot.powerTimer > 0 ? `POWER ${snapshot.powerTimer.toFixed(1)} s` : 'PFEILTASTEN · WASD · WISCHEN';
   $('#playtest-state').textContent = copy;
+  $('#playtest-canvas').dataset.playerDirection = snapshot.player.dir.name;
+  $('#playtest-canvas').dataset.playerNextDirection = snapshot.player.nextDir.name;
 }
 
 function playDirection(name) { if (playtest) playtest.setDirection(name); }
@@ -523,19 +637,23 @@ $$('.inspector-tabs [role=tab]').forEach((button) => button.addEventListener('cl
 Object.values(fields).filter((field) => !field.id.startsWith('cat-') && !field.id.startsWith('decoration-')).forEach((field) => field.addEventListener('change', applyFields));
 Object.values(profileFields).forEach((field) => field.addEventListener('change', applyProfileFields));
 Object.values(eventFields).forEach((field) => field.addEventListener('change', applyEventFields));
+[$('#theme-element-animation'), $('#theme-element-speed'), $('#theme-element-amplitude')].forEach((field) => field.addEventListener('change', applyThemeElementFields));
 $('#catalog-search').addEventListener('input', () => renderCatalog()); $('#undo').addEventListener('click', () => { if (state.undo()) { syncFields(); render(); scheduleSave(); } }); $('#redo').addEventListener('click', () => { if (state.redo()) { syncFields(); render(); scheduleSave(); } });
 $('#new-level').addEventListener('click', () => loadLevel(createStarterLevel(), 'Leeres Level angelegt', { save: true })); $('#clear-cats').addEventListener('click', () => { state.mutate('Alle Katzen entfernen', (draft) => { draft.document.actors.cats = []; draft.selected = null; }); render(); scheduleSave(); });
 $('#show-guttis').addEventListener('change', render); $('#show-grid').addEventListener('change', render); $('#show-events').addEventListener('change', render); $('#preview-difficulty').addEventListener('change', () => { syncProfileFields(); render(); });
 $('#zoom-level').addEventListener('input', (event) => { const zoom = Number(event.target.value); $('#zoom-copy').textContent = `${zoom}%`; canvas.style.width = `${zoom}%`; renderer.resize(); render(); });
-$('#help-button').addEventListener('click', () => $('#help-dialog').showModal()); $('#quick-tour').addEventListener('click', () => $('#help-dialog').showModal()); $('#sprite-designer-button').addEventListener('click', openSpriteDesigner);
+$('#help-button').addEventListener('click', () => $('#help-dialog').showModal()); $('#quick-tour').addEventListener('click', () => $('#help-dialog').showModal()); $('#sprite-designer-button').addEventListener('click', () => openSpriteDesigner({ target: 'next-cat' }));
+$('#edit-player-character').addEventListener('click', () => openSpriteDesigner({ target: 'player', state: 'idle' }));
+$('#reset-player-character').addEventListener('click', () => { state.mutate('Originalfigur wiederherstellen', (draft) => { const player = draft.document.actors.player; player.appearance = null; player.animation = ''; player.renderer = 'franz-lola'; }); render(); scheduleSave(); showToast('Originaldarstellung von Franz & Lola aktiviert'); });
 $('#sprite-add-color').addEventListener('click', () => { const color = $('#sprite-color').value; if (!spriteDraft.palette.includes(color) && spriteDraft.palette.length < 10) spriteDraft.palette.push(color); spritePaletteIndex = spriteDraft.palette.indexOf(color); renderSpriteDesigner(); });
-$('#sprite-animation').addEventListener('change', (event) => { spriteAnimationId = event.target.value; spriteFrameIndex = 0; renderSpriteDesigner(); });
+$('#sprite-target').addEventListener('change', (event) => loadSpriteTarget(event.target.value));
+$('#sprite-animation').addEventListener('change', (event) => { spriteAnimationId = event.target.value; spriteFrameIndex = 0; if ($('#sprite-target').value === 'player' && spriteAnimationId !== 'base') spriteDraft.stateAnimations[spriteActiveState] = spriteAnimationId; renderSpriteDesigner(); });
 $('#sprite-add-animation').addEventListener('click', () => {
   const base = ($('#sprite-animation-name').value || 'animation').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'animation'; let id = base; let suffix = 2;
   while (spriteDraft.animations.some((animation) => animation.id === id)) { id = `${base}-${suffix}`; suffix += 1; }
-  spriteDraft.animations.push({ id, fps: 6, loop: true, frames: [{ pixels: [...currentSpriteRows()] }] }); spriteAnimationId = id; spriteFrameIndex = 0; renderSpriteDesigner();
+  spriteDraft.animations.push({ id, fps: 6, loop: true, frames: [{ pixels: [...currentSpriteRows()] }] }); spriteAnimationId = id; if ($('#sprite-target').value === 'player') spriteDraft.stateAnimations[spriteActiveState] = id; spriteFrameIndex = 0; renderSpriteDesigner();
 });
-$('#sprite-delete-animation').addEventListener('click', () => { if (spriteAnimationId === 'base') return; spriteDraft.animations = spriteDraft.animations.filter((animation) => animation.id !== spriteAnimationId); spriteAnimationId = 'base'; spriteFrameIndex = 0; renderSpriteDesigner(); });
+$('#sprite-delete-animation').addEventListener('click', () => { if (spriteAnimationId === 'base') return; const removed = spriteAnimationId; spriteDraft.animations = spriteDraft.animations.filter((animation) => animation.id !== removed); Object.keys(spriteDraft.stateAnimations ?? {}).forEach((stateName) => { if (spriteDraft.stateAnimations[stateName] === removed) spriteDraft.stateAnimations[stateName] = ''; }); spriteAnimationId = 'base'; spriteFrameIndex = 0; renderSpriteDesigner(); });
 $('#sprite-prev-frame').addEventListener('click', () => { const count = selectedSpriteAnimation()?.frames.length ?? 1; spriteFrameIndex = (spriteFrameIndex - 1 + count) % count; renderSpriteDesigner(); });
 $('#sprite-next-frame').addEventListener('click', () => { const count = selectedSpriteAnimation()?.frames.length ?? 1; spriteFrameIndex = (spriteFrameIndex + 1) % count; renderSpriteDesigner(); });
 $('#sprite-add-frame').addEventListener('click', () => { const animation = selectedSpriteAnimation(); if (!animation || animation.frames.length >= 64) return; animation.frames.splice(spriteFrameIndex + 1, 0, { pixels: [...currentSpriteRows()] }); spriteFrameIndex += 1; renderSpriteDesigner(); });
@@ -561,8 +679,16 @@ $('#playtest-fullscreen').addEventListener('click', togglePlaytestFullscreen);
 $$('[data-play-direction]').forEach((button) => button.addEventListener('pointerdown', (event) => { event.preventDefault(); playDirection(button.dataset.playDirection); }));
 $('#playtest-dialog').addEventListener('close', stopPlaytest);
 document.addEventListener('fullscreenchange', () => { $('#playtest-fullscreen').textContent = document.fullscreenElement ? '▣ Fenster' : '⛶ Vollbild'; playtestRenderer?.resize(); renderPlaytest(playtestLoop?.interpolationAlpha ?? 1); });
-$('#playtest-stage').addEventListener('pointerdown', (event) => { if (event.target.closest('button')) return; playtestGesture = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }; });
-$('#playtest-stage').addEventListener('pointerup', (event) => { if (!playtestGesture || playtestGesture.pointerId !== event.pointerId) return; const dx = event.clientX - playtestGesture.x; const dy = event.clientY - playtestGesture.y; playtestGesture = null; if (Math.hypot(dx, dy) < 18) return; playDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); });
+$('#playtest-stage').addEventListener('pointerdown', (event) => { if (event.target.closest('button')) return; event.preventDefault(); playtestSwipe.begin({ x: event.clientX, y: event.clientY, pointerId: event.pointerId }); $('#playtest-stage').setPointerCapture?.(event.pointerId); });
+function processPlaytestSwipe(event, ending = false) {
+  const coalesced = event.getCoalescedEvents?.() ?? []; const samples = coalesced.length ? coalesced : [event];
+  samples.forEach((sample) => { const direction = playtestSwipe.update({ x: sample.clientX, y: sample.clientY, pointerId: event.pointerId }); if (direction) playDirection(direction); });
+  if (ending) { const direction = playtestSwipe.end({ x: event.clientX, y: event.clientY, pointerId: event.pointerId }); if (direction) playDirection(direction); }
+}
+$('#playtest-stage').addEventListener('pointermove', (event) => { if (playtestSwipe.pointerId !== event.pointerId) return; event.preventDefault(); processPlaytestSwipe(event); });
+$('#playtest-stage').addEventListener('pointerup', (event) => { if (playtestSwipe.pointerId !== event.pointerId) return; event.preventDefault(); processPlaytestSwipe(event, true); if ($('#playtest-stage').hasPointerCapture?.(event.pointerId)) $('#playtest-stage').releasePointerCapture(event.pointerId); });
+$('#playtest-stage').addEventListener('pointercancel', () => playtestSwipe.cancel());
+$('#playtest-stage').addEventListener('lostpointercapture', () => playtestSwipe.cancel());
 $('#restore-template').addEventListener('click', () => { const original = catalogLevel(state.document.id); if (!original) return; drafts.remove(original.id); loadLevel(original, 'Originalvorlage wiederhergestellt'); });
 $('#export-level').addEventListener('click', () => { const level = state.toDocument(); const result = validateLevelDocument(level); if (!result.ok) { switchInspector('check'); showToast('Export blockiert: Level enthält Fehler'); return; } downloadJson(level, `${level.id}.level.json`); showToast('Level-JSON exportiert'); });
 $('#export-catalog').addEventListener('click', () => { downloadJson(catalogDocument(), 'passau-original-levels.catalog.json'); showToast('Originalkatalog exportiert'); });

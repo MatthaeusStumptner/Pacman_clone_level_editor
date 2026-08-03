@@ -45,6 +45,13 @@ test('editor testlauf covers the same distance at 60 and 175 Hz', () => {
   assert.ok(Math.abs(run(60) - run(175)) < 1e-6);
 });
 
+test('direct navigation reverses immediately and buffers corners without position jumps', () => {
+  const engine = new PlaytestEngine(level(), 'easy', { pellets: ['1,1'] });
+  engine.player.x = 3.37; engine.player.y = 3; engine.player.dir = DIRECTIONS.right; engine.player.nextDir = DIRECTIONS.right;
+  engine.setDirection('left'); assert.equal(engine.player.dir, DIRECTIONS.left); assert.equal(engine.player.x, 3.37);
+  engine.setDirection('up'); assert.equal(engine.player.dir, DIRECTIONS.left); assert.equal(engine.player.nextDir, DIRECTIONS.up); assert.equal(engine.player.x, 3.37);
+});
+
 test('uses authored difficulty values and actor behavior without editor-only shortcuts', () => {
   const document = level();
   document.gameplay.difficulties.easy = { ...document.gameplay.difficulties.easy, lives: 8, catCount: 1, grace: 0 };

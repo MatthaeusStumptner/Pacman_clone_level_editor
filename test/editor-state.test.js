@@ -57,6 +57,14 @@ test('supports empty cat lists, decorations and custom actor pixels', () => {
   assert.deepEqual(state.toDocument().actors.player.appearance.pixels, ['0110', '1111', '1001', '0110']);
 });
 
+test('preserves player state-to-animation mappings through undo, redo and export', () => {
+  const state = new EditorState(createStarterLevel()); state.selected = { kind: 'player', index: 0 };
+  state.mutate('Spielerzustände', (draft) => draft.setSelectedAppearance({ width: 4, height: 4, palette: ['transparent', '#ffffff'], pixels: ['0110', '1111', '1001', '0110'], animations: ['idle', 'left', 'right', 'up', 'down'].map((id) => ({ id, frames: [{ pixels: ['0110', '1111', '1001', '0110'] }] })), stateAnimations: { idle: 'idle', left: 'left', right: 'right', up: 'up', down: 'down' } }));
+  assert.equal(state.toDocument().actors.player.appearance.stateAnimations.right, 'right');
+  assert.equal(state.undo(), true); assert.equal(state.toDocument().actors.player.appearance, null);
+  assert.equal(state.redo(), true); assert.equal(state.toDocument().actors.player.appearance.stateAnimations.up, 'up');
+});
+
 test('placing walls removes conflicting cats and power-ups', () => {
   const level = createStarterLevel();
   level.actors.cats = [{ x: 5, y: 5, color: '#ff6b5f', accent: '#9e302e' }];

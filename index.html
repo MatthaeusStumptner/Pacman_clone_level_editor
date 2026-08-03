@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#071016" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23071016'/%3E%3Cpath d='M13 13h38v38H13z' fill='none' stroke='%23f5c54d' stroke-width='4'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='monospace' font-weight='700' font-size='24' fill='%2355d9dd'%3EFL%3C/text%3E%3C/svg%3E" />
     <title>Franz & Lola · Levelwerkstatt Pro</title>
   </head>
   <body>
@@ -117,9 +118,25 @@
               <label>Animation <select id="decoration-animation"><option value="none">Keine</option><option value="bob">Schweben</option><option value="pulse">Pulsieren</option><option value="blink">Blinken</option><option value="spin">Drehen</option></select></label>
               <div class="field-row"><label>Tempo <input id="decoration-animation-speed" type="number" min="0.1" max="12" step="0.1" value="1" /></label><label>Stärke <input id="decoration-animation-amplitude" type="number" min="0" max="1" step="0.05" value="0.15" /></label></div>
               <p class="hint">Werkzeug „Deko“ wählen und anschließend ins Raster klicken.</p>
+              <h2>Elemente der Kulisse</h2>
+              <p class="hint">Feste Theme-Elemente wie Zauberberg-Note oder Bühnenlicht auswählen und ihre Bewegung direkt konfigurieren.</p>
+              <div id="theme-element-list" class="theme-element-list"></div>
+              <div id="theme-element-empty" class="selection-card"><p>Dieses Theme besitzt keine einzeln animierbaren Kulissenelemente.</p></div>
+              <div id="theme-element-editor" class="theme-element-editor" hidden>
+                <strong id="theme-element-name"></strong>
+                <label>Animation <select id="theme-element-animation"><option value="none">Keine</option><option value="bob">Schweben</option><option value="pulse">Pulsieren</option><option value="blink">Blinken</option><option value="spin">Drehen</option></select></label>
+                <div class="field-row"><label>Tempo <input id="theme-element-speed" type="number" min="0.1" max="12" step="0.1" /></label><label>Stärke <input id="theme-element-amplitude" type="number" min="0" max="1" step="0.025" /></label></div>
+              </div>
             </section>
 
             <section class="inspector-section" data-inspector="figures">
+              <h2>Dein Gamecharakter</h2>
+              <div class="character-studio-card">
+                <canvas id="player-character-preview" width="160" height="160" aria-label="Animierte Vorschau von Franz und Lola"></canvas>
+                <div class="character-studio-copy"><strong>Franz & Lola</strong><span id="player-character-status">Original-Pixelrenderer</span><p>Baue den gemeinsamen Spieler als Pixel-Figur und bestimme für jede Blickrichtung eine eigene Animation.</p></div>
+                <div id="player-state-list" class="player-state-list"></div>
+                <div class="character-studio-actions"><button id="edit-player-character" type="button">▦ Franz & Lola bearbeiten</button><button id="reset-player-character" class="danger-subtle" type="button">Originaldarstellung verwenden</button></div>
+              </div>
               <h2>Figuren im Level</h2>
               <div id="actor-list" class="actor-list"></div>
               <div id="selection-card" class="selection-card"><p>Mit „Auswahl“ eine Figur oder Dekoration anklicken.</p></div>
@@ -137,7 +154,7 @@
               </div>
               <h2>Nächste Katze</h2>
               <div class="field-row compact"><label>Fell <input id="cat-color" type="color" value="#ff6b5f" /></label><label>Akzent <input id="cat-accent" type="color" value="#9e302e" /></label></div>
-              <button id="sprite-designer-button" type="button">▦ Eigene Pixel-Figur gestalten</button>
+              <button id="sprite-designer-button" type="button">▦ Nächste Katze gestalten</button>
               <button id="clear-cats" class="danger-subtle" type="button">Alle Katzen entfernen</button>
             </section>
 
@@ -193,14 +210,17 @@
 
     <dialog id="sprite-dialog" class="modal sprite-dialog">
       <form method="dialog"><button class="modal-close" aria-label="Figurendesigner schließen">×</button></form>
-      <span class="eyebrow">PIXEL-FIGURENATELIER</span><h2>Jedes Pixel selbst bestimmen</h2>
+      <span class="eyebrow">PIXEL-FIGURENATELIER</span><h2>Figur, Zustand und Bewegung gestalten</h2>
       <div class="sprite-workspace">
         <div><div id="sprite-grid" class="sprite-grid" aria-label="Pixelraster"></div><canvas id="sprite-preview" width="192" height="192" aria-label="Animierte Vorschau"></canvas></div>
         <div class="sprite-controls">
           <label>Ziel <select id="sprite-target"><option value="next-cat">Nächste Katze</option><option value="player">Franz & Lola</option></select></label>
+          <div id="sprite-state-panel"><strong>Spielerzustand</strong><div id="sprite-state-tabs" class="sprite-state-tabs" role="tablist" aria-label="Spielerzustand auswählen"></div><p id="sprite-state-copy" class="hint"></p></div>
           <label>Animation <select id="sprite-animation"><option value="base">Standbild</option></select></label>
-          <div class="inline-controls"><input id="sprite-animation-name" value="walk" aria-label="Name der neuen Animation" /><button id="sprite-add-animation" type="button">＋ Animation</button><button id="sprite-delete-animation" class="danger-subtle" type="button">Löschen</button></div>
+          <div class="animation-create-row"><label>Neue Animation <input id="sprite-animation-name" value="walk" aria-label="Name der neuen Animation" /></label><button id="sprite-add-animation" type="button">＋ Anlegen</button></div>
+          <button id="sprite-delete-animation" class="danger-subtle" type="button">Gewählte Animation löschen</button>
           <div class="frame-controls"><button id="sprite-prev-frame" type="button" aria-label="Vorheriger Frame">◀</button><strong id="sprite-frame-copy">Standbild</strong><button id="sprite-next-frame" type="button" aria-label="Nächster Frame">▶</button></div>
+          <div id="sprite-frame-list" class="sprite-frame-list" aria-label="Animationsframes"></div>
           <div class="inline-controls"><button id="sprite-add-frame" type="button">＋ Frame duplizieren</button><button id="sprite-delete-frame" class="danger-subtle" type="button">Frame löschen</button></div>
           <div class="field-row"><label>FPS <input id="sprite-fps" type="number" min="0.25" max="30" step="0.25" value="6" /></label><label class="switch"><input id="sprite-loop" type="checkbox" checked /><span>Schleife</span></label></div>
           <div id="sprite-palette" class="sprite-palette"></div><label>Farbe <input id="sprite-color" type="color" value="#ff6b5f" /></label><button id="sprite-add-color" type="button">Farbe übernehmen</button><button id="sprite-clear" type="button">Frame leeren</button><button id="sprite-mirror" type="button">Horizontal spiegeln</button>

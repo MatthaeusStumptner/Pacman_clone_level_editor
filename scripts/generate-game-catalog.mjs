@@ -87,6 +87,10 @@ const levels = locations.map((location) => ({
     id: location.theme ?? 'neighborhood',
     landmark: location.home ? 'brahmahof-home' : (location.theme ?? 'dog-park'),
     palette: location.palette,
+    ...((location.theme === 'zauberberg') ? { elements: [
+      { id: 'stage-note', animation: { type: 'bob', speed: 1.1, amplitude: 0.125 } },
+      { id: 'stage-lights', animation: { type: 'none', speed: 1, amplitude: 0.15 } },
+    ] } : {}),
   },
   actors: { player, cats },
   collectibles: { powerUps },

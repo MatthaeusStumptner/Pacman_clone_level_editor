@@ -159,6 +159,19 @@ h1 small { color: var(--gold); font-size: .54rem; vertical-align: top; }
 .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
 .hint { color: var(--muted); font-size: .64rem; line-height: 1.45; }
 .actor-list { display: grid; gap: .34rem; }
+.character-studio-card { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: .65rem; border: 1px solid #35575d; border-radius: 9px; padding: .7rem; background: linear-gradient(145deg, #10262d, #0a171d); }
+#player-character-preview { display: block; width: 92px; height: 92px; grid-row: span 2; border: 1px solid #426269; border-radius: 7px; background: repeating-conic-gradient(#0b171c 0 25%, #12242b 0 50%) 50% / 16px 16px; image-rendering: pixelated; }
+.character-studio-copy strong, .character-studio-copy span { display: block; }
+.character-studio-copy strong { color: var(--gold); font-size: .8rem; }
+.character-studio-copy span { margin-top: .18rem; color: var(--good); font-size: .58rem; font-weight: 850; text-transform: uppercase; }
+.character-studio-copy p { margin: .35rem 0 0; color: var(--muted); font-size: .61rem; line-height: 1.4; }
+.player-state-list { grid-column: 1 / -1; display: grid; gap: .28rem; }
+.player-state-row { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: .35rem; }
+.player-state-row strong { color: #c8d7d5; font-size: .59rem; }
+.player-state-row select { min-width: 0; padding: .34rem; font-size: .59rem; }
+.player-state-row button { min-height: 31px; padding: .25rem .45rem; font-size: .58rem; }
+.character-studio-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.character-studio-actions button { min-height: 35px; padding: .4rem; font-size: .61rem; }
 .actor-list button { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .45rem; min-height: 39px; text-align: left; font-size: .67rem; }
 .actor-list button.active { border-color: var(--accent); background: #143139; }
 .actor-swatch { width: 18px; height: 18px; border: 2px solid var(--actor-accent, #fff); border-radius: 50%; background: var(--actor-color, var(--gold)); }
@@ -181,6 +194,12 @@ h1 small { color: var(--gold); font-size: .54rem; vertical-align: top; }
 .event-list strong, .event-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event-list small { margin-top: .12rem; color: var(--muted); font-size: .56rem; }
 #add-event { width: 100%; }
+.theme-element-list { display: grid; gap: .32rem; }
+.theme-element-list button { display: flex; align-items: center; justify-content: space-between; gap: .4rem; text-align: left; }
+.theme-element-list button.active { border-color: var(--accent); background: #143139; }
+.theme-element-list small { color: var(--muted); font-size: .56rem; }
+.theme-element-editor { margin-top: .55rem; border: 1px solid #29464c; border-radius: 7px; padding: .6rem; background: #09171d; }
+.theme-element-editor > strong { color: var(--gold); font-size: .69rem; }
 .event-editor { margin-top: .7rem; border-top: 1px solid var(--line); padding-top: .6rem; }
 .event-zone-list { display: grid; gap: .28rem; margin-bottom: .4rem; }
 .event-zone-list > div { display: flex; align-items: center; justify-content: space-between; gap: .35rem; border: 1px solid #29464c; border-radius: 6px; padding: .3rem .35rem .3rem .5rem; color: var(--muted); background: #09171d; font-size: .59rem; }
@@ -210,6 +229,14 @@ h1 small { color: var(--gold); font-size: .54rem; vertical-align: top; }
 .sprite-grid { display: grid; grid-template-columns: repeat(var(--sprite-columns, 8), 1fr); align-self: start; aspect-ratio: 1; border: 2px solid #496b70; background: #0c181d; image-rendering: pixelated; touch-action: none; }
 .sprite-grid button { min-height: 0; aspect-ratio: 1; border: 1px solid rgba(255,255,255,.09); border-radius: 0; padding: 0; background: var(--pixel-color); }
 .sprite-controls { display: grid; align-content: start; gap: .45rem; }
+.sprite-state-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: .22rem; margin-top: .35rem; }
+.sprite-state-tabs button { min-height: 34px; padding: .2rem; font-size: .82rem; }
+.sprite-state-tabs button.active { border-color: var(--gold); color: #101b1f; background: var(--gold); }
+#sprite-state-panel > strong { color: var(--gold); font-size: .65rem; }
+#sprite-state-copy { margin: .3rem 0 0; }
+.sprite-frame-list { display: flex; gap: .25rem; overflow-x: auto; padding: .15rem 0 .25rem; }
+.sprite-frame-list button { flex: 0 0 34px; min-height: 30px; padding: .2rem; color: var(--muted); font-size: .58rem; }
+.sprite-frame-list button.active { border-color: var(--accent); color: #0b171c; background: var(--accent); }
 .sprite-controls label { display: grid; gap: .25rem; color: var(--muted); font-size: .65rem; }
 .sprite-palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: .25rem; }
 .sprite-palette button { min-height: 32px; border-color: var(--palette-color); padding: 0; background: var(--palette-color); text-shadow: 0 1px 2px #000; }
@@ -217,6 +244,9 @@ h1 small { color: var(--gold); font-size: .54rem; vertical-align: top; }
 #sprite-preview { display: block; width: 96px; height: 96px; margin: .65rem auto 0; border: 1px solid #35545b; background: repeating-conic-gradient(#0b171c 0 25%, #12242b 0 50%) 50% / 16px 16px; image-rendering: pixelated; }
 .inline-controls, .frame-controls { display: flex; align-items: center; gap: .35rem; }
 .inline-controls > * { min-width: 0; flex: 1; }
+.animation-create-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .35rem; }
+.animation-create-row label { min-width: 0; }
+.animation-create-row button { white-space: nowrap; }
 .frame-controls { justify-content: space-between; }
 .frame-controls button { width: 38px; padding: 0; }
 .frame-controls strong { color: var(--gold); font-size: .66rem; }
@@ -296,7 +326,11 @@ h1 small { color: var(--gold); font-size: .54rem; vertical-align: top; }
   .catalog-list { grid-template-columns: 1fr; }
   .field-row, .field-row.compact { grid-template-columns: 1fr; }
   .sprite-workspace { grid-template-columns: 1fr; }
-  .sprite-controls { grid-template-columns: 1fr 1fr; }
+  .sprite-controls { grid-template-columns: 1fr; }
+  .animation-create-row { grid-template-columns: 1fr; }
+  .character-studio-card { grid-template-columns: 76px minmax(0, 1fr); }
+  #player-character-preview { width: 76px; height: 76px; }
+  .player-state-list, .character-studio-actions { grid-column: 1 / -1; }
   .shortcut-grid { grid-template-columns: auto 1fr; }
   .playtest-hud { flex-wrap: wrap; }
 }

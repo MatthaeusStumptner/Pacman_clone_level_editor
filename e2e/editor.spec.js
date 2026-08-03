@@ -87,18 +87,52 @@ test('custom decorations and pixel actors survive editing and validation', async
   expect(paintedPreview).toBe(true);
   await page.locator('#sprite-save').click();
   await expect(page.locator('#actor-list')).toContainText('EIGENE PIXEL');
-  await page.locator('#selection-card [data-setting="actorAnimation"]').selectOption('walk');
+  await expect(page.getByLabel('Animation für Idle')).toHaveValue('walk');
   await page.waitForTimeout(300); await page.reload();
   await page.locator('[data-panel="figures"]').click();
-  await page.locator('#actor-list button').first().click();
-  await expect(page.locator('#selection-card [data-setting="actorAnimation"]')).toHaveValue('walk');
-  await page.locator('#selection-card button').filter({ hasText: 'Pixel-Design' }).click();
+  await expect(page.getByLabel('Animation für Idle')).toHaveValue('walk');
+  await page.locator('#edit-player-character').click();
   await page.locator('#sprite-animation').selectOption('walk');
   await expect(page.locator('#sprite-fps')).toHaveValue('8');
   await page.locator('#sprite-dialog .modal-close').click();
   await page.locator('[data-panel="check"]').click();
   await expect(page.locator('#validation-status')).toContainText('Level ist spielbar');
   expect(errors).toEqual([]);
+});
+
+test('Franz and Lola have a dedicated five-state character animation workflow', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await page.locator('#new-level').click(); await page.locator('[data-panel="figures"]').click();
+  await expect(page.locator('#player-state-list .player-state-row')).toHaveCount(5);
+  await expect(page.locator('#player-character-status')).toContainText('editierbare Vorlage');
+  await page.locator('#edit-player-character').click(); await expect(page.locator('#sprite-dialog')).toBeVisible();
+  await expect(page.locator('#sprite-state-tabs [role="tab"]')).toHaveCount(5);
+  await expect(page.locator('#sprite-animation')).toHaveValue('idle'); await expect(page.locator('#sprite-frame-list button')).toHaveCount(2);
+  await page.locator('#sprite-state-tabs button[title="Rechts"]').click();
+  await expect(page.locator('#sprite-animation')).toHaveValue('right'); await expect(page.locator('#sprite-state-copy')).toContainText('Rechts verwendet „right“');
+  await page.locator('#sprite-grid button[data-x="0"][data-y="0"]').click(); await page.locator('#sprite-add-frame').click();
+  await expect(page.locator('#sprite-frame-list button')).toHaveCount(3); await page.locator('#sprite-save').click();
+  await expect(page.locator('#player-character-status')).toContainText('5 Animationen');
+  await expect(page.getByLabel('Animation für Rechts')).toHaveValue('right');
+  await page.waitForTimeout(300); await page.reload(); await page.locator('[data-panel="figures"]').click();
+  await expect(page.getByLabel('Animation für Rechts')).toHaveValue('right'); expect(errors).toEqual([]);
+});
+
+test('built-in Zauberberg elements can be selected and animated without code', async ({ page }) => {
+  const errors = await openCleanEditor(page); await page.locator('[data-level-id="zauberberg"]').click(); await page.locator('[data-panel="design"]').click();
+  await expect(page.locator('#theme-element-list button')).toHaveCount(2); await page.locator('#theme-element-list button').filter({ hasText: 'Zauberberg-Note' }).click();
+  await expect(page.locator('#theme-element-animation')).toHaveValue('bob'); await page.locator('#theme-element-animation').selectOption('spin'); await page.locator('#theme-element-speed').fill('2.5'); await page.locator('#theme-element-speed').blur();
+  await page.waitForTimeout(300); await page.reload(); await page.locator('[data-panel="design"]').click(); await page.locator('#theme-element-list button').filter({ hasText: 'Zauberberg-Note' }).click();
+  await expect(page.locator('#theme-element-animation')).toHaveValue('spin'); await expect(page.locator('#theme-element-speed')).toHaveValue('2.5'); expect(errors).toEqual([]);
+});
+
+test('keyboard and swipe navigation react before release without teleporting', async ({ page }) => {
+  const errors = await openCleanEditor(page); await page.locator('#playtest-button').click();
+  await page.keyboard.press('ArrowRight'); await expect.poll(() => page.locator('#playtest-canvas').getAttribute('data-player-direction')).toBe('right');
+  const stage = await page.locator('#playtest-stage').boundingBox(); if (!stage) throw new Error('Testlauf besitzt keine sichtbare Fläche.');
+  const x = stage.x + stage.width / 2; const y = stage.y + stage.height / 2; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y - 12, { steps: 3 });
+  await expect.poll(() => page.locator('#playtest-canvas').getAttribute('data-player-next-direction')).toBe('up'); await page.mouse.up();
+  await page.locator('#playtest-dialog .modal-close').click(); expect(errors).toEqual([]);
 });
 
 test('authored cat behavior, difficulty, camera and fullscreen use the game simulation', async ({ page }) => {

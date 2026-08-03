@@ -2800,7 +2800,25 @@
             "#7a354e"
           ],
           "water": "#2e5375"
-        }
+        },
+        "elements": [
+          {
+            "id": "stage-note",
+            "animation": {
+              "type": "bob",
+              "speed": 1.1,
+              "amplitude": 0.125
+            }
+          },
+          {
+            "id": "stage-lights",
+            "animation": {
+              "type": "none",
+              "speed": 1,
+              "amplitude": 0.15
+            }
+          }
+        ]
       },
       "actors": {
         "player": {
