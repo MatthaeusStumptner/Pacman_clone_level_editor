@@ -1,0 +1,39 @@
+name: Deploy secure level publisher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'publisher/**'
+      - '.github/workflows/deploy-publisher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: level-publisher
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: vars.PUBLISHER_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: publisher
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: publisher/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm audit
+      - name: Worker veröffentlichen
+        run: npm run deploy

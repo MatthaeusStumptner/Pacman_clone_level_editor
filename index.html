@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#071016" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev; object-src 'none'; base-uri 'none'; form-action 'self' https://github.com" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23071016'/%3E%3Cpath d='M13 13h38v38H13z' fill='none' stroke='%23f5c54d' stroke-width='4'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='monospace' font-weight='700' font-size='24' fill='%2355d9dd'%3EFL%3C/text%3E%3C/svg%3E" />
     <title>Franz & Lola · Levelwerkstatt Pro</title>
   </head>
@@ -21,6 +22,7 @@
           <button id="export-level" type="button" title="Aktuelles Level als JSON speichern (Strg+S)">⇩ Level</button>
           <button id="export-catalog" type="button" title="Alle neun Originalvorlagen exportieren">⇩ Katalog</button>
           <button id="playtest-button" class="primary" type="button">▶ Testlauf</button>
+          <button id="publish-level" class="publish-button" type="button">☁ Veröffentlichen</button>
           <button id="help-button" class="icon-button" type="button" aria-label="Hilfe öffnen">?</button>
         </div>
       </header>
@@ -237,6 +239,39 @@
         <div id="playtest-event" class="playtest-event playtest-overlay" hidden><strong id="playtest-event-name"></strong><span id="playtest-event-message"></span><em id="playtest-event-reward"></em></div>
         <div class="mobile-dpad playtest-overlay" aria-label="Mobile Teststeuerung"><button data-play-direction="up">▲</button><button data-play-direction="left">◀</button><button data-play-direction="down">▼</button><button data-play-direction="right">▶</button></div>
       </div>
+    </dialog>
+
+    <dialog id="publish-dialog" class="modal publish-dialog">
+      <form method="dialog"><button class="modal-close" aria-label="Veröffentlichung schließen">×</button></form>
+      <span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span>
+      <h2>Level veröffentlichen</h2>
+      <p class="publish-intro">Die Levelwerkstatt überträgt nur dieses eine Level. Das Spiel prüft es automatisch und stellt es danach auf GitHub Pages live.</p>
+
+      <section id="publish-unavailable" class="publish-state" hidden>
+        <strong>Einmalige Einrichtung fehlt</strong>
+        <p>Der sichere Publisher wurde für diese Editor-Version noch nicht verbunden. Im Einrichtungsleitfaden stehen die einmaligen Schritte für den Besitzer.</p>
+      </section>
+
+      <section id="publish-login" class="publish-state" hidden>
+        <strong>Mit GitHub bestätigen</strong>
+        <p>GitHub bestätigt nur, dass du zur freigegebenen Redaktion gehörst. Du brauchst keinen Zugriff auf das Spiele-Repository.</p>
+        <button id="publisher-login" class="primary" type="button">Mit GitHub anmelden</button>
+      </section>
+
+      <section id="publish-review" class="publish-state" hidden>
+        <div class="publisher-user"><span>Angemeldet als</span><strong id="publisher-user-name"></strong></div>
+        <div class="publish-level-card"><span id="publish-level-icon" aria-hidden="true"></span><div><strong id="publish-level-name"></strong><small id="publish-level-id"></small></div></div>
+        <p id="publish-validation-copy"></p>
+        <ul id="publish-warnings" class="issue-list warnings"></ul>
+        <button id="publisher-confirm" class="primary" type="button">Jetzt veröffentlichen</button>
+      </section>
+
+      <section id="publish-progress" class="publish-state publish-progress" hidden aria-live="polite">
+        <span id="publish-progress-icon" class="publish-progress-icon" aria-hidden="true">◌</span>
+        <div><strong id="publish-progress-title">Level wird geprüft</strong><p id="publish-progress-detail"></p></div>
+        <ol class="publish-steps"><li data-publish-step="testing">Level prüfen</li><li data-publish-step="deploying">Spiel veröffentlichen</li><li data-publish-step="published">Fertig</li></ol>
+        <div class="publish-result-actions"><a id="publish-details-link" class="button" target="_blank" rel="noopener noreferrer" hidden>Details ansehen</a><a id="publish-game-link" class="button primary" target="_blank" rel="noopener noreferrer" hidden>Zum Spiel</a><button id="publisher-retry" type="button" hidden>Noch einmal versuchen</button></div>
+      </section>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

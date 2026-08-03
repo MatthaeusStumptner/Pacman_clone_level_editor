@@ -6,10 +6,13 @@ import { DraftRepository } from './draft-repository.js';
 import { createStarterLevel, EditorState } from './editor-state.js';
 import { floodFillPoints, linePoints, previewGuttis, rectanglePoints, worldPointFromScreen } from './editor-tools.js';
 import { PlaytestEngine } from './playtest-engine.js';
+import { createPublisherClient } from './publisher-client.js';
 
 const canvas = document.querySelector('#level-canvas');
 const renderer = new PassauPixelRenderer(canvas, { zoom: 1 });
 const drafts = new DraftRepository();
+const publisher = createPublisherClient();
+publisher.consumeSessionFromLocation();
 let state = new EditorState(drafts.active() ?? createStarterLevel());
 let tool = 'select';
 let cursor = null;
@@ -39,6 +42,9 @@ let spritePreviewFrame = null;
 let spriteActiveState = 'idle';
 let selectedEventIndex = -1;
 let selectedThemeElementIndex = -1;
+let publisherUser = null;
+let publicationId = null;
+let publicationPollTimer = null;
 
 const playerStateLabels = { idle: 'Idle', up: 'Oben', right: 'Rechts', down: 'Unten', left: 'Links' };
 const playerStateIcons = { idle: '•', up: '↑', right: '→', down: '↓', left: '←' };
@@ -83,6 +89,130 @@ function showToast(message) {
   const toast = $('#toast');
   toast.textContent = message; toast.classList.add('visible'); clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('visible'), 2400);
+}
+
+function showPublishSection(sectionId) {
+  ['publish-unavailable', 'publish-login', 'publish-review', 'publish-progress'].forEach((id) => {
+    $(`#${id}`).hidden = id !== sectionId;
+  });
+}
+
+function setSafePublicationLink(element, value) {
+  element.hidden = true;
+  element.removeAttribute('href');
+  if (!value) return;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || !['github.com', 'matthaeusstumptner.github.io'].includes(url.hostname)) return;
+    element.href = url.toString();
+    element.hidden = false;
+  } catch {
+    // Untrusted response links are never rendered.
+  }
+}
+
+function renderPublishReview() {
+  const level = state.toDocument();
+  const validation = validateLevelDocument(level);
+  $('#publisher-user-name').textContent = publisherUser?.name || publisherUser?.login || '';
+  $('#publish-level-icon').textContent = level.icon;
+  $('#publish-level-name').textContent = level.name.standard;
+  $('#publish-level-id').textContent = `${level.id} · ${level.board.columns} × ${level.board.rows}`;
+  $('#publish-validation-copy').textContent = validation.ok
+    ? 'Das Level ist bereit. Nach dem Klick laufen Tests und Veröffentlichung automatisch.'
+    : `Noch nicht bereit: ${validation.errors.length} Fehler müssen zuerst behoben werden.`;
+  $('#publish-warnings').replaceChildren(...[...validation.errors, ...validation.warnings].map((message) => {
+    const item = document.createElement('li'); item.textContent = message; return item;
+  }));
+  $('#publisher-confirm').disabled = !validation.ok;
+  showPublishSection('publish-review');
+}
+
+function renderPublicationStatus(status) {
+  const stateNames = {
+    testing: ['◌', 'Level wird geprüft'],
+    deploying: ['⇧', 'Spiel wird veröffentlicht'],
+    published: ['✓', 'Level ist live!'],
+    failed: ['!', 'Veröffentlichung gestoppt'],
+  };
+  const [icon, title] = stateNames[status.state] ?? stateNames.testing;
+  $('#publish-progress-icon').textContent = icon;
+  $('#publish-progress-title').textContent = title;
+  $('#publish-progress-detail').textContent = status.detail || 'Die automatische Veröffentlichung läuft.';
+  $('#publish-progress').dataset.state = status.state;
+  const order = ['testing', 'deploying', 'published'];
+  const activeIndex = Math.max(0, order.indexOf(status.state));
+  $$('[data-publish-step]').forEach((step, index) => {
+    step.classList.toggle('done', status.state === 'published' || index < activeIndex);
+    step.classList.toggle('active', status.state !== 'failed' && status.state !== 'published' && index === activeIndex);
+  });
+  setSafePublicationLink($('#publish-details-link'), status.actionsUrl || status.prUrl);
+  setSafePublicationLink($('#publish-game-link'), status.state === 'published' ? status.gameUrl : '');
+  $('#publisher-retry').hidden = status.state !== 'failed';
+  showPublishSection('publish-progress');
+}
+
+async function pollPublication(attempt = 0) {
+  clearTimeout(publicationPollTimer);
+  if (!publicationId) return;
+  try {
+    const status = await publisher.publication(publicationId);
+    renderPublicationStatus(status);
+    if (status.state === 'published' || status.state === 'failed') return;
+    if (attempt >= 180) {
+      renderPublicationStatus({ ...status, detail: 'Die Prüfung läuft länger als üblich. Du kannst dieses Fenster schließen und die Details später auf GitHub ansehen.' });
+      return;
+    }
+    publicationPollTimer = setTimeout(() => pollPublication(attempt + 1), 2000);
+  } catch (error) {
+    renderPublicationStatus({ state: 'failed', detail: error.message });
+  }
+}
+
+async function openPublisher() {
+  $('#publish-dialog').showModal();
+  if (!publisher.configured) {
+    showPublishSection('publish-unavailable');
+    return;
+  }
+  if (publicationId) {
+    renderPublicationStatus({ state: 'testing', detail: 'Aktueller Status wird geladen …' });
+    pollPublication();
+    return;
+  }
+  if (!publisher.authenticated) {
+    showPublishSection('publish-login');
+    return;
+  }
+  try {
+    publisherUser = await publisher.me();
+    renderPublishReview();
+  } catch (error) {
+    publisherUser = null;
+    showPublishSection('publish-login');
+    showToast(error.message);
+  }
+}
+
+async function publishCurrentLevel() {
+  const level = state.toDocument();
+  const validation = validateLevelDocument(level);
+  if (!validation.ok) {
+    renderPublishReview();
+    switchInspector('check');
+    showToast('Veröffentlichung blockiert: Bitte Level-Fehler beheben.');
+    return;
+  }
+  $('#publisher-confirm').disabled = true;
+  renderPublicationStatus({ state: 'testing', detail: 'Das Level wird sicher übertragen …' });
+  try {
+    const result = await publisher.publish(level);
+    publicationId = Number(result.publicationId);
+    renderPublicationStatus(result);
+    pollPublication();
+  } catch (error) {
+    renderPublicationStatus({ state: 'failed', detail: error.message });
+  }
 }
 
 function scheduleSave() {
@@ -155,7 +285,12 @@ function renderCatalog(levels = searchCatalog($('#catalog-search').value)) {
   $('#catalog-count').textContent = `${passauCatalog.length} ORIGINAL`;
   $('#catalog-list').replaceChildren(...levels.map((level) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `catalog-card${state.document.id === level.id ? ' active' : ''}`; button.dataset.levelId = level.id;
-    button.innerHTML = `<span class="catalog-icon">${level.icon}</span><span><strong>${level.name.standard}</strong><small>${level.location.area}</small></span><em>${level.board.walls.length} BLÖCKE</em>${draftIds.has(level.id) ? '<i>ENTWURF</i>' : ''}`;
+    const icon = document.createElement('span'); icon.className = 'catalog-icon'; icon.textContent = level.icon;
+    const copy = document.createElement('span'); const name = document.createElement('strong'); const area = document.createElement('small');
+    name.textContent = level.name.standard; area.textContent = level.location.area; copy.append(name, area);
+    const blocks = document.createElement('em'); blocks.textContent = `${level.board.walls.length} BLÖCKE`;
+    button.append(icon, copy, blocks);
+    if (draftIds.has(level.id)) { const draft = document.createElement('i'); draft.textContent = 'ENTWURF'; button.append(draft); }
     button.addEventListener('click', () => loadLevel(drafts.load(level.id) ?? catalogLevel(level.id), `Vorlage „${level.name.standard}“ geladen`));
     return button;
   }));
@@ -163,10 +298,12 @@ function renderCatalog(levels = searchCatalog($('#catalog-search').value)) {
 
 function renderDraftList() {
   const entries = drafts.list().sort((a, b) => b.savedAt.localeCompare(a.savedAt)); $('#draft-count').textContent = String(entries.length);
-  if (!entries.length) { $('#draft-list').innerHTML = '<p>Noch keine eigenen Entwürfe.</p>'; return; }
+  if (!entries.length) { const empty = document.createElement('p'); empty.textContent = 'Noch keine eigenen Entwürfe.'; $('#draft-list').replaceChildren(empty); return; }
   $('#draft-list').replaceChildren(...entries.map((entry) => {
     const row = document.createElement('div'); row.className = 'draft-row';
-    const open = document.createElement('button'); open.type = 'button'; open.innerHTML = `<strong>${entry.name}</strong><small>${new Date(entry.savedAt).toLocaleString('de-DE')}</small>`; open.addEventListener('click', () => loadLevel(drafts.load(entry.id), 'Entwurf geladen'));
+    const open = document.createElement('button'); open.type = 'button';
+    const name = document.createElement('strong'); const saved = document.createElement('small'); name.textContent = entry.name; saved.textContent = new Date(entry.savedAt).toLocaleString('de-DE'); open.append(name, saved);
+    open.addEventListener('click', () => loadLevel(drafts.load(entry.id), 'Entwurf geladen'));
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'draft-delete'; remove.setAttribute('aria-label', `${entry.name} löschen`); remove.textContent = '×'; remove.addEventListener('click', () => { drafts.remove(entry.id); renderDraftList(); renderCatalog(); showToast('Entwurf gelöscht'); });
     row.append(open, remove); return row;
   }));
@@ -174,6 +311,7 @@ function renderDraftList() {
 
 function loadLevel(level, message = 'Level geladen', { save = false } = {}) {
   if (!level) return;
+  clearTimeout(publicationPollTimer); publicationId = null;
   state = new EditorState(level); renderedRevision = -1; renderedLevel = null; cursor = null; gesture = null; selectedEventIndex = -1; selectedThemeElementIndex = -1; syncFields(); render(); renderCatalog();
   $('#draft-status').textContent = save ? 'Neuer Entwurf' : 'Vorlage geladen';
   if (save) scheduleSave();
@@ -186,7 +324,8 @@ function renderThemeElements() {
   const labels = { 'stage-note': ['♪', 'Zauberberg-Note'], 'stage-lights': ['⌁', 'Bühnenlichter'] };
   $('#theme-element-list').replaceChildren(...elements.map((element, index) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = index === selectedThemeElementIndex ? 'active' : '';
-    const [icon, name] = labels[element.id] ?? ['◆', element.id]; button.innerHTML = `<span>${icon} ${name}</span><small>${element.animation.type}</small>`;
+    const [icon, name] = labels[element.id] ?? ['◆', element.id]; const label = document.createElement('span'); const animation = document.createElement('small');
+    label.textContent = `${icon} ${name}`; animation.textContent = element.animation.type; button.append(label, animation);
     button.addEventListener('click', () => { selectedThemeElementIndex = index; renderThemeElements(); }); return button;
   }));
   const selected = elements[selectedThemeElementIndex]; $('#theme-element-empty').hidden = elements.length > 0; $('#theme-element-editor').hidden = !selected;
@@ -246,29 +385,58 @@ function renderActorList() {
   const level = state.toDocument(); const items = [{ kind: 'player', index: 0, name: 'Franz & Lola', actor: level.actors.player }, ...level.actors.cats.map((actor, index) => ({ kind: 'cat', index, name: `Katze ${index + 1}`, actor }))];
   $('#actor-list').replaceChildren(...items.map((item) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = state.selected?.kind === item.kind && state.selected?.index === item.index ? 'active' : '';
-    button.innerHTML = `<span style="--actor-color:${item.actor.color ?? '#4ce0b3'}">${item.kind === 'player' ? '●' : '◆'}</span><strong>${item.name}</strong><small>${item.actor.x}, ${item.actor.y}${item.actor.appearance ? ' · EIGENE PIXEL' : ''}</small>`;
+    const swatch = document.createElement('span'); swatch.className = 'actor-swatch'; swatch.style.setProperty('--actor-color', item.actor.color ?? '#4ce0b3');
+    const name = document.createElement('strong'); name.textContent = item.name;
+    const position = document.createElement('small'); position.textContent = `${item.actor.x}, ${item.actor.y}${item.actor.appearance ? ' · EIGENE PIXEL' : ''}`;
+    button.append(swatch, name, position);
     button.addEventListener('click', () => { state.selected = { kind: item.kind, index: item.index }; switchInspector('figures'); render(); }); return button;
   }));
   renderPlayerStudio();
   renderSelectionCard();
 }
 
+function selectSetting(title, key, options, value, wide = false) {
+  const label = document.createElement('label'); label.classList.toggle('wide', wide); label.append(document.createTextNode(title));
+  const select = document.createElement('select'); select.dataset.setting = key;
+  select.append(...options.map(([optionValue, copy]) => new Option(copy, optionValue))); select.value = value;
+  label.append(select); return label;
+}
+
+function numberSetting(title, key, value, { min, max, step = 1, wide = false }) {
+  const label = document.createElement('label'); label.classList.toggle('wide', wide); label.append(document.createTextNode(title));
+  const input = document.createElement('input'); input.type = 'number'; input.dataset.setting = key; input.min = min; input.max = max; input.step = step; input.value = value;
+  label.append(input); return label;
+}
+
 function renderSelectionCard() {
   const card = $('#selection-card'); const object = state.selectedObject();
-  if (!object) { card.innerHTML = '<p>Mit „Auswahl“ eine Figur oder Dekoration anklicken.</p>'; return; }
+  if (!object) { const empty = document.createElement('p'); empty.textContent = 'Mit „Auswahl“ eine Figur oder Dekoration anklicken.'; card.replaceChildren(empty); return; }
   const label = state.selected.kind === 'player' ? 'Franz & Lola' : state.selected.kind === 'cat' ? `Katze ${state.selected.index + 1}` : `Dekoration · ${object.type}`;
-  card.innerHTML = `<strong>${label}</strong><span>Feld ${object.x}, ${object.y}${object.width ? ` · ${object.width}×${object.height}` : ''}</span><div class="selection-settings"></div><div class="selection-actions"></div>`;
-  const settings = card.querySelector('.selection-settings');
-  const actions = card.querySelector('.selection-actions');
+  const heading = document.createElement('strong'); heading.textContent = label;
+  const position = document.createElement('span'); position.textContent = `Feld ${object.x}, ${object.y}${object.width ? ` · ${object.width}×${object.height}` : ''}`;
+  const settings = document.createElement('div'); settings.className = 'selection-settings';
+  const actions = document.createElement('div'); actions.className = 'selection-actions'; card.replaceChildren(heading, position, settings, actions);
   if (state.selected.kind === 'player') {
-    settings.innerHTML = `<label class="wide">Steuerung<select data-setting="controller"><option value="user">Spieler/in</option><option value="autopilot">Autopilot zu Guttis</option><option value="patrol">Patrouille</option><option value="stationary">Steht still</option></select></label><label>Tempo-Faktor<input data-setting="speedMultiplier" type="number" min="0.1" max="4" step="0.1" value="${object.behavior.speedMultiplier}"></label>`;
-    settings.querySelector('[data-setting="controller"]').value = object.behavior.controller;
+    settings.append(
+      selectSetting('Steuerung', 'controller', [['user', 'Spieler/in'], ['autopilot', 'Autopilot zu Guttis'], ['patrol', 'Patrouille'], ['stationary', 'Steht still']], object.behavior.controller, true),
+      numberSetting('Tempo-Faktor', 'speedMultiplier', object.behavior.speedMultiplier, { min: 0.1, max: 4, step: 0.1 }),
+    );
   } else if (state.selected.kind === 'cat') {
-    settings.innerHTML = `<label class="wide">Verhalten<select data-setting="strategy"><option value="chase">Direkt verfolgen</option><option value="ambush">Vorausahnen</option><option value="scatter-chase">Wechsel: Ecke / Jagd</option><option value="scatter">Zur Zielecke</option><option value="guard">Ziel bewachen</option><option value="random">Zufällig</option><option value="stationary">Steht still</option></select></label><label>Tempo-Faktor<input data-setting="speedMultiplier" type="number" min="0.1" max="4" step="0.1" value="${object.behavior.speedMultiplier}"></label><label>Voraussicht<input data-setting="lookAhead" type="number" min="0" max="12" step="1" value="${object.behavior.lookAhead}"></label><label>Zufall-Faktor<input data-setting="wanderMultiplier" type="number" min="0" max="12" step="0.1" value="${object.behavior.wanderMultiplier}"></label><label>Startpause<input data-setting="respawnDelay" type="number" min="0" max="20" step="0.1" value="${object.behavior.respawnDelay}"></label><label>Ziel X<input data-setting="targetX" type="number" min="0" max="${state.document.board.columns - 1}" value="${object.behavior.target.x}"></label><label>Ziel Y<input data-setting="targetY" type="number" min="0" max="${state.document.board.rows - 1}" value="${object.behavior.target.y}"></label>`;
-    settings.querySelector('[data-setting="strategy"]').value = object.behavior.strategy;
+    settings.append(
+      selectSetting('Verhalten', 'strategy', [['chase', 'Direkt verfolgen'], ['ambush', 'Vorausahnen'], ['scatter-chase', 'Wechsel: Ecke / Jagd'], ['scatter', 'Zur Zielecke'], ['guard', 'Ziel bewachen'], ['random', 'Zufällig'], ['stationary', 'Steht still']], object.behavior.strategy, true),
+      numberSetting('Tempo-Faktor', 'speedMultiplier', object.behavior.speedMultiplier, { min: 0.1, max: 4, step: 0.1 }),
+      numberSetting('Voraussicht', 'lookAhead', object.behavior.lookAhead, { min: 0, max: 12 }),
+      numberSetting('Zufall-Faktor', 'wanderMultiplier', object.behavior.wanderMultiplier, { min: 0, max: 12, step: 0.1 }),
+      numberSetting('Startpause', 'respawnDelay', object.behavior.respawnDelay, { min: 0, max: 20, step: 0.1 }),
+      numberSetting('Ziel X', 'targetX', object.behavior.target.x, { min: 0, max: state.document.board.columns - 1 }),
+      numberSetting('Ziel Y', 'targetY', object.behavior.target.y, { min: 0, max: state.document.board.rows - 1 }),
+    );
   } else {
-    settings.innerHTML = `<label class="wide">Animation<select data-setting="animationType"><option value="none">Keine</option><option value="bob">Schweben</option><option value="pulse">Pulsieren</option><option value="blink">Blinken</option><option value="spin">Drehen</option></select></label><label>Tempo<input data-setting="animationSpeed" type="number" min="0.1" max="12" step="0.1" value="${object.animation.speed}"></label><label>Stärke<input data-setting="animationAmplitude" type="number" min="0" max="1" step="0.05" value="${object.animation.amplitude}"></label>`;
-    settings.querySelector('[data-setting="animationType"]').value = object.animation.type;
+    settings.append(
+      selectSetting('Animation', 'animationType', [['none', 'Keine'], ['bob', 'Schweben'], ['pulse', 'Pulsieren'], ['blink', 'Blinken'], ['spin', 'Drehen']], object.animation.type, true),
+      numberSetting('Tempo', 'animationSpeed', object.animation.speed, { min: 0.1, max: 12, step: 0.1 }),
+      numberSetting('Stärke', 'animationAmplitude', object.animation.amplitude, { min: 0, max: 1, step: 0.05 }),
+    );
   }
   if (state.selected.kind === 'cat' && object.appearance?.animations?.length) {
     const labelElement = document.createElement('label'); labelElement.className = 'wide'; labelElement.textContent = 'Animation im Spiel';
@@ -348,7 +516,10 @@ function validationView(level, pellets) {
   const result = validateLevelDocument(level); const issues = result.errors.length + result.warnings.length;
   $('#problem-count').textContent = String(issues); $('#problem-count').classList.toggle('has-problems', issues > 0);
   $('#validation-status').className = `validation-status ${result.ok ? 'valid' : 'invalid'}`;
-  $('#validation-status').innerHTML = result.ok ? '<strong>✓ Level ist spielbar</strong><span>Alle Pflichtprüfungen bestanden.</span>' : `<strong>⚠ ${result.errors.length} Fehler</strong><span>Vor dem Export bitte korrigieren.</span>`;
+  const statusTitle = document.createElement('strong'); const statusCopy = document.createElement('span');
+  statusTitle.textContent = result.ok ? '✓ Level ist spielbar' : `⚠ ${result.errors.length} Fehler`;
+  statusCopy.textContent = result.ok ? 'Alle Pflichtprüfungen bestanden.' : 'Vor dem Export bitte korrigieren.';
+  $('#validation-status').replaceChildren(statusTitle, statusCopy);
   $('#validation-errors').replaceChildren(...(result.errors.length ? result.errors : ['Keine Fehler.']).map((message) => Object.assign(document.createElement('li'), { textContent: message })));
   $('#validation-warnings').replaceChildren(...(result.warnings.length ? result.warnings : ['Keine Hinweise.']).map((message) => Object.assign(document.createElement('li'), { textContent: message })));
   $('#metric-reachable').textContent = String(result.metrics.reachableTiles); $('#metric-walls').textContent = String(result.metrics.wallRectangles); $('#metric-guttis').textContent = String(pellets.size);
@@ -649,7 +820,7 @@ $('#zoom-level').addEventListener('input', (event) => { const zoom = Number(even
 $('#help-button').addEventListener('click', () => $('#help-dialog').showModal()); $('#quick-tour').addEventListener('click', () => $('#help-dialog').showModal()); $('#sprite-designer-button').addEventListener('click', () => openSpriteDesigner({ target: 'next-cat' }));
 $('#edit-player-character').addEventListener('click', () => openSpriteDesigner({ target: 'player', state: 'idle' }));
 $('#reset-player-character').addEventListener('click', () => { state.mutate('Originalfigur wiederherstellen', (draft) => { const player = draft.document.actors.player; player.appearance = null; player.animation = ''; player.renderer = 'franz-lola'; }); render(); scheduleSave(); showToast('Originaldarstellung von Franz & Lola aktiviert'); });
-$('#sprite-add-color').addEventListener('click', () => { const color = $('#sprite-color').value; if (!spriteDraft.palette.includes(color) && spriteDraft.palette.length < 10) spriteDraft.palette.push(color); spritePaletteIndex = spriteDraft.palette.indexOf(color); renderSpriteDesigner(); });
+$('#sprite-add-color').addEventListener('click', () => { const color = $('#sprite-color').value; if (!spriteDraft.palette.includes(color) && spriteDraft.palette.length < 36) spriteDraft.palette.push(color); spritePaletteIndex = spriteDraft.palette.indexOf(color); renderSpriteDesigner(); });
 $('#sprite-target').addEventListener('change', (event) => loadSpriteTarget(event.target.value));
 $('#sprite-animation').addEventListener('change', (event) => { spriteAnimationId = event.target.value; spriteFrameIndex = 0; if ($('#sprite-target').value === 'player' && spriteAnimationId !== 'base') spriteDraft.stateAnimations[spriteActiveState] = spriteAnimationId; renderSpriteDesigner(); });
 $('#sprite-add-animation').addEventListener('click', () => {
@@ -696,6 +867,16 @@ $('#playtest-stage').addEventListener('lostpointercapture', () => playtestSwipe.
 $('#restore-template').addEventListener('click', () => { const original = catalogLevel(state.document.id); if (!original) return; drafts.remove(original.id); loadLevel(original, 'Originalvorlage wiederhergestellt'); });
 $('#export-level').addEventListener('click', () => { const level = state.toDocument(); const result = validateLevelDocument(level); if (!result.ok) { switchInspector('check'); showToast('Export blockiert: Level enthält Fehler'); return; } downloadJson(level, `${level.id}.level.json`); showToast('Level-JSON exportiert'); });
 $('#export-catalog').addEventListener('click', () => { downloadJson(catalogDocument(), 'passau-original-levels.catalog.json'); showToast('Originalkatalog exportiert'); });
+$('#publish-level').addEventListener('click', openPublisher);
+$('#publisher-login').addEventListener('click', () => {
+  const url = publisher.loginUrl(window.location.href);
+  if (url) window.location.assign(url);
+});
+$('#publisher-confirm').addEventListener('click', publishCurrentLevel);
+$('#publisher-retry').addEventListener('click', () => {
+  publicationId = null;
+  if (publisher.authenticated) renderPublishReview(); else showPublishSection('publish-login');
+});
 $('#import-level').addEventListener('change', async (event) => { const file = event.target.files[0]; if (!file) return; const result = parseLevelDocument(await file.text()); event.target.value = ''; if (!result.ok) { showToast(`Import fehlgeschlagen: ${result.errors[0]}`); switchInspector('check'); return; } loadLevel(result.value, `„${file.name}“ importiert`, { save: true }); });
 $('#focus-first-problem').addEventListener('click', () => { switchInspector('check'); showToast('Fehler sind in der Liste beschrieben und werden beim Bearbeiten live neu geprüft.'); });
 
