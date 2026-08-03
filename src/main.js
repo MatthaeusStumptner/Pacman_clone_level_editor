@@ -1,10 +1,10 @@
 import './style.css';
-import { PassauPixelRenderer, parseLevelDocument, tileKey, validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { FixedStepLoop, PassauPixelRenderer, parseLevelDocument, selectAppearanceFrame, tileKey, validateLevelDocument } from '@franz-lola/pixel-renderer';
 import { catalogDocument, catalogLevel, passauCatalog, searchCatalog } from './catalog.js';
 import { DraftRepository } from './draft-repository.js';
 import { createStarterLevel, EditorState } from './editor-state.js';
 import { floodFillPoints, linePoints, previewGuttis, rectanglePoints, worldPointFromScreen } from './editor-tools.js';
-import { DIRECTIONS, PlaytestEngine } from './playtest-engine.js';
+import { PlaytestEngine } from './playtest-engine.js';
 
 const canvas = document.querySelector('#level-canvas');
 const renderer = new PassauPixelRenderer(canvas, { zoom: 1 });
@@ -21,9 +21,17 @@ let spriteDraft = null;
 let spritePaletteIndex = 1;
 let playtest = null;
 let playtestRenderer = null;
+let playtestFrame = null;
+let playtestLoop = null;
+let playtestPaused = false;
+let playtestCameraEnabled = true;
+let playtestGesture = null;
 let renderedRevision = -1;
 let renderedLevel = null;
 let spritePainting = false;
+let spriteAnimationId = 'base';
+let spriteFrameIndex = 0;
+let spritePreviewFrame = null;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -33,6 +41,11 @@ const fields = {
   area: $('#level-area'), latitude: $('#level-latitude'), longitude: $('#level-longitude'), columns: $('#level-columns'), rows: $('#level-rows'), tunnels: $('#level-tunnels'),
   theme: $('#level-theme'), ground: $('#ground-color'), wall: $('#wall-color'), curb: $('#curb-color'), water: $('#water-color'),
   cat: $('#cat-color'), accent: $('#cat-accent'), decorationType: $('#decoration-type'), decorationColor: $('#decoration-color'), decorationLabel: $('#decoration-label'), decorationWidth: $('#decoration-width'), decorationHeight: $('#decoration-height'),
+  decorationAnimation: $('#decoration-animation'), decorationAnimationSpeed: $('#decoration-animation-speed'), decorationAnimationAmplitude: $('#decoration-animation-amplitude'),
+};
+
+const profileFields = {
+  playerSpeed: $('#profile-player-speed'), catSpeed: $('#profile-cat-speed'), frightenedSpeed: $('#profile-frightened-speed'), catCount: $('#profile-cat-count'), lives: $('#profile-lives'), powerDuration: $('#profile-power-duration'), wander: $('#profile-wander'), grace: $('#profile-grace'),
 };
 
 const toolHelp = {
@@ -75,6 +88,24 @@ function syncFields() {
   fields.tunnels.value = level.board.tunnelRows.join(', '); fields.theme.value = level.theme.landmark;
   fields.ground.value = level.theme.palette.ground[0]; fields.wall.value = level.theme.palette.walls[0]; fields.curb.value = level.theme.palette.curb; fields.water.value = level.theme.palette.water;
   canvas.style.aspectRatio = `${level.board.columns} / ${level.board.rows}`;
+  syncProfileFields(level);
+}
+
+function syncProfileFields(level = state.toDocument()) {
+  const difficulty = $('#preview-difficulty').value;
+  const labels = { easy: 'Spaziergang', normal: 'Gassirunde', hard: 'Abenteuer' };
+  $('#difficulty-profile-name').textContent = labels[difficulty];
+  const profile = level.gameplay.difficulties[difficulty];
+  Object.entries(profileFields).forEach(([key, field]) => { field.value = profile[key]; });
+}
+
+function applyProfileFields() {
+  const difficulty = $('#preview-difficulty').value;
+  state.mutate(`Spielgefühl ${difficulty} ändern`, (draft) => {
+    const profile = draft.document.gameplay.difficulties[difficulty];
+    Object.entries(profileFields).forEach(([key, field]) => { profile[key] = Number(field.value); });
+  });
+  render(); scheduleSave();
 }
 
 function applyFields() {
@@ -142,8 +173,36 @@ function renderSelectionCard() {
   const card = $('#selection-card'); const object = state.selectedObject();
   if (!object) { card.innerHTML = '<p>Mit „Auswahl“ eine Figur oder Dekoration anklicken.</p>'; return; }
   const label = state.selected.kind === 'player' ? 'Franz & Lola' : state.selected.kind === 'cat' ? `Katze ${state.selected.index + 1}` : `Dekoration · ${object.type}`;
-  card.innerHTML = `<strong>${label}</strong><span>Feld ${object.x}, ${object.y}${object.width ? ` · ${object.width}×${object.height}` : ''}</span><div></div>`;
-  const actions = card.querySelector('div');
+  card.innerHTML = `<strong>${label}</strong><span>Feld ${object.x}, ${object.y}${object.width ? ` · ${object.width}×${object.height}` : ''}</span><div class="selection-settings"></div><div class="selection-actions"></div>`;
+  const settings = card.querySelector('.selection-settings');
+  const actions = card.querySelector('.selection-actions');
+  if (state.selected.kind === 'player') {
+    settings.innerHTML = `<label class="wide">Steuerung<select data-setting="controller"><option value="user">Spieler/in</option><option value="autopilot">Autopilot zu Guttis</option><option value="patrol">Patrouille</option><option value="stationary">Steht still</option></select></label><label>Tempo-Faktor<input data-setting="speedMultiplier" type="number" min="0.1" max="4" step="0.1" value="${object.behavior.speedMultiplier}"></label>`;
+    settings.querySelector('[data-setting="controller"]').value = object.behavior.controller;
+  } else if (state.selected.kind === 'cat') {
+    settings.innerHTML = `<label class="wide">Verhalten<select data-setting="strategy"><option value="chase">Direkt verfolgen</option><option value="ambush">Vorausahnen</option><option value="scatter-chase">Wechsel: Ecke / Jagd</option><option value="scatter">Zur Zielecke</option><option value="guard">Ziel bewachen</option><option value="random">Zufällig</option><option value="stationary">Steht still</option></select></label><label>Tempo-Faktor<input data-setting="speedMultiplier" type="number" min="0.1" max="4" step="0.1" value="${object.behavior.speedMultiplier}"></label><label>Voraussicht<input data-setting="lookAhead" type="number" min="0" max="12" step="1" value="${object.behavior.lookAhead}"></label><label>Zufall-Faktor<input data-setting="wanderMultiplier" type="number" min="0" max="12" step="0.1" value="${object.behavior.wanderMultiplier}"></label><label>Startpause<input data-setting="respawnDelay" type="number" min="0" max="20" step="0.1" value="${object.behavior.respawnDelay}"></label><label>Ziel X<input data-setting="targetX" type="number" min="0" max="${state.document.board.columns - 1}" value="${object.behavior.target.x}"></label><label>Ziel Y<input data-setting="targetY" type="number" min="0" max="${state.document.board.rows - 1}" value="${object.behavior.target.y}"></label>`;
+    settings.querySelector('[data-setting="strategy"]').value = object.behavior.strategy;
+  } else {
+    settings.innerHTML = `<label class="wide">Animation<select data-setting="animationType"><option value="none">Keine</option><option value="bob">Schweben</option><option value="pulse">Pulsieren</option><option value="blink">Blinken</option><option value="spin">Drehen</option></select></label><label>Tempo<input data-setting="animationSpeed" type="number" min="0.1" max="12" step="0.1" value="${object.animation.speed}"></label><label>Stärke<input data-setting="animationAmplitude" type="number" min="0" max="1" step="0.05" value="${object.animation.amplitude}"></label>`;
+    settings.querySelector('[data-setting="animationType"]').value = object.animation.type;
+  }
+  if (['player', 'cat'].includes(state.selected.kind) && object.appearance?.animations?.length) {
+    const labelElement = document.createElement('label'); labelElement.className = 'wide'; labelElement.textContent = 'Animation im Spiel';
+    const select = document.createElement('select'); select.dataset.setting = 'actorAnimation'; select.append(new Option('Automatisch (idle / walk)', ''), ...object.appearance.animations.map((animation) => new Option(animation.id, animation.id))); select.value = object.animation ?? ''; labelElement.append(select); settings.append(labelElement);
+  }
+  settings.querySelectorAll('[data-setting]').forEach((input) => input.addEventListener('change', () => {
+    state.mutate(`${label} Verhalten ändern`, (draft) => {
+      const selected = draft.selectedObject(); const key = input.dataset.setting; const value = input.tagName === 'SELECT' ? input.value : Number(input.value);
+      if (key === 'controller' || key === 'strategy' || key === 'speedMultiplier' || key === 'lookAhead' || key === 'wanderMultiplier' || key === 'respawnDelay') selected.behavior[key] = value;
+      else if (key === 'targetX') selected.behavior.target.x = value;
+      else if (key === 'targetY') selected.behavior.target.y = value;
+      else if (key === 'animationType') selected.animation.type = value;
+      else if (key === 'animationSpeed') selected.animation.speed = value;
+      else if (key === 'animationAmplitude') selected.animation.amplitude = value;
+      else if (key === 'actorAnimation') selected.animation = value;
+    });
+    render(); scheduleSave();
+  }));
   if (['player', 'cat'].includes(state.selected.kind)) {
     const design = document.createElement('button'); design.type = 'button'; design.textContent = 'Pixel-Design'; design.addEventListener('click', openSpriteDesigner); actions.append(design);
   }
@@ -180,6 +239,18 @@ function render() {
   canvas.style.aspectRatio = `${level.board.columns} / ${level.board.rows}`;
 }
 
+function animateEditorCanvas(timestamp) {
+  const level = renderedLevel;
+  const hasAnimation = level && (level.decorations.some((item) => item.animation?.type !== 'none')
+    || [level.actors.player, ...level.actors.cats].some((actor) => actor.appearance?.animations?.length));
+  if (hasAnimation) {
+    const pellets = $('#show-guttis').checked ? previewGuttis(level, $('#preview-difficulty').value) : new Set();
+    const powerUps = new Set(level.collectibles.powerUps.map((point) => tileKey(point.x, point.y)));
+    renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, { cameraEnabled: false, alpha: 1, editor: { showGrid: $('#show-grid').checked, cursor } });
+  }
+  requestAnimationFrame(animateEditorCanvas);
+}
+
 function pointFromEvent(event) {
   if (!renderResult) return { x: 0, y: 0 };
   const rect = canvas.getBoundingClientRect();
@@ -192,7 +263,11 @@ function cursorForGesture(point) {
 }
 
 function decorationSettings() {
-  return { type: fields.decorationType.value, color: fields.decorationColor.value, label: fields.decorationLabel.value, width: Number(fields.decorationWidth.value), height: Number(fields.decorationHeight.value) };
+  return {
+    type: fields.decorationType.value, color: fields.decorationColor.value, label: fields.decorationLabel.value,
+    width: Number(fields.decorationWidth.value), height: Number(fields.decorationHeight.value),
+    animation: { type: fields.decorationAnimation.value, speed: Number(fields.decorationAnimationSpeed.value), amplitude: Number(fields.decorationAnimationAmplitude.value) },
+  };
 }
 
 function applySingleTool(point, eraseOverride = false) {
@@ -255,26 +330,62 @@ function downloadJson(value, filename) {
 }
 
 function defaultSprite() {
-  return { width: 8, height: 8, palette: ['transparent', '#ff6b5f', '#f4eee0', '#17212a'], pixels: ['00111100', '01111110', '11211211', '11122111', '11111111', '01111110', '01000010', '00100100'] };
+  return { width: 8, height: 8, palette: ['transparent', '#ff6b5f', '#f4eee0', '#17212a'], pixels: ['00111100', '01111110', '11211211', '11122111', '11111111', '01111110', '01000010', '00100100'], animations: [] };
 }
 
 function openSpriteDesigner() {
   const object = state.selectedObject(); spriteDraft = clone(object?.appearance ?? nextCatAppearance ?? defaultSprite());
+  spriteDraft.animations ??= [];
   const target = $('#sprite-target'); target.replaceChildren(new Option('Nächste Katze', 'next-cat'), new Option('Franz & Lola', 'player'), ...state.document.actors.cats.map((_, index) => new Option(`Katze ${index + 1}`, `cat-${index}`)));
   if (state.selected?.kind === 'player') target.value = 'player'; else if (state.selected?.kind === 'cat') target.value = `cat-${state.selected.index}`; else target.value = 'next-cat';
-  spritePaletteIndex = 1; renderSpriteDesigner(); $('#sprite-dialog').showModal();
+  spritePaletteIndex = 1; spriteAnimationId = 'base'; spriteFrameIndex = 0; renderSpriteDesigner(); $('#sprite-dialog').showModal(); startSpritePreview();
+}
+
+function selectedSpriteAnimation() { return spriteDraft.animations.find((animation) => animation.id === spriteAnimationId) ?? null; }
+function currentSpriteRows() { return selectedSpriteAnimation()?.frames[spriteFrameIndex]?.pixels ?? spriteDraft.pixels; }
+function updateCurrentSpriteRows(rows) {
+  const animation = selectedSpriteAnimation();
+  if (animation) animation.frames[spriteFrameIndex].pixels = rows;
+  else spriteDraft.pixels = rows;
 }
 
 function renderSpriteDesigner() {
+  const animationSelect = $('#sprite-animation');
+  animationSelect.replaceChildren(new Option('Standbild', 'base'), ...spriteDraft.animations.map((animation) => new Option(animation.id, animation.id)));
+  animationSelect.value = spriteAnimationId;
+  const animation = selectedSpriteAnimation();
+  if (animation) spriteFrameIndex = Math.min(spriteFrameIndex, animation.frames.length - 1); else spriteFrameIndex = 0;
+  $('#sprite-frame-copy').textContent = animation ? `Frame ${spriteFrameIndex + 1} / ${animation.frames.length}` : 'Standbild';
+  $('#sprite-prev-frame').disabled = !animation || animation.frames.length < 2;
+  $('#sprite-next-frame').disabled = !animation || animation.frames.length < 2;
+  $('#sprite-add-frame').disabled = !animation;
+  $('#sprite-delete-frame').disabled = !animation || animation.frames.length <= 1;
+  $('#sprite-delete-animation').disabled = !animation;
+  $('#sprite-fps').disabled = !animation; $('#sprite-loop').disabled = !animation;
+  $('#sprite-fps').value = animation?.fps ?? 6; $('#sprite-loop').checked = animation?.loop ?? true;
   const grid = $('#sprite-grid'); grid.style.setProperty('--sprite-columns', spriteDraft.width); grid.replaceChildren();
-  spriteDraft.pixels.forEach((row, y) => [...row].forEach((token, x) => {
+  currentSpriteRows().forEach((row, y) => [...row].forEach((token, x) => {
     const index = Number.parseInt(token, 36); const button = document.createElement('button'); button.type = 'button'; button.dataset.x = x; button.dataset.y = y;
     button.style.background = spriteDraft.palette[index] === 'transparent' ? 'transparent' : spriteDraft.palette[index]; button.setAttribute('aria-label', `Pixel ${x}, ${y}`); grid.append(button);
   }));
   $('#sprite-palette').replaceChildren(...spriteDraft.palette.map((color, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = index === spritePaletteIndex ? 'active' : ''; button.style.setProperty('--palette-color', color === 'transparent' ? '#101820' : color); button.textContent = index === 0 ? '⌫' : String(index); button.addEventListener('click', () => { spritePaletteIndex = index; renderSpriteDesigner(); }); return button; }));
 }
 
-function paintSpritePixel(x, y, index) { const rows = [...spriteDraft.pixels]; rows[y] = `${rows[y].slice(0, x)}${index.toString(36)}${rows[y].slice(x + 1)}`; spriteDraft.pixels = rows; renderSpriteDesigner(); }
+function paintSpritePixel(x, y, index) { const rows = [...currentSpriteRows()]; rows[y] = `${rows[y].slice(0, x)}${index.toString(36)}${rows[y].slice(x + 1)}`; updateCurrentSpriteRows(rows); renderSpriteDesigner(); }
+
+function startSpritePreview() {
+  cancelAnimationFrame(spritePreviewFrame);
+  const draw = (timestamp) => {
+    if (!$('#sprite-dialog').open || !spriteDraft) return;
+    const preview = $('#sprite-preview'); const context = preview.getContext('2d'); context.clearRect(0, 0, preview.width, preview.height); context.imageSmoothingEnabled = false;
+    const rows = selectAppearanceFrame(spriteDraft, { animationId: spriteAnimationId === 'base' ? '' : spriteAnimationId, elapsed: timestamp / 1000 });
+    const scale = Math.max(1, Math.floor(Math.min(preview.width / spriteDraft.width, preview.height / spriteDraft.height)));
+    const left = Math.floor((preview.width - spriteDraft.width * scale) / 2); const top = Math.floor((preview.height - spriteDraft.height * scale) / 2);
+    rows.forEach((row, y) => [...row].forEach((token, x) => { const color = spriteDraft.palette[Number.parseInt(token, 36)]; if (!color || color === 'transparent') return; context.fillStyle = color; context.fillRect(left + x * scale, top + y * scale, scale, scale); }));
+    spritePreviewFrame = requestAnimationFrame(draw);
+  };
+  spritePreviewFrame = requestAnimationFrame(draw);
+}
 
 function saveSprite() {
   const target = $('#sprite-target').value;
@@ -286,38 +397,90 @@ function saveSprite() {
 function startPlaytest() {
   const level = state.toDocument(); const result = validateLevelDocument(level);
   if (!result.ok) { switchInspector('check'); showToast('Vor dem Testlauf bitte die Fehler korrigieren'); return; }
-  resetPlaytest(level); $('#playtest-dialog').showModal(); renderPlaytest();
+  $('#playtest-dialog').showModal(); resetPlaytest(level); startPlaytestLoop();
 }
 
 function resetPlaytest(level = state.toDocument()) {
-  playtest = new PlaytestEngine(level, $('#preview-difficulty').value); const playCanvas = $('#playtest-canvas'); playtestRenderer = new PassauPixelRenderer(playCanvas, { zoom: 1.05 }); playtestRenderer.setLevel(level); renderPlaytest();
+  playtest = new PlaytestEngine(level, $('#preview-difficulty').value); const playCanvas = $('#playtest-canvas'); playtestRenderer = new PassauPixelRenderer(playCanvas, { zoom: 1.12 }); playtestRenderer.setLevel(playtest.level);
+  playtestLoop = new FixedStepLoop({ updatesPerSecond: 120 }); playtestPaused = false; $('#playtest-pause').textContent = 'Ⅱ Pause'; renderPlaytest(0);
 }
 
-function renderPlaytest() {
+function startPlaytestLoop() {
+  cancelAnimationFrame(playtestFrame); playtestLoop.reset();
+  const frame = (timestamp) => {
+    if (!$('#playtest-dialog').open || !playtest) return;
+    if (!playtestPaused) playtestLoop.advance(timestamp, (dt) => playtest.step(dt)); else playtestLoop.reset(timestamp);
+    renderPlaytest(playtestLoop.interpolationAlpha); playtestFrame = requestAnimationFrame(frame);
+  };
+  playtestFrame = requestAnimationFrame(frame);
+}
+
+function stopPlaytest() {
+  cancelAnimationFrame(playtestFrame); playtestFrame = null; playtestLoop = null; playtest = null; playtestRenderer = null;
+  $('#playtest-dialog').classList.remove('immersive');
+  if (document.fullscreenElement === $('#playtest-stage')) document.exitFullscreen().catch(() => {});
+}
+
+function renderPlaytest(alpha = 1) {
   if (!playtest || !$('#playtest-dialog').open) return;
-  const total = playtest.collected + playtest.pellets.size;
-  playtestRenderer.render({ level: playtest.level, player: playtest.player, cats: playtest.level.actors.cats, pellets: playtest.pellets, powerUps: playtest.powerUps, elapsed: performance.now() / 1000 }, { cameraEnabled: true, zoom: 1.1 });
-  $('#playtest-score').textContent = `${playtest.collected} / ${total}`; $('#playtest-state').textContent = playtest.state === 'won' ? '✓ LEVEL GESCHAFFT' : 'PFEILTASTEN · WASD · BUTTONS';
+  const snapshot = playtest.snapshot(); const total = playtest.initialPellets.size;
+  playtestRenderer.render(snapshot, { cameraEnabled: playtestCameraEnabled, zoom: 1.12, alpha });
+  $('#playtest-score').textContent = `${snapshot.collected} / ${total}`; $('#playtest-points').textContent = String(snapshot.score); $('#playtest-lives').textContent = String(snapshot.lives);
+  const copy = playtestPaused ? 'PAUSE' : snapshot.state === 'won' ? '✓ LEVEL GESCHAFFT' : snapshot.state === 'lost' ? 'KEINE LEBEN MEHR' : snapshot.state === 'hit' ? 'AUTSCH!' : snapshot.powerTimer > 0 ? `POWER ${snapshot.powerTimer.toFixed(1)} s` : 'PFEILTASTEN · WASD · WISCHEN';
+  $('#playtest-state').textContent = copy;
 }
 
-function playDirection(name) { if (!playtest) return; playtest.setDirection(name); playtest.step(); renderPlaytest(); }
+function playDirection(name) { if (playtest) playtest.setDirection(name); }
+
+async function togglePlaytestFullscreen() {
+  const stage = $('#playtest-stage'); const dialog = $('#playtest-dialog');
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else if (stage.requestFullscreen) await stage.requestFullscreen();
+    else dialog.classList.toggle('immersive');
+  } catch { dialog.classList.toggle('immersive'); }
+  playtestRenderer?.resize(); renderPlaytest(playtestLoop?.interpolationAlpha ?? 1);
+}
 
 $$('.tool').forEach((button) => button.addEventListener('click', () => setTool(button.dataset.tool)));
 $$('.inspector-tabs [role=tab]').forEach((button) => button.addEventListener('click', () => switchInspector(button.dataset.panel)));
-Object.values(fields).filter((field) => !['cat-color', 'cat-accent', 'decoration-type', 'decoration-color', 'decoration-label', 'decoration-width', 'decoration-height'].includes(field.id)).forEach((field) => field.addEventListener('change', applyFields));
+Object.values(fields).filter((field) => !field.id.startsWith('cat-') && !field.id.startsWith('decoration-')).forEach((field) => field.addEventListener('change', applyFields));
+Object.values(profileFields).forEach((field) => field.addEventListener('change', applyProfileFields));
 $('#catalog-search').addEventListener('input', () => renderCatalog()); $('#undo').addEventListener('click', () => { if (state.undo()) { syncFields(); render(); scheduleSave(); } }); $('#redo').addEventListener('click', () => { if (state.redo()) { syncFields(); render(); scheduleSave(); } });
 $('#new-level').addEventListener('click', () => loadLevel(createStarterLevel(), 'Leeres Level angelegt', { save: true })); $('#clear-cats').addEventListener('click', () => { state.mutate('Alle Katzen entfernen', (draft) => { draft.document.actors.cats = []; draft.selected = null; }); render(); scheduleSave(); });
-$('#show-guttis').addEventListener('change', render); $('#show-grid').addEventListener('change', render); $('#preview-difficulty').addEventListener('change', render);
+$('#show-guttis').addEventListener('change', render); $('#show-grid').addEventListener('change', render); $('#preview-difficulty').addEventListener('change', () => { syncProfileFields(); render(); });
 $('#zoom-level').addEventListener('input', (event) => { const zoom = Number(event.target.value); $('#zoom-copy').textContent = `${zoom}%`; canvas.style.width = `${zoom}%`; renderer.resize(); render(); });
 $('#help-button').addEventListener('click', () => $('#help-dialog').showModal()); $('#quick-tour').addEventListener('click', () => $('#help-dialog').showModal()); $('#sprite-designer-button').addEventListener('click', openSpriteDesigner);
 $('#sprite-add-color').addEventListener('click', () => { const color = $('#sprite-color').value; if (!spriteDraft.palette.includes(color) && spriteDraft.palette.length < 10) spriteDraft.palette.push(color); spritePaletteIndex = spriteDraft.palette.indexOf(color); renderSpriteDesigner(); });
-$('#sprite-clear').addEventListener('click', () => { spriteDraft.pixels = Array.from({ length: spriteDraft.height }, () => '0'.repeat(spriteDraft.width)); renderSpriteDesigner(); });
-$('#sprite-mirror').addEventListener('click', () => { spriteDraft.pixels = spriteDraft.pixels.map((row) => [...row].reverse().join('')); renderSpriteDesigner(); }); $('#sprite-save').addEventListener('click', saveSprite);
+$('#sprite-animation').addEventListener('change', (event) => { spriteAnimationId = event.target.value; spriteFrameIndex = 0; renderSpriteDesigner(); });
+$('#sprite-add-animation').addEventListener('click', () => {
+  const base = ($('#sprite-animation-name').value || 'animation').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'animation'; let id = base; let suffix = 2;
+  while (spriteDraft.animations.some((animation) => animation.id === id)) { id = `${base}-${suffix}`; suffix += 1; }
+  spriteDraft.animations.push({ id, fps: 6, loop: true, frames: [{ pixels: [...currentSpriteRows()] }] }); spriteAnimationId = id; spriteFrameIndex = 0; renderSpriteDesigner();
+});
+$('#sprite-delete-animation').addEventListener('click', () => { if (spriteAnimationId === 'base') return; spriteDraft.animations = spriteDraft.animations.filter((animation) => animation.id !== spriteAnimationId); spriteAnimationId = 'base'; spriteFrameIndex = 0; renderSpriteDesigner(); });
+$('#sprite-prev-frame').addEventListener('click', () => { const count = selectedSpriteAnimation()?.frames.length ?? 1; spriteFrameIndex = (spriteFrameIndex - 1 + count) % count; renderSpriteDesigner(); });
+$('#sprite-next-frame').addEventListener('click', () => { const count = selectedSpriteAnimation()?.frames.length ?? 1; spriteFrameIndex = (spriteFrameIndex + 1) % count; renderSpriteDesigner(); });
+$('#sprite-add-frame').addEventListener('click', () => { const animation = selectedSpriteAnimation(); if (!animation || animation.frames.length >= 64) return; animation.frames.splice(spriteFrameIndex + 1, 0, { pixels: [...currentSpriteRows()] }); spriteFrameIndex += 1; renderSpriteDesigner(); });
+$('#sprite-delete-frame').addEventListener('click', () => { const animation = selectedSpriteAnimation(); if (!animation || animation.frames.length <= 1) return; animation.frames.splice(spriteFrameIndex, 1); spriteFrameIndex = Math.max(0, spriteFrameIndex - 1); renderSpriteDesigner(); });
+$('#sprite-fps').addEventListener('change', (event) => { const animation = selectedSpriteAnimation(); if (animation) animation.fps = Number(event.target.value); renderSpriteDesigner(); });
+$('#sprite-loop').addEventListener('change', (event) => { const animation = selectedSpriteAnimation(); if (animation) animation.loop = event.target.checked; renderSpriteDesigner(); });
+$('#sprite-clear').addEventListener('click', () => { updateCurrentSpriteRows(Array.from({ length: spriteDraft.height }, () => '0'.repeat(spriteDraft.width))); renderSpriteDesigner(); });
+$('#sprite-mirror').addEventListener('click', () => { updateCurrentSpriteRows(currentSpriteRows().map((row) => [...row].reverse().join(''))); renderSpriteDesigner(); }); $('#sprite-save').addEventListener('click', saveSprite);
 $('#sprite-grid').addEventListener('contextmenu', (event) => event.preventDefault());
 $('#sprite-grid').addEventListener('pointerdown', (event) => { const pixel = event.target.closest('button[data-x]'); if (!pixel) return; event.preventDefault(); spritePainting = true; paintSpritePixel(Number(pixel.dataset.x), Number(pixel.dataset.y), event.button === 2 ? 0 : spritePaletteIndex); });
 $('#sprite-grid').addEventListener('pointermove', (event) => { if (!spritePainting || event.buttons === 0) return; const pixel = event.target.closest('button[data-x]'); if (pixel) paintSpritePixel(Number(pixel.dataset.x), Number(pixel.dataset.y), (event.buttons & 2) ? 0 : spritePaletteIndex); });
 window.addEventListener('pointerup', () => { spritePainting = false; });
-$('#playtest-button').addEventListener('click', startPlaytest); $('#playtest-reset').addEventListener('click', () => resetPlaytest()); $$('[data-play-direction]').forEach((button) => button.addEventListener('click', () => playDirection(button.dataset.playDirection)));
+$('#sprite-dialog').addEventListener('close', () => { cancelAnimationFrame(spritePreviewFrame); spritePreviewFrame = null; });
+$('#playtest-button').addEventListener('click', startPlaytest); $('#playtest-reset').addEventListener('click', () => resetPlaytest());
+$('#playtest-pause').addEventListener('click', () => { playtestPaused = !playtestPaused; $('#playtest-pause').textContent = playtestPaused ? '▶ Weiter' : 'Ⅱ Pause'; renderPlaytest(playtestLoop?.interpolationAlpha ?? 1); });
+$('#playtest-camera').addEventListener('click', () => { playtestCameraEnabled = !playtestCameraEnabled; $('#playtest-camera').setAttribute('aria-pressed', String(playtestCameraEnabled)); $('#playtest-camera').textContent = playtestCameraEnabled ? '◎ Kamera' : '▣ Ganzes Level'; renderPlaytest(playtestLoop?.interpolationAlpha ?? 1); });
+$('#playtest-fullscreen').addEventListener('click', togglePlaytestFullscreen);
+$$('[data-play-direction]').forEach((button) => button.addEventListener('pointerdown', (event) => { event.preventDefault(); playDirection(button.dataset.playDirection); }));
+$('#playtest-dialog').addEventListener('close', stopPlaytest);
+document.addEventListener('fullscreenchange', () => { $('#playtest-fullscreen').textContent = document.fullscreenElement ? '▣ Fenster' : '⛶ Vollbild'; playtestRenderer?.resize(); renderPlaytest(playtestLoop?.interpolationAlpha ?? 1); });
+$('#playtest-stage').addEventListener('pointerdown', (event) => { if (event.target.closest('button')) return; playtestGesture = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }; });
+$('#playtest-stage').addEventListener('pointerup', (event) => { if (!playtestGesture || playtestGesture.pointerId !== event.pointerId) return; const dx = event.clientX - playtestGesture.x; const dy = event.clientY - playtestGesture.y; playtestGesture = null; if (Math.hypot(dx, dy) < 18) return; playDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); });
 $('#restore-template').addEventListener('click', () => { const original = catalogLevel(state.document.id); if (!original) return; drafts.remove(original.id); loadLevel(original, 'Originalvorlage wiederhergestellt'); });
 $('#export-level').addEventListener('click', () => { const level = state.toDocument(); const result = validateLevelDocument(level); if (!result.ok) { switchInspector('check'); showToast('Export blockiert: Level enthält Fehler'); return; } downloadJson(level, `${level.id}.level.json`); showToast('Level-JSON exportiert'); });
 $('#export-catalog').addEventListener('click', () => { downloadJson(catalogDocument(), 'passau-original-levels.catalog.json'); showToast('Originalkatalog exportiert'); });
@@ -340,4 +503,4 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('resize', () => { renderer.resize(); render(); });
-syncFields(); renderCatalog(); renderDraftList(); render();
+syncFields(); renderCatalog(); renderDraftList(); render(); requestAnimationFrame(animateEditorCanvas);

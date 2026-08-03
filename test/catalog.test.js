@@ -31,8 +31,10 @@ test('every original level validates and produces exact difficulty Gutti counts'
     assert.equal(previewGuttis(level, 'easy').size, 70, `${level.id} easy`);
     assert.equal(previewGuttis(level, 'normal').size, 110, `${level.id} normal`);
     assert.equal(previewGuttis(level, 'hard').size, 160, `${level.id} hard`);
-    assert.deepEqual(level.actors.player, { x: 12, y: 20, renderer: 'franz-lola' });
+    assert.equal(level.actors.player.behavior.controller, 'user');
     assert.equal(level.actors.cats.length, 3);
+    assert.deepEqual(level.actors.cats.map((cat) => cat.behavior.strategy), ['chase', 'ambush', 'scatter-chase']);
+    assert.equal(level.gameplay.difficulties.easy.lives, 5);
     assert.deepEqual(level.collectibles.powerUps, [{ x: 1, y: 1 }, { x: 23, y: 1 }, { x: 1, y: 23 }, { x: 23, y: 23 }]);
   }
 });

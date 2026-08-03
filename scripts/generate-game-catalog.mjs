@@ -35,11 +35,11 @@ const locationLiteral = extractLiteral(source, 'PASSAU_LEVELS');
 const layoutLiteral = extractLiteral(source, 'LEVEL_BLOCKS');
 const locations = vm.runInNewContext(`(${locationLiteral})`, Object.create(null));
 const layouts = vm.runInNewContext(`(${layoutLiteral})`, Object.create(null));
-const player = { x: 12, y: 20, renderer: 'franz-lola' };
+const player = { x: 12, y: 20, renderer: 'franz-lola', behavior: { controller: 'user', speedMultiplier: 1 } };
 const cats = [
-  { x: 11, y: 12, renderer: 'cat', color: '#ff6b5f', accent: '#9e302e' },
-  { x: 12, y: 12, renderer: 'cat', color: '#f2a65a', accent: '#a6532c' },
-  { x: 13, y: 12, renderer: 'cat', color: '#b792e8', accent: '#66509d' },
+  { x: 11, y: 12, renderer: 'cat', color: '#ff6b5f', accent: '#9e302e', behavior: { strategy: 'chase', speedMultiplier: 1, lookAhead: 0, wanderMultiplier: 1, respawnDelay: 0, target: { x: 22, y: 22 } } },
+  { x: 12, y: 12, renderer: 'cat', color: '#f2a65a', accent: '#a6532c', behavior: { strategy: 'ambush', speedMultiplier: 1, lookAhead: 3, wanderMultiplier: 2, respawnDelay: 0.9, target: { x: 22, y: 22 } } },
+  { x: 13, y: 12, renderer: 'cat', color: '#b792e8', accent: '#66509d', behavior: { strategy: 'scatter-chase', speedMultiplier: 1, lookAhead: 0, wanderMultiplier: 3, respawnDelay: 1.8, target: { x: 22, y: 22 } } },
 ];
 const powerUps = [{ x: 1, y: 1 }, { x: 23, y: 1 }, { x: 1, y: 23 }, { x: 23, y: 23 }];
 
@@ -69,6 +69,11 @@ const levels = locations.map((location) => ({
   gameplay: {
     pelletSeed: location.layout * 97,
     treatTargets: { easy: 70, normal: 110, hard: 160 },
+    difficulties: {
+      easy: { playerSpeed: 5.8, catSpeed: 2.55, frightenedSpeed: 1.85, catCount: 2, lives: 5, powerDuration: 12, wander: 7.2, grace: 2.2 },
+      normal: { playerSpeed: 5.55, catSpeed: 3.35, frightenedSpeed: 2.55, catCount: 3, lives: 3, powerDuration: 9, wander: 4.2, grace: 1.6 },
+      hard: { playerSpeed: 5.35, catSpeed: 4.05, frightenedSpeed: 3.25, catCount: 3, lives: 2, powerDuration: 7, wander: 2.1, grace: 1.1 },
+    },
   },
   source: {
     catalog: 'Geburtstagsspiel',

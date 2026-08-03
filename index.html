@@ -108,6 +108,9 @@
               <label>Typ <select id="decoration-type"><option value="tree">Baum</option><option value="bench">Bank</option><option value="lamp">Laterne</option><option value="flower">Blume</option><option value="sign">Schild</option><option value="rock">Felsen</option><option value="water">Wasserfläche</option><option value="custom">Eigenes Symbol</option></select></label>
               <div class="field-row compact"><label>Farbe <input id="decoration-color" type="color" value="#55d9dd" /></label><label>Text/Symbol <input id="decoration-label" value="◆" maxlength="12" /></label></div>
               <div class="field-row"><label>Breite <input id="decoration-width" type="number" min="1" max="12" value="1" /></label><label>Höhe <input id="decoration-height" type="number" min="1" max="12" value="1" /></label></div>
+              <h3>Bewegung</h3>
+              <label>Animation <select id="decoration-animation"><option value="none">Keine</option><option value="bob">Schweben</option><option value="pulse">Pulsieren</option><option value="blink">Blinken</option><option value="spin">Drehen</option></select></label>
+              <div class="field-row"><label>Tempo <input id="decoration-animation-speed" type="number" min="0.1" max="12" step="0.1" value="1" /></label><label>Stärke <input id="decoration-animation-amplitude" type="number" min="0" max="1" step="0.05" value="0.15" /></label></div>
               <p class="hint">Werkzeug „Deko“ wählen und anschließend ins Raster klicken.</p>
             </section>
 
@@ -115,6 +118,18 @@
               <h2>Figuren im Level</h2>
               <div id="actor-list" class="actor-list"></div>
               <div id="selection-card" class="selection-card"><p>Mit „Auswahl“ eine Figur oder Dekoration anklicken.</p></div>
+              <h2>Spielgefühl · <span id="difficulty-profile-name">Spaziergang</span></h2>
+              <p class="hint">Diese Werte gelten für die oben ausgewählte Schwierigkeit und werden im Testlauf exakt verwendet.</p>
+              <div class="profile-grid">
+                <label>Franz Tempo <input id="profile-player-speed" type="number" min="0.1" max="20" step="0.05" /></label>
+                <label>Katze Tempo <input id="profile-cat-speed" type="number" min="0.1" max="20" step="0.05" /></label>
+                <label>Katze erschreckt <input id="profile-frightened-speed" type="number" min="0.1" max="20" step="0.05" /></label>
+                <label>Katzen <input id="profile-cat-count" type="number" min="0" max="12" step="1" /></label>
+                <label>Leben <input id="profile-lives" type="number" min="1" max="99" step="1" /></label>
+                <label>Power Sekunden <input id="profile-power-duration" type="number" min="0.1" max="120" step="0.1" /></label>
+                <label>Zufall <input id="profile-wander" type="number" min="0" max="30" step="0.1" /></label>
+                <label>Startschutz <input id="profile-grace" type="number" min="0" max="30" step="0.1" /></label>
+              </div>
               <h2>Nächste Katze</h2>
               <div class="field-row compact"><label>Fell <input id="cat-color" type="color" value="#ff6b5f" /></label><label>Akzent <input id="cat-accent" type="color" value="#9e302e" /></label></div>
               <button id="sprite-designer-button" type="button">▦ Eigene Pixel-Figur gestalten</button>
@@ -144,15 +159,28 @@
     <dialog id="sprite-dialog" class="modal sprite-dialog">
       <form method="dialog"><button class="modal-close" aria-label="Figurendesigner schließen">×</button></form>
       <span class="eyebrow">PIXEL-FIGURENATELIER</span><h2>Jedes Pixel selbst bestimmen</h2>
-      <div class="sprite-workspace"><div id="sprite-grid" class="sprite-grid" aria-label="8 mal 8 Pixelraster"></div><div class="sprite-controls"><label>Ziel <select id="sprite-target"><option value="next-cat">Nächste Katze</option><option value="player">Franz & Lola</option></select></label><div id="sprite-palette" class="sprite-palette"></div><label>Farbe <input id="sprite-color" type="color" value="#ff6b5f" /></label><button id="sprite-add-color" type="button">Farbe übernehmen</button><button id="sprite-clear" type="button">Raster leeren</button><button id="sprite-mirror" type="button">Horizontal spiegeln</button></div></div>
+      <div class="sprite-workspace">
+        <div><div id="sprite-grid" class="sprite-grid" aria-label="Pixelraster"></div><canvas id="sprite-preview" width="192" height="192" aria-label="Animierte Vorschau"></canvas></div>
+        <div class="sprite-controls">
+          <label>Ziel <select id="sprite-target"><option value="next-cat">Nächste Katze</option><option value="player">Franz & Lola</option></select></label>
+          <label>Animation <select id="sprite-animation"><option value="base">Standbild</option></select></label>
+          <div class="inline-controls"><input id="sprite-animation-name" value="walk" aria-label="Name der neuen Animation" /><button id="sprite-add-animation" type="button">＋ Animation</button><button id="sprite-delete-animation" class="danger-subtle" type="button">Löschen</button></div>
+          <div class="frame-controls"><button id="sprite-prev-frame" type="button" aria-label="Vorheriger Frame">◀</button><strong id="sprite-frame-copy">Standbild</strong><button id="sprite-next-frame" type="button" aria-label="Nächster Frame">▶</button></div>
+          <div class="inline-controls"><button id="sprite-add-frame" type="button">＋ Frame duplizieren</button><button id="sprite-delete-frame" class="danger-subtle" type="button">Frame löschen</button></div>
+          <div class="field-row"><label>FPS <input id="sprite-fps" type="number" min="0.25" max="30" step="0.25" value="6" /></label><label class="switch"><input id="sprite-loop" type="checkbox" checked /><span>Schleife</span></label></div>
+          <div id="sprite-palette" class="sprite-palette"></div><label>Farbe <input id="sprite-color" type="color" value="#ff6b5f" /></label><button id="sprite-add-color" type="button">Farbe übernehmen</button><button id="sprite-clear" type="button">Frame leeren</button><button id="sprite-mirror" type="button">Horizontal spiegeln</button>
+        </div>
+      </div>
       <div class="modal-actions"><form method="dialog"><button>Abbrechen</button></form><button id="sprite-save" class="primary" type="button">Figur verwenden</button></div>
     </dialog>
 
-    <dialog id="playtest-dialog" class="modal playtest-dialog">
-      <div class="playtest-header"><div><span class="eyebrow">ECHTER RENDERER · ECHTE WEGE</span><h2>Testlauf</h2></div><form method="dialog"><button class="modal-close" aria-label="Testlauf schließen">×</button></form></div>
-      <canvas id="playtest-canvas" aria-label="Spielbare Levelvorschau"></canvas>
-      <div class="playtest-hud"><span>GUTTIS <strong id="playtest-score">0 / 0</strong></span><span id="playtest-state">PFEILTASTEN ODER WASD</span><button id="playtest-reset" type="button">↺ Neu starten</button></div>
-      <div class="mobile-dpad" aria-label="Mobile Teststeuerung"><button data-play-direction="up">▲</button><button data-play-direction="left">◀</button><button data-play-direction="down">▼</button><button data-play-direction="right">▶</button></div>
+    <dialog id="playtest-dialog" class="playtest-dialog">
+      <div id="playtest-stage" class="playtest-stage">
+        <canvas id="playtest-canvas" aria-label="Spielbare Levelvorschau"></canvas>
+        <div class="playtest-header playtest-overlay"><div><span class="eyebrow">GAME-SIMULATION · 120 TICKS</span><h2>Testlauf</h2></div><div class="playtest-actions"><button id="playtest-camera" type="button" aria-pressed="true">◎ Kamera</button><button id="playtest-fullscreen" type="button">⛶ Vollbild</button><form method="dialog"><button class="modal-close" aria-label="Testlauf schließen">×</button></form></div></div>
+        <div class="playtest-hud playtest-overlay"><span>GUTTIS <strong id="playtest-score">0 / 0</strong></span><span>PUNKTE <strong id="playtest-points">0</strong></span><span>LEBEN <strong id="playtest-lives">0</strong></span><span id="playtest-state">PFEILTASTEN ODER WASD</span><button id="playtest-pause" type="button">Ⅱ Pause</button><button id="playtest-reset" type="button">↺ Neu starten</button></div>
+        <div class="mobile-dpad playtest-overlay" aria-label="Mobile Teststeuerung"><button data-play-direction="up">▲</button><button data-play-direction="left">◀</button><button data-play-direction="down">▼</button><button data-play-direction="right">▶</button></div>
+      </div>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

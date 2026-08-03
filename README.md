@@ -8,10 +8,14 @@ Statischer No-Code-Level-Editor für das gemeinsame `franz-lola-level`-JSON-Form
 - Stift, Linie, Rechteck, Flächenfüllung und Radierer für Wände
 - Franz & Lola, beliebig viele Katzen und Schnüffel-Power frei platzierbar
 - Bäume, Bänke, Lampen, Blumen, Schilder, Felsen, Wasserflächen und freie Symbole
-- Eigene Pixel-Figuren mit Palette und 8×8-Zeichenfläche
+- Eigene Pixel-Figuren mit Palette, benannten Animationen, beliebig vielen Frames, FPS und Schleifenmodus
+- Verhalten pro Figur: direkte Steuerung, Autopilot, Patrouille sowie unterschiedliche Jagd-, Hinterhalt-, Wach-, Streu- und Zufallsstrategien
+- Animierbare Dekorationen mit Schweben, Pulsieren, Blinken und Drehen
+- Frei anpassbare Physikprofile pro Schwierigkeit (Tempo, Katzenzahl, Leben, Power-Dauer, Zufall und Startschutz)
 - Freie Raster von 9×9 bis 45×45, Tunnelzeilen, Farben, Landmarken und Kartenkoordinaten
 - Live-Vorschau für 70, 110 oder 160 Guttis mit exakt derselben Verteilung wie im Spiel
-- Integrierter, spielbarer Testlauf mit demselben Renderer
+- Integrierter Testlauf mit demselben Renderer und derselben 120-Tick-Simulation wie das Spiel
+- Spielkamera, Ganzlevel-Ansicht, nativer Vollbildmodus, Pause, Touch-Buttons und direkte Wischsteuerung
 - Live-Prüfung auf Erreichbarkeit, Kollisionen, Gutti-Kapazität und Randüberschreitungen
 - Transaktionsbasiertes Undo/Redo: ein kompletter Zeichenstrich ist ein Schritt
 - Mehrere automatisch gespeicherte `localStorage`-Entwürfe
@@ -31,7 +35,7 @@ Vollständige Prüfung:
 
 ```bash
 npm test              # Datenmodell, Katalog, Werkzeuge, Speicher, Testlauf
-npm run test:e2e      # Chromium: Desktop und Mobile
+npm run test:e2e      # Chromium: Desktop, Mobile, Kamera, Vollbild und Animationen
 npm run build         # statischer GitHub-Pages-Build
 ```
 
