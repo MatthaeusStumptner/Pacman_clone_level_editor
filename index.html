@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1620" />
+    <title>Franz & Lola · Levelwerkstatt</title>
+  </head>
+  <body>
+    <div class="editor-shell">
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">FRANZ & LOLA · WERKZEUGKASTEN</span>
+          <h1>Levelwerkstatt</h1>
+        </div>
+        <div class="file-actions">
+          <button id="new-level" type="button">Neues Level</button>
+          <label class="button" for="import-level">JSON importieren</label>
+          <input id="import-level" type="file" accept="application/json,.json" hidden />
+          <button id="export-level" class="primary" type="button">JSON exportieren</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="sidebar" aria-label="Level-Einstellungen">
+          <section>
+            <h2>Ort & Auftrag</h2>
+            <label>ID <input id="level-id" value="mein-level" pattern="[a-z0-9-]+" /></label>
+            <label>Name <input id="level-name" value="Mein Passau-Level" /></label>
+            <label>Name im Dialekt <input id="level-name-dialect" value="Mei Passau-Level" /></label>
+            <label>Gebiet <input id="level-area" value="PASSAU" /></label>
+            <div class="field-row">
+              <label>Breite <input id="level-columns" type="number" min="9" max="45" value="25" /></label>
+              <label>Höhe <input id="level-rows" type="number" min="9" max="45" value="25" /></label>
+            </div>
+          </section>
+          <section>
+            <h2>Umgebung</h2>
+            <label>Theme
+              <select id="level-theme">
+                <option value="dog-park">Nachbarschaft / Hundewiese</option>
+                <option value="brahmahof-home">Franz & Lolas Haus</option>
+                <option value="bschuett">Bschüttpark</option>
+                <option value="tabakfabrik">Tabakfabrik</option>
+                <option value="zauberberg">Zauberberg</option>
+              </select>
+            </label>
+            <div class="field-row colors">
+              <label>Straße <input id="ground-color" type="color" value="#17262c" /></label>
+              <label>Mauer <input id="wall-color" type="color" value="#174150" /></label>
+              <label>Wasser <input id="water-color" type="color" value="#0a5368" /></label>
+            </div>
+          </section>
+          <section>
+            <h2>Figuren</h2>
+            <p class="section-copy">„Katze setzen“ fügt Katzen hinzu. Farben gelten für die nächste und ausgewählte Katze.</p>
+            <div class="field-row colors">
+              <label>Fell <input id="cat-color" type="color" value="#ff6b5f" /></label>
+              <label>Akzent <input id="cat-accent" type="color" value="#9e302e" /></label>
+            </div>
+            <button id="clear-cats" type="button">Alle Katzen entfernen</button>
+          </section>
+          <section class="validation-card" aria-live="polite">
+            <h2>Prüfung</h2>
+            <div id="validation-status"></div>
+            <ul id="validation-errors"></ul>
+          </section>
+        </aside>
+
+        <section class="stage-panel">
+          <nav class="tools" aria-label="Zeichenwerkzeuge">
+            <button class="tool active" data-tool="wall" type="button">▦ Wand</button>
+            <button class="tool" data-tool="erase" type="button">◇ Radierer</button>
+            <button class="tool" data-tool="player" type="button">● Franz & Lola</button>
+            <button class="tool" data-tool="cat" type="button">◆ Katze</button>
+            <button class="tool" data-tool="power" type="button">✦ Schnüffel-Power</button>
+            <span class="tool-spacer"></span>
+            <button id="undo" type="button" aria-label="Rückgängig">↶</button>
+            <button id="redo" type="button" aria-label="Wiederholen">↷</button>
+          </nav>
+          <div class="canvas-wrap">
+            <canvas id="level-canvas" aria-label="Bearbeitbares Levelraster"></canvas>
+          </div>
+          <footer class="stage-footer">
+            <span id="cursor-position">Feld —</span>
+            <span>Ziehen malt mehrere Felder · Rechtsklick radiert</span>
+            <strong id="draft-status">Entwurf lokal gespeichert</strong>
+          </footer>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
