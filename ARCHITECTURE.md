@@ -66,4 +66,4 @@ Der gemeinsame Renderer sampelt Cutscenes und zeichnet dieselben Zwischenstände
 
 ## Qualitätsgrenze
 
-Reine Fachlogik erhält Node-Tests. Sichtbare Arbeitsabläufe erhalten zusätzlich Chromium-End-to-End-Tests auf Desktop und Mobile. Die vollständige Prüfung umfasst Objektbibliothek, Originalkatalog, History, Sprite-States, direkte Elementauswahl, Cutscenes, Ereignisse, Testspiel, Publisher, Accessibility und Produktions-Build.
+Reine Fachlogik erhält Node-Tests. Sichtbare Arbeitsabläufe erhalten zusätzlich Chromium-End-to-End-Tests auf Desktop und Mobile. Die vollständige Prüfung umfasst Objektbibliothek, Originalkatalog, History, echte Renderer-Vorschauen aller Figuren, Sprite-States, direkte Elementauswahl, sämtliche neun levelgebundenen Cutscenes und Ereignisse, Testspiel, Publisher, Accessibility und Produktions-Build. Ein separater visueller Playwright-Lauf zeichnet kurze Videos der Figuren-, Ereignis- und Cutscene-Flows unter `output/playwright` auf.

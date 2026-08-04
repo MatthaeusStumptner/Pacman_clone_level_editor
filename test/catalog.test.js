@@ -13,6 +13,13 @@ const expected = [
 const expectedEvents = {
   home: ['ilzvogel', 'hundewiese', 'post-fuer-franz'], hals: ['ilzvogel', 'ilzrauschen'], oberhaus: ['kirchenglockn', 'goldener-ausblick'], dom: ['kirchenglockn', 'orgelakkord'], dreifluesseeck: ['ilzvogel', 'dreiklang-der-fluesse'], uni: ['pruefungs-gutti'], bschuett: ['ilzvogel', 'hundewiese', 'lolas-stockerl'], tabakfabrik: ['dampfzeichen'], zauberberg: ['zugabe'],
 };
+const expectedStories = {
+  home: ['post-fuer-franz', 'Aufbruch am Bramerhof', 4, 8], hals: ['ilzrauschen', 'Entlang der Ilz', 4, 10],
+  oberhaus: ['goldener-ausblick', 'Hinauf zur Veste', 4, 12], dom: ['orgelakkord', 'Glocken über Passau', 4, 12],
+  dreifluesseeck: ['dreiklang-der-fluesse', 'Drei Flüsse, eine Runde', 4, 15], uni: ['pruefungs-gutti', 'Kurze Vorlesung für Lola', 4, 10],
+  bschuett: ['lolas-stockerl', 'Runde durch den Bschüttpark', 4, 10], tabakfabrik: ['dampfzeichen', 'Die Fabrik erwacht', 5, 13],
+  zauberberg: ['zugabe', 'Soundcheck am Zauberberg', 6, 23],
+};
 
 test('catalog is pinned to the reviewed Geburtstagsspiel source snapshot', () => {
   const catalog = catalogDocument();
@@ -52,7 +59,16 @@ test('every original level validates and produces exact difficulty Gutti counts'
 test('every level has a distinct authored cutscene and at least one new event', () => {
   const signatures = passauCatalog.map((level) => `${level.id}:${level.cutscenes[0].duration}:${level.cutscenes[0].tracks.length}:${level.cutscenes[0].tracks.flatMap((track) => track.keyframes).length}`);
   assert.equal(new Set(signatures.map((signature) => signature.split(':').slice(1).join(':'))).size, passauCatalog.length);
-  passauCatalog.forEach((level) => assert.ok(level.events.some((event) => event.visual.assetId), `${level.id} reusable object event`));
+  passauCatalog.forEach((level) => {
+    const [eventId, cutsceneName, tracks, keyframes] = expectedStories[level.id];
+    const event = level.events.find((entry) => entry.id === eventId);
+    const cutscene = level.cutscenes[0];
+    assert.ok(event?.visual.assetId, `${level.id} level-specific reusable object event`);
+    assert.ok(event.message.standard && event.message.dialect, `${level.id} localized event copy`);
+    assert.equal(cutscene.name.standard, cutsceneName, `${level.id} adapted cutscene`);
+    assert.equal(cutscene.tracks.length, tracks, `${level.id} track complexity`);
+    assert.equal(cutscene.tracks.flatMap((track) => track.keyframes).length, keyframes, `${level.id} keyframe complexity`);
+  });
 });
 
 test('loading and exporting an untouched original preserves every wall rectangle', () => {

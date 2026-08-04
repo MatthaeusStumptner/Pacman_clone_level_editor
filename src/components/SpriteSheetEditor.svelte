@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { PLAYER_STATES } from '../character-template.js';
   import { insertSpriteKeyframe, keyframeAtTime, prepareAppearanceForEditing } from '../animation-tools.js';
+  import ActorThumbnail from './ActorThumbnail.svelte';
 
   let { appearance, title = 'Sprite-Sheet', showStates = true, onsave = () => {}, oncancel = () => {} } = $props();
   const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -95,9 +96,7 @@
 <section class="sprite-studio" aria-label={title}>
   <header><div><span class="eyebrow">SPRITE-SHEET · KEYFRAMES</span><h3>{title}</h3><p>Zustand → Animation → Keyframe → Pixel. Mit Timeline, Scrubbing und echtem Playback.</p></div><div class="modal-actions"><button onclick={oncancel}>Abbrechen</button><button class="primary" onclick={save}>Sprite übernehmen</button></div></header>
   <div class="sprite-playback-stage">
-    <div class="large-sprite-preview playback" style={`--preview-columns:${draft.width}`}>
-      {#each previewRows as row}{#each [...row] as token}<i style:background={tokenColor(token) === 'transparent' ? 'transparent' : tokenColor(token)}></i>{/each}{/each}
-    </div>
+    <ActorThumbnail appearance={draft} kind="player" state={selectedState} animationId={selectedAnimationId === 'base' ? '' : selectedAnimationId} elapsed={playhead} class="sprite-playback-preview" label={`${title} Playback-Vorschau`} />
     <div class="keyframe-transport"><button onclick={() => { playhead = 0; playing = false; }}>■</button><button class="primary" disabled={!selectedAnimation} onclick={() => { if (playhead >= selectedAnimation.duration) playhead = 0; playing = !playing; lastTimestamp = 0; }}>{playing ? 'Ⅱ Pause' : '▶ Playback'}</button><input type="range" min="0" max={selectedAnimation?.duration ?? 1} step="0.01" bind:value={playhead} disabled={!selectedAnimation} /><code>{playhead.toFixed(2)} / {(selectedAnimation?.duration ?? 0).toFixed(2)} s</code></div>
     {#if selectedAnimation}<div class="keyframe-ruler"><div class="timeline-playhead" style:left={`${playhead / selectedAnimation.duration * 100}%`}></div>{#each selectedAnimation.keyframes as frame}<button class:active={frame.id === selectedKeyframeId} style:left={`${frame.time / selectedAnimation.duration * 100}%`} onclick={() => { selectedKeyframeId = frame.id; playhead = frame.time; playing = false; }} title={`${frame.id} · ${frame.time.toFixed(2)} s`}></button>{/each}</div>{/if}
   </div>

@@ -1,5 +1,6 @@
 <script>
   import { createFranzLolaAppearance, PLAYER_STATES } from '../character-template.js';
+  import ActorThumbnail from './ActorThumbnail.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
 
   let { studio } = $props();
@@ -35,9 +36,9 @@
     <div class="character-layout">
       <aside class="actor-browser">
         <strong>Figuren im Level</strong>
-        <button class:active={targetKind === 'player'} onclick={() => select('player', 0)}><span class="actor-avatar">FL</span><span><b>Franz & Lola</b><small>Spieler · gemeinsam</small></span></button>
+        <button class:active={targetKind === 'player'} onclick={() => select('player', 0)}><span class="actor-avatar actual"><ActorThumbnail actor={studio.level.actors.player} kind="player" state="idle" label="Franz und Lola" /></span><span><b>Franz & Lola</b><small>Spieler · gemeinsam</small></span></button>
         {#each studio.level.actors.cats as cat, index}
-          <button class:active={targetKind === 'cat' && targetIndex === index} onclick={() => select('cat', index)}><span class="actor-avatar cat" style:--actor-color={cat.color}>◆</span><span><b>Katze {index + 1}</b><small>{cat.behavior.strategy}</small></span></button>
+          <button class:active={targetKind === 'cat' && targetIndex === index} onclick={() => select('cat', index)}><span class="actor-avatar actual"><ActorThumbnail actor={cat} kind="cat" state="idle" label={`Katze ${index + 1}`} /></span><span><b>Katze {index + 1}</b><small>{cat.behavior.strategy}</small></span></button>
         {/each}
         <button onclick={() => { studio.setTool('cat'); studio.workspace = 'level'; }}>＋ Katze im Level setzen</button>
       </aside>
@@ -45,15 +46,13 @@
       <div class="character-stage">
         {#if actor}
           <div class="character-hero">
-            <div class="large-sprite-preview" style={`--preview-columns:${appearance?.width ?? 1}`}>
-              {#if appearance}{#each appearance.animations?.find((animation) => animation.id === (appearance.stateAnimations?.idle || 'idle'))?.frames?.[0]?.pixels ?? appearance.pixels as row}{#each [...row] as token}<i style:background={appearance.palette[Number.parseInt(token, 36)] === 'transparent' ? 'transparent' : appearance.palette[Number.parseInt(token, 36)]}></i>{/each}{/each}{:else}<span>◆</span>{/if}
-            </div>
+            <ActorThumbnail actor={actor} {appearance} kind={targetKind} state="idle" class="actor-preview-large" label={targetKind === 'player' ? 'Franz und Lola in Originaldarstellung' : `Katze ${targetIndex + 1} in Spieldarstellung`} />
             <div><span class="eyebrow">AKTIVE FIGUR</span><h3>{targetKind === 'player' ? 'Franz & Lola' : `Katze ${targetIndex + 1}`}</h3><p>{appearance ? `${appearance.width} × ${appearance.height} Pixel · ${appearance.animations.length} Animationen` : 'Standard-Pixelrenderer'}</p><button class="primary" onclick={() => editing = true}>Sprite-Sheet bearbeiten</button>{#if targetKind === 'player'}<button onclick={() => studio.resetPlayerAppearance()}>Originalvorlage laden</button>{/if}</div>
           </div>
           <div class="state-matrix">
             <header><strong>Player States</strong><span>Jeder Zustand verweist eindeutig auf eine Animation.</span></header>
             {#each PLAYER_STATES as state}
-              <div><span class="state-icon">{state === 'idle' ? '•' : state === 'up' ? '↑' : state === 'right' ? '→' : state === 'down' ? '↓' : '←'}</span><strong>{state}</strong><code>{appearance?.stateAnimations?.[state] || 'Standardrenderer'}</code></div>
+              <div data-player-state={state}><ActorThumbnail actor={actor} {appearance} kind={targetKind} {state} class="actor-state-preview" label={`${state} Vorschau`} /><strong>{state}</strong><code>{appearance?.stateAnimations?.[state] || 'Standardrenderer'}</code></div>
             {/each}
           </div>
         {/if}

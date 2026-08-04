@@ -6,6 +6,8 @@ async function openCleanEditor(page) {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await page.waitForTimeout(150);
+  if (!await page.locator('#level-canvas').count()) throw new Error(`Editor konnte nicht starten: ${errors.join(' | ') || 'keine Page-Error-Meldung'}`);
   await expect(page.locator('#level-canvas')).toBeVisible();
   return errors;
 }
@@ -19,8 +21,37 @@ async function openProject(page) {
 async function loadTemplate(page, id) {
   await openProject(page);
   await page.locator(`[data-template-id="${id}"]`).click();
-  await expect(page.locator('.document-identity')).toContainText(id === 'zauberberg' ? 'Zauberberg' : id === 'hals' ? 'Hals & Ilz' : id === 'home' ? 'Dahoam' : '');
+  await expect(page.locator('.document-identity')).toHaveAttribute('data-level-id', id);
 }
+
+async function canvasHasVisiblePixels(locator) {
+  return locator.evaluate((canvas) => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let index = 3; index < pixels.length; index += 4) if (pixels[index] > 0) return true;
+    return false;
+  });
+}
+
+async function canvasSignature(locator) {
+  return locator.evaluate((canvas) => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 2166136261;
+    for (let index = 0; index < pixels.length; index += 17) hash = Math.imul(hash ^ pixels[index], 16777619);
+    return hash >>> 0;
+  });
+}
+
+const storyCases = [
+  { id: 'home', event: 'Geburtstagspost', eventCount: 3, cutscene: 'Aufbruch am Bramerhof', tracks: 4, keyframes: 8, duration: 4 },
+  { id: 'hals', event: 'Das Rauschen der Ilz', eventCount: 2, cutscene: 'Entlang der Ilz', tracks: 4, keyframes: 10, duration: 5.2 },
+  { id: 'oberhaus', event: 'Goldener Passau-Blick', eventCount: 2, cutscene: 'Hinauf zur Veste', tracks: 4, keyframes: 12, duration: 5 },
+  { id: 'dom', event: 'Der große Orgelakkord', eventCount: 2, cutscene: 'Glocken über Passau', tracks: 4, keyframes: 12, duration: 5.6 },
+  { id: 'dreifluesseeck', event: 'Dreiklang der Flüsse', eventCount: 2, cutscene: 'Drei Flüsse, eine Runde', tracks: 4, keyframes: 15, duration: 6.4 },
+  { id: 'uni', event: 'Das Prüfungs-Gutti', eventCount: 1, cutscene: 'Kurze Vorlesung für Lola', tracks: 4, keyframes: 10, duration: 4.3 },
+  { id: 'bschuett', event: 'Lolas Superstöckchen', eventCount: 3, cutscene: 'Runde durch den Bschüttpark', tracks: 4, keyframes: 10, duration: 4.8 },
+  { id: 'tabakfabrik', event: 'Das alte Dampfzeichen', eventCount: 1, cutscene: 'Die Fabrik erwacht', tracks: 5, keyframes: 13, duration: 5.8 },
+  { id: 'zauberberg', event: 'Zauberberg-Zugabe', eventCount: 1, cutscene: 'Soundcheck am Zauberberg', tracks: 6, keyframes: 23, duration: 7.2 },
+];
 
 async function canvasPoint(page, x, y) {
   const box = await page.locator('#level-canvas').boundingBox();
@@ -106,12 +137,23 @@ test('universal objects can be created as pixel assets and placed into any map',
 
 test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async ({ page }) => {
   const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'home');
   await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('.actor-browser .actor-thumbnail')).toHaveCount(4);
+  for (const preview of await page.locator('.actor-browser .actor-thumbnail').all()) expect(await canvasHasVisiblePixels(preview)).toBe(true);
   await expect(page.locator('.state-matrix > div')).toHaveCount(5);
+  await expect(page.locator('.state-matrix .actor-thumbnail')).toHaveCount(5);
+  for (const preview of await page.locator('.state-matrix .actor-thumbnail').all()) expect(await canvasHasVisiblePixels(preview)).toBe(true);
+  await page.locator('.actor-browser button').filter({ hasText: 'Katze 1' }).click();
+  await expect(page.locator('.character-hero .actor-thumbnail')).toHaveAttribute('data-actor-kind', 'cat');
+  expect(await canvasHasVisiblePixels(page.locator('.character-hero .actor-thumbnail'))).toBe(true);
+  await page.locator('.actor-browser button').filter({ hasText: 'Franz & Lola' }).click();
   await page.getByRole('button', { name: /Sprite-Sheet öffnen/ }).click();
   await expect(page.locator('.state-tabs button')).toHaveCount(5);
+  const idleSignature = await canvasSignature(page.locator('.sprite-playback-stage .actor-thumbnail'));
   await page.locator('.state-tabs button').filter({ hasText: 'right' }).click();
   await expect(page.getByLabel('Verwendete Animation')).toHaveValue('right');
+  await expect.poll(() => canvasSignature(page.locator('.sprite-playback-stage .actor-thumbnail'))).not.toBe(idleSignature);
   const before = await page.locator('.sheet-grid > button').count();
   await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
   await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
@@ -120,6 +162,34 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.locator('.state-matrix')).toContainText('right');
   await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="characters"]').click();
   await expect(page.locator('.state-matrix')).toContainText('right');
+  expect(errors).toEqual([]);
+});
+
+test('every level exposes its own event and differently authored cutscene through the UI', async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors = await openCleanEditor(page);
+  const signatures = [];
+  for (const story of storyCases) {
+    await loadTemplate(page, story.id);
+    await page.locator('[data-workspace="events"]').click();
+    await expect(page.locator('.event-browser button')).toHaveCount(story.eventCount);
+    const eventButton = page.locator('.event-browser button').filter({ hasText: story.event });
+    await expect(eventButton).toHaveCount(1);
+    await eventButton.click();
+    await expect(page.locator('.event-message-preview')).toContainText(story.event);
+    await expect(page.locator('.property-panel').getByLabel('Meldung', { exact: true })).not.toHaveValue('');
+    await expect(page.locator('.property-panel').getByLabel('Meldung im Dialekt')).not.toHaveValue('');
+    await expect(page.locator('.property-panel').getByLabel('Objekt aus Bibliothek')).not.toHaveValue('');
+
+    await page.locator('[data-workspace="cutscenes"]').click();
+    await expect(page.locator('.cutscene-selector')).toContainText(story.cutscene);
+    await expect(page.locator('.timeline-row')).toHaveCount(story.tracks);
+    await expect(page.locator('.timeline-lane > button')).toHaveCount(story.keyframes);
+    await expect(page.locator('.cutscene-transport input')).toHaveAttribute('max', String(story.duration));
+    await expect.poll(() => canvasHasVisiblePixels(page.getByLabel('Cutscene-Vorschau'))).toBe(true);
+    signatures.push(`${story.duration}:${story.tracks}:${story.keyframes}`);
+  }
+  expect(new Set(signatures).size).toBe(storyCases.length);
   expect(errors).toEqual([]);
 });
 

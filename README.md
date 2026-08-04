@@ -11,7 +11,7 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Eigene Spezialobjekte mit Sprite-Sheet, Palette, zeitbasierten Bild-Keyframes und Transform-Keyframes für Position, Größe, Drehung und Deckkraft
 - Frei bewegliche Standard-/Dialekt-Textblöcke mit Schriftgröße, Ausrichtung, Farbe, Hintergrund und Rahmen
 - Bäume, Bänke, Lampen, Blumen, Schilder, Felsen, Wasserflächen und freie Symbole
-- Eigener Franz-&-Lola-Charakterbereich mit animierter Vorschau und frei bearbeitbaren Zuständen für Idle, Oben, Rechts, Unten und Links
+- Eigener Franz-&-Lola-Charakterbereich mit echten Renderer-Vorschauen in Figurenliste, Detailansicht, Sprite-Playback und allen frei bearbeitbaren Zuständen für Idle, Oben, Rechts, Unten und Links
 - Eigene Pixel-Figuren mit Palette, benannten Animationen, Keyframe-Timeline, Scrubbing, Playback und Schleifenmodus
 - Levelgebundene Cutscenes für den Übergang von Passau-Karte zu Level
 - Timeline mit Kamera-, Figuren-, Objekt- und Dialogspuren, Keyframes, Easing und zweisprachigen Texten
@@ -46,9 +46,9 @@ npm run dev
 Vollständige Prüfung:
 
 ```bash
-npm test              # 40 Fachtests: Modell, Katalog, Keyframes, Objekte, Speicher und Testlauf
-npm run test:e2e      # 13 echte Chromium-Abläufe auf Desktop und Pixel-7-Ansicht
-npm run test:e2e      # 11 Chromium-Abläufe: alle Studio-Bereiche, Publisher und Mobile
+npm test              # Fachtests: Modell, Katalog, Keyframes, Objekte, Speicher und Testlauf
+npm run test:e2e      # echte Chromium-Abläufe inklusive aller neun Level, Publisher und Mobile
+npm run test:visual   # drei kurze Videos für Figuren, Ereignisse und Cutscenes unter output/playwright
 npm run build         # statischer GitHub-Pages-Build
 ```
 
