@@ -1,5 +1,5 @@
 import { createPublication, exchangeGithubCode, listPublishedLevels, publicationStatus, readRepositoryFile } from './github.js';
-import { preparePublishedLevel, readPublishBody } from './level-publication.js';
+import { preparePublishedBatch, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from './level-publication.js';
 import {
   bearerToken,
   corsHeaders,
@@ -89,23 +89,24 @@ async function callback(request, env) {
 
 async function publish(request, env, session) {
   const body = await readPublishBody(request);
-  const files = await listPublishedLevels(env);
-  const initial = preparePublishedLevel(body.level, { existing: null, nextMapOrder: files.length });
-  const existingFile = await readRepositoryFile(env, initial.path);
-  const prepared = preparePublishedLevel(body.level, { existing: existingFile?.value, nextMapOrder: files.length });
+  const levels = publishLevelsFromBody(body);
+  const publishedFiles = await listPublishedLevels(env);
+  const initial = levels.map((level, index) => preparePublishedLevel(level, { existing: null, nextMapOrder: publishedFiles.length + index }));
+  const existingFiles = await Promise.all(initial.map((entry) => readRepositoryFile(env, entry.path)));
+  const existingByPath = new Map(initial.map((entry, index) => [entry.path, existingFiles[index]?.value ?? null]));
+  const prepared = preparePublishedBatch(levels, { existingByPath, nextMapOrder: publishedFiles.length });
   const publication = await createPublication(env, {
-    path: prepared.path,
-    content: prepared.value,
-    level: prepared.value,
+    files: prepared.map((entry) => ({ path: entry.path, content: entry.value, level: entry.value, warnings: entry.warnings })),
     login: session.login,
-    warnings: prepared.warnings,
   });
+  const warnings = prepared.flatMap((entry) => entry.warnings.map((warning) => `${entry.value.name.standard}: ${warning}`));
   return json({
     publicationId: publication.number,
     state: 'testing',
-    detail: 'Das Level wurde übertragen und wird automatisch geprüft.',
+    detail: `${prepared.length === 1 ? 'Das Level wurde' : `${prepared.length} Level wurden`} übertragen und werden automatisch geprüft.`,
     prUrl: publication.url,
-    warnings: prepared.warnings,
+    warnings,
+    levelIds: prepared.map((entry) => entry.value.id),
   }, { status: 202, request, env });
 }
 
@@ -133,8 +134,8 @@ export default {
       if (url.pathname === '/health') return json({ ok: true, service: 'franz-lola-publisher' });
       return response('Nicht gefunden.', { status: 404 });
     } catch (error) {
-      console.error('Publisher request failed:', error instanceof Error ? error.message : 'Unbekannter Fehler');
-      const expected = error instanceof SyntaxError || /Level|JSON|Veröffentlich|GitHub|64 × 64|mehr als|nicht erlaubt|größer/.test(error?.message ?? '');
+      console.error(JSON.stringify({ message: 'publisher request failed', error: error instanceof Error ? error.message : 'Unbekannter Fehler', path: url.pathname }));
+      const expected = error instanceof SyntaxError || /Level|Entwurf|JSON|Veröffentlich|GitHub|64 × 64|mehr als|nicht erlaubt|größer|höchstens|vorkommen/.test(error?.message ?? '');
       return json({ error: expected ? error.message : 'Die Veröffentlichung konnte nicht abgeschlossen werden.' }, {
         status: expected ? 400 : 500,
         request: url.pathname.startsWith('/api/') ? request : undefined,

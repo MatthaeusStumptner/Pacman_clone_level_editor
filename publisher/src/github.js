@@ -124,42 +124,56 @@ export async function listPublishedLevels(env) {
   }
 }
 
-export async function createPublication(env, { path, content, level, login, warnings }) {
+function publicationKey(levels) {
+  if (levels.length === 1) return levels[0].id;
+  return `batch-${levels.map((level) => level.id).sort().join('-')}`.slice(0, 72).replace(/-+$/g, '');
+}
+
+export async function createPublication(env, { files, login }) {
+  if (!Array.isArray(files) || !files.length) throw new Error('Für die Veröffentlichung fehlen Leveldateien.');
+  const levels = files.map((file) => file.level);
   const baseBranch = env.GITHUB_BASE_BRANCH || 'main';
   const openPulls = await githubRequest(env, `${repositoryPath(env, '/pulls')}?state=open&base=${encodeURIComponent(baseBranch)}&per_page=100`);
-  const pending = openPulls.find((pull) => pull.head?.ref?.startsWith(`publisher/${level.id}-`));
-  if (pending) return { number: pending.number, url: pending.html_url, branch: pending.head.ref, reused: true };
-  const base = await githubRequest(env, `${repositoryPath(env, `/git/ref/heads/${encodeURIComponent(baseBranch)}`)}`);
-  const suffix = crypto.randomUUID().slice(0, 8);
-  const branch = `publisher/${level.id}-${Date.now()}-${suffix}`;
-  await githubRequest(env, repositoryPath(env, '/git/refs'), {
-    method: 'POST',
-    body: { ref: `refs/heads/${branch}`, sha: base.object.sha },
-  });
+  const key = publicationKey(levels);
+  const pending = openPulls.find((pull) => pull.head?.ref?.startsWith(`publisher/${key}-`));
+  let branch = pending?.head?.ref;
+  if (!branch) {
+    const base = await githubRequest(env, `${repositoryPath(env, `/git/ref/heads/${encodeURIComponent(baseBranch)}`)}`);
+    const suffix = crypto.randomUUID().slice(0, 8);
+    branch = `publisher/${key}-${Date.now()}-${suffix}`;
+    await githubRequest(env, repositoryPath(env, '/git/refs'), {
+      method: 'POST',
+      body: { ref: `refs/heads/${branch}`, sha: base.object.sha },
+    });
+  }
 
-  const existing = await readRepositoryFile(env, path, baseBranch);
-  await githubRequest(env, repositoryPath(env, `/contents/${path.split('/').map(encodeURIComponent).join('/')}`), {
-    method: 'PUT',
-    body: {
-      message: `content: ${level.name.standard} aus der Levelwerkstatt`,
-      content: encodeContent(`${JSON.stringify(content, null, 2)}\n`),
-      branch,
-      ...(existing ? { sha: existing.sha } : {}),
-    },
-  });
+  for (const file of files) {
+    const existing = await readRepositoryFile(env, file.path, branch);
+    await githubRequest(env, repositoryPath(env, `/contents/${file.path.split('/').map(encodeURIComponent).join('/')}`), {
+      method: 'PUT',
+      body: {
+        message: `content: ${file.level.name.standard} aus der Levelwerkstatt`,
+        content: encodeContent(`${JSON.stringify(file.content, null, 2)}\n`),
+        branch,
+        ...(existing ? { sha: existing.sha } : {}),
+      },
+    });
+  }
+
+  if (pending) return { number: pending.number, url: pending.html_url, branch, reused: true };
 
   const pullRequest = await githubRequest(env, repositoryPath(env, '/pulls'), {
     method: 'POST',
     body: {
-      title: `Level veröffentlichen: ${level.name.standard}`,
+      title: levels.length === 1 ? `Level veröffentlichen: ${levels[0].name.standard}` : `${levels.length} Level aus der Levelwerkstatt veröffentlichen`,
       head: branch,
       base: baseBranch,
       body: [
         `Automatisch aus der Franz-&-Lola-Levelwerkstatt veröffentlicht.`,
         ``,
         `Redaktion: @${login}`,
-        `Level-ID: \`${level.id}\``,
-        `Prüfhinweise: ${warnings.length ? warnings.join(' · ') : 'keine'}`,
+        `Ausgewählte Level:`,
+        ...files.map((file) => `- \`${file.level.id}\` – ${file.level.name.standard} · Prüfhinweise: ${file.warnings.length ? file.warnings.join(' · ') : 'keine'}`),
       ].join('\n'),
     },
   });

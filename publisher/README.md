@@ -80,7 +80,7 @@ Im Repository `Geburtstagsspiel`:
 
 - Variable `PUBLISHER_BOT_LOGIN` = Bot-Login der GitHub App, normalerweise der App-Slug plus `[bot]`, zum Beispiel `franz-lola-publisher[bot]`.
 
-Nun kann ein erlaubter Account im Editor auf **Veröffentlichen** klicken. Nicht erlaubte Accounts erhalten nur eine neutrale Fehlermeldung.
+Nun kann ein erlaubter Account im Editor auf **Veröffentlichen** klicken, bis zu 20 spielbare Entwürfe auswählen und sie gemeinsam prüfen lassen. Der Worker akzeptiert höchstens 5 MB pro Veröffentlichung und 1 MB pro Level; alle ausgewählten Dateien landen in genau einem Pull Request. Nicht erlaubte Accounts erhalten nur eine neutrale Fehlermeldung.
 
 ## Lokale Prüfung
 

@@ -84,8 +84,10 @@ export class PublisherClient {
     return this.#request('/api/me');
   }
 
-  publish(level) {
-    return this.#request('/api/publish', { method: 'POST', body: JSON.stringify({ level }) });
+  publish(levels) {
+    const selected = Array.isArray(levels) ? levels : [levels];
+    if (!selected.length) throw new Error('Bitte mindestens einen Entwurf auswählen.');
+    return this.#request('/api/publish', { method: 'POST', body: JSON.stringify({ levels: selected }) });
   }
 
   publication(publicationId) {

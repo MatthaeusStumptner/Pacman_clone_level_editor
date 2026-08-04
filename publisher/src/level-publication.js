@@ -1,6 +1,8 @@
 import { validateLevelDocument } from '@franz-lola/pixel-renderer';
 
-const MAX_BODY_BYTES = 1_000_000;
+const MAX_BODY_BYTES = 5_000_000;
+const MAX_LEVEL_BYTES = 1_000_000;
+const MAX_LEVELS = 20;
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export function assertSafeObject(value, depth = 0) {
@@ -17,12 +19,34 @@ export async function readPublishBody(request) {
     throw new Error('Veröffentlichungen müssen als JSON gesendet werden.');
   }
   const declaredLength = Number(request.headers.get('Content-Length') || 0);
-  if (declaredLength > MAX_BODY_BYTES) throw new Error('Das Level ist größer als 1 MB.');
-  const source = await request.text();
-  if (new TextEncoder().encode(source).byteLength > MAX_BODY_BYTES) throw new Error('Das Level ist größer als 1 MB.');
+  if (declaredLength > MAX_BODY_BYTES) throw new Error('Die Veröffentlichung ist größer als 5 MB.');
+  const reader = request.body?.getReader(); const chunks = []; let length = 0;
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > MAX_BODY_BYTES) { await reader.cancel(); throw new Error('Die Veröffentlichung ist größer als 5 MB.'); }
+      chunks.push(value);
+    }
+  }
+  const bytes = new Uint8Array(length); let offset = 0;
+  chunks.forEach((chunk) => { bytes.set(chunk, offset); offset += chunk.byteLength; });
+  const source = new TextDecoder().decode(bytes);
   const body = JSON.parse(source);
   assertSafeObject(body);
   return body;
+}
+
+export function publishLevelsFromBody(body) {
+  const levels = Array.isArray(body?.levels) ? body.levels : body?.level ? [body.level] : [];
+  if (!levels.length) throw new Error('Bitte mindestens einen Entwurf auswählen.');
+  if (levels.length > MAX_LEVELS) throw new Error(`Es können höchstens ${MAX_LEVELS} Level auf einmal veröffentlicht werden.`);
+  const encoder = new TextEncoder();
+  levels.forEach((level, index) => {
+    if (encoder.encode(JSON.stringify(level)).byteLength > MAX_LEVEL_BYTES) throw new Error(`Level ${index + 1} ist größer als 1 MB.`);
+  });
+  return levels;
 }
 
 function enforceResourceLimits(level) {
@@ -54,4 +78,17 @@ export function preparePublishedLevel(input, { existing, nextMapOrder }) {
     },
   };
   return { value, warnings: result.warnings, path: `src/data/levels/${value.id}.level.json` };
+}
+
+export function preparePublishedBatch(inputs, { existingByPath = new Map(), nextMapOrder = 0 } = {}) {
+  const initial = inputs.map((input, index) => preparePublishedLevel(input, { existing: null, nextMapOrder: nextMapOrder + index }));
+  const paths = initial.map((entry) => entry.path);
+  if (new Set(paths).size !== paths.length) throw new Error('Jede ausgewählte Level-ID darf nur einmal vorkommen.');
+  let nextNewOrder = nextMapOrder;
+  return inputs.map((input, index) => {
+    const existing = existingByPath.get(initial[index].path) ?? null;
+    const prepared = preparePublishedLevel(input, { existing, nextMapOrder: nextNewOrder });
+    if (!existing) nextNewOrder += 1;
+    return prepared;
+  });
 }

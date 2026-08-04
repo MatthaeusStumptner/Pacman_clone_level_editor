@@ -438,4 +438,19 @@ export class StudioState {
 
   templates() { return passauCatalog; }
   draftsList() { return this.drafts.list(); }
+
+  publishCandidates() {
+    const entries = this.drafts.list().map((entry) => ({ ...entry, level: this.drafts.load(entry.id), current: entry.id === this.level.id }));
+    const current = { id: this.level.id, name: this.level.name.standard, savedAt: '', level: clone(this.level), current: true };
+    const candidates = [current, ...entries.filter((entry) => entry.id !== current.id)];
+    return candidates.map((entry) => ({ ...entry, validation: validateLevelDocument(entry.level) }));
+  }
+
+  deleteDraft(id) {
+    if (id === this.level.id) clearTimeout(this.saveTimer);
+    if (!this.drafts.remove(id)) return false;
+    this.revision += 1;
+    this.notify(id === this.level.id ? 'Entwurf gelöscht · das geöffnete Level bleibt erhalten' : 'Entwurf gelöscht');
+    return true;
+  }
 }

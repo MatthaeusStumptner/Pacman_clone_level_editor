@@ -29,7 +29,7 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Transaktionsbasiertes Undo/Redo: ein kompletter Zeichenstrich ist ein Schritt
 - Mehrere automatisch gespeicherte `localStorage`-Entwürfe
 - Import/Export einzelner Level sowie Export des vollständigen Originalkatalogs
-- Sicheres Veröffentlichen per Knopfdruck: Anmeldung, Prüfung, Pull Request, Merge und GitHub-Pages-Deploy laufen geführt und automatisch
+- Sicheres Veröffentlichen per Knopfdruck: einen oder mehrere lokale Entwürfe auswählen; Anmeldung, gemeinsamer Pull Request, Prüfung, Merge und GitHub-Pages-Deploy laufen geführt und automatisch
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
 
 Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Zusätzlich besitzt jedes der neun Level eine eigene neue Ereignisidee, einen frei beweglichen Textblock und eine individuelle Intro-Cutscene mit unterschiedlicher Dauer, Trackzahl und Dramaturgie. Der Zauberberg besitzt in Editor und Testlauf seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und sowohl die generische als auch die originalgetreue Musiknote.
@@ -60,4 +60,4 @@ Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `
 
 ## Veröffentlichen ohne Repository-Zugriff
 
-Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an, darf aber ausschließlich geprüfte Leveldateien veröffentlichen. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.
+Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an, wählt einen oder mehrere spielbare Entwürfe und darf ausschließlich diese geprüften Leveldateien in einem gemeinsamen Pull Request veröffentlichen. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.

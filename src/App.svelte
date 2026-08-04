@@ -37,6 +37,9 @@
   function switchWorkspace(id) { studio.workspace = id; projectOpen = false; }
   function loadTemplate(id) { studio.loadTemplate(id); projectOpen = false; }
   function loadDraft(id) { studio.loadDraft(id); projectOpen = false; }
+  function deleteDraft(draft) {
+    if (window.confirm(`Entwurf „${draft.name}“ wirklich löschen?`)) studio.deleteDraft(draft.id);
+  }
 
   function keyboard(event) {
     const editing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
@@ -70,7 +73,7 @@
     <div class="project-actions"><button class="primary" onclick={() => { studio.newLevel(); projectOpen = false; }}>＋ Neues Level</button><button onclick={() => importInput.click()}>↓ JSON importieren</button><input class="visually-hidden" bind:this={importInput} type="file" accept="application/json,.json" aria-label="Leveldatei auswählen" onchange={importFile} /></div>
     <label class="search-field"><span>⌕</span><input bind:value={search} placeholder="Passauer Orte suchen" /></label>
     <div class="project-section template-section"><div class="panel-title"><strong>Passau-Vorlagen</strong><span>{templates.length}</span></div><div class="template-list">{#each templates as level}<button class:active={studio.level.id === level.id} data-template-id={level.id} onclick={() => loadTemplate(level.id)}><span>{level.icon}</span><div><strong>{level.name.standard}</strong><small>{level.location.area} · {level.board.columns}×{level.board.rows}</small></div></button>{/each}</div></div>
-    <div class="project-section draft-section"><div class="panel-title"><strong>Meine Entwürfe</strong><span>{drafts.length}</span></div>{#if drafts.length}<div class="draft-list">{#each drafts as draft}<button class:active={studio.level.id === draft.id} onclick={() => loadDraft(draft.id)}><span>◫</span><div><strong>{draft.name}</strong><small>{new Date(draft.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</small></div></button>{/each}</div>{:else}<p class="hint">Änderungen erscheinen nach dem ersten Speichern automatisch hier.</p>{/if}</div>
+    <div class="project-section draft-section"><div class="panel-title"><strong>Meine Entwürfe</strong><span>{drafts.length}</span></div>{#if drafts.length}<div class="draft-list">{#each drafts as draft}<div class:active={studio.level.id === draft.id} class="draft-entry"><button class="draft-open" onclick={() => loadDraft(draft.id)}><span>◫</span><div><strong>{draft.name}</strong><small>{new Date(draft.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</small></div></button><button class="draft-delete" aria-label={`Entwurf ${draft.name} löschen`} title="Entwurf löschen" onclick={() => deleteDraft(draft)}>×</button></div>{/each}</div>{:else}<p class="hint">Änderungen erscheinen nach dem ersten Speichern automatisch hier.</p>{/if}</div>
     <footer><button onclick={() => studio.exportLevel()}>↑ Leveldatei exportieren</button><small>Alles wird zusätzlich lokal in diesem Browser gespeichert.</small></footer>
   </aside>
   {#if projectOpen}<button class="drawer-scrim" aria-label="Projektleiste schließen" onclick={() => projectOpen = false}></button>{/if}

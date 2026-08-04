@@ -41,7 +41,7 @@ test('session stays in memory and is cleared after unauthorized responses', asyn
   assert.equal(client.authenticated, false);
 });
 
-test('publishing sends only the selected level document', async () => {
+test('publishing sends all selected level documents in one request', async () => {
   let body;
   const client = new PublisherClient({
     baseUrl: 'https://publisher.example',
@@ -51,7 +51,8 @@ test('publishing sends only the selected level document', async () => {
     },
   });
   client.consumeSessionFromLocation({ hash: '#publisher_session=token', pathname: '/', search: '' }, { replaceState() {} });
-  const result = await client.publish({ id: 'hals', name: { standard: 'Hals' } });
-  assert.deepEqual(body, { level: { id: 'hals', name: { standard: 'Hals' } } });
+  const selected = [{ id: 'hals', name: { standard: 'Hals' } }, { id: 'home', name: { standard: 'Bramerhof' } }];
+  const result = await client.publish(selected);
+  assert.deepEqual(body, { levels: selected });
   assert.equal(result.publicationId, 7);
 });

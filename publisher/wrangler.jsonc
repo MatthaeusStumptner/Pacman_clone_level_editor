@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "franz-lola-publisher",
   "main": "src/index.js",
-  "compatibility_date": "2026-08-03",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "vars": {
     "GITHUB_OWNER": "MatthaeusStumptner",

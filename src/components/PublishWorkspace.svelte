@@ -8,7 +8,12 @@
   let user = $state.raw(null);
   let publication = $state.raw(null);
   let error = $state('');
+  let selectedIds = $state([]);
+  let selectionInitialized = false;
   let polling = null;
+  let candidates = $derived.by(() => { studio.revision; return studio.publishCandidates(); });
+  let selectedCandidates = $derived(candidates.filter((entry) => selectedIds.includes(entry.id)));
+  let selectionValid = $derived(selectedCandidates.length > 0 && selectedCandidates.every((entry) => entry.validation.ok));
 
   const steps = [
     ['testing', 'Automatisch prüfen'],
@@ -38,13 +43,20 @@
   }
 
   async function publish() {
-    if (!studio.validation.ok) { studio.workspace = 'level'; studio.notify('Bitte zuerst die Level-Fehler beheben'); return; }
-    state = 'progress'; error = ''; publication = { state: 'testing', detail: 'Das Level wird an den sicheren Publisher übertragen.' };
+    if (!selectionValid) { studio.notify('Bitte mindestens einen spielbaren Entwurf auswählen'); return; }
+    state = 'progress'; error = ''; publication = { state: 'testing', detail: `${selectedCandidates.length === 1 ? 'Das Level wird' : `${selectedCandidates.length} Level werden`} an den sicheren Publisher übertragen.` };
     try {
-      const result = await publisher.publish(studio.level);
+      const result = await publisher.publish(selectedCandidates.map((entry) => entry.level));
       await poll(Number(result.publicationId));
     } catch (reason) { error = reason.message; state = 'failed'; }
   }
+
+  function toggleLevel(id, checked) {
+    selectedIds = checked ? [...new Set([...selectedIds, id])] : selectedIds.filter((entry) => entry !== id);
+  }
+
+  function selectAllValid() { selectedIds = candidates.filter((entry) => entry.validation.ok).map((entry) => entry.id); }
+  function clearSelection() { selectedIds = []; }
 
   function logout() { publisher.clearSession(); user = null; publication = null; state = 'login'; }
 
@@ -53,11 +65,20 @@
     if (publisher.authenticated) identify();
     return () => clearTimeout(polling);
   });
+
+  $effect(() => {
+    const available = new Set(candidates.map((entry) => entry.id));
+    const retained = selectedIds.filter((id) => available.has(id));
+    if (!selectionInitialized) {
+      selectedIds = candidates.some((entry) => entry.id === studio.level.id && entry.validation.ok) ? [studio.level.id] : [];
+      selectionInitialized = true;
+    } else if (retained.length !== selectedIds.length) selectedIds = retained;
+  });
 </script>
 
 <section class="workspace publish-workspace" aria-labelledby="publish-workspace-title">
   <header class="workspace-header">
-    <div><span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span><h2 id="publish-workspace-title">Veröffentlichen</h2><p>Hier wird das aktuelle Level geprüft, ins Spiel übertragen und anschließend auf GitHub Pages live gestellt.</p></div>
+    <div><span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span><h2 id="publish-workspace-title">Veröffentlichen</h2><p>Hier wählst du deine Entwürfe aus. Sie werden gemeinsam geprüft, ins Spiel übertragen und anschließend auf GitHub Pages live gestellt.</p></div>
     {#if user}<div class="publisher-user"><span>{user.avatarUrl ? '●' : 'GH'}</span><div><strong>{user.name || user.login}</strong><small>GitHub verbunden</small></div><button onclick={logout}>Abmelden</button></div>{/if}
   </header>
 
@@ -75,11 +96,27 @@
     {:else if state === 'loading'}
       <article class="publish-state"><span class="loader"></span><h3>Berechtigung wird geprüft</h3><p>Einen kleinen Moment …</p></article>
     {:else if state === 'review'}
-      <article class="publish-state review-state"><span class="state-symbol ok">✓</span><h3>Bereit zur Veröffentlichung</h3><p>Nur dieses Level wird übertragen. Der Publisher erstellt die Spieldatei, führt die Tests aus und aktualisiert GitHub Pages.</p><div class="review-facts"><span><b>{studio.level.events.length}</b>Ereignisse</span><span><b>{studio.level.decorations.length}</b>Objekte</span><span><b>{studio.level.cutscenes.length}</b>Cutscenes</span></div>{#if !studio.validation.ok}<ul class="issue-list">{#each studio.validation.errors as issue}<li>{issue}</li>{/each}</ul>{/if}<button class="primary large-action" id="publisher-confirm" disabled={!studio.validation.ok} onclick={publish}>{studio.level.icon} „{studio.level.name.standard}“ veröffentlichen</button></article>
+      <article class="publish-state review-state">
+        <span class="state-symbol ok">✓</span><h3>Entwürfe auswählen</h3><p>Wähle ein oder mehrere Level. Alle ausgewählten Entwürfe landen gemeinsam in einer Veröffentlichung und werden zusammen geprüft.</p>
+        <div class="publish-selection">
+          <div class="publish-selection-toolbar"><strong>{selectedCandidates.length} von {candidates.length} ausgewählt</strong><div><button onclick={selectAllValid}>Alle spielbaren</button><button onclick={clearSelection}>Auswahl aufheben</button></div></div>
+          {#each candidates as candidate}
+            <label class="publish-candidate">
+              <input type="checkbox" aria-label={`Level ${candidate.name} auswählen`} checked={selectedIds.includes(candidate.id)} onchange={(event) => toggleLevel(candidate.id, event.currentTarget.checked)} />
+              <span>{candidate.level.icon}</span>
+              <div><strong>{candidate.name}{candidate.current ? ' · geöffnet' : ''}</strong><small>{candidate.id} · {candidate.level.board.columns}×{candidate.level.board.rows} · {candidate.savedAt ? new Date(candidate.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : 'aktuelle Änderungen'}</small></div>
+              <em class:invalid={!candidate.validation.ok}>{candidate.validation.ok ? '✓ spielbar' : `⚠ ${candidate.validation.errors.length}`}</em>
+            </label>
+          {/each}
+        </div>
+        {#if selectedCandidates.some((entry) => !entry.validation.ok)}<p class="error-copy">Mindestens ein ausgewählter Entwurf enthält Fehler. Entferne ihn aus der Auswahl oder korrigiere ihn zuerst.</p>{/if}
+        <div class="review-facts"><span><b>{selectedCandidates.reduce((sum, entry) => sum + entry.level.events.length, 0)}</b>Ereignisse</span><span><b>{selectedCandidates.reduce((sum, entry) => sum + entry.level.decorations.length, 0)}</b>Objekte</span><span><b>{selectedCandidates.reduce((sum, entry) => sum + entry.level.cutscenes.length, 0)}</b>Cutscenes</span></div>
+        <button class="primary large-action" id="publisher-confirm" disabled={!selectionValid} onclick={publish}>{selectedCandidates.length === 1 ? `${selectedCandidates[0]?.level.icon ?? ''} 1 Level veröffentlichen` : `${selectedCandidates.length} Level gemeinsam veröffentlichen`}</button>
+      </article>
     {:else}
       <article class="publish-state progress-state" data-state={publication?.state || state}>
         <span class:failed={state === 'failed'} class:ok={state === 'published'} class="state-symbol">{state === 'published' ? '✓' : state === 'failed' ? '!' : '↻'}</span>
-        <h3>{state === 'published' ? 'Level ist live!' : state === 'failed' ? 'Veröffentlichung gestoppt' : 'Veröffentlichung läuft'}</h3>
+        <h3>{state === 'published' ? `${selectedCandidates.length === 1 ? 'Level ist' : 'Level sind'} live!` : state === 'failed' ? 'Veröffentlichung gestoppt' : 'Veröffentlichung läuft'}</h3>
         <p>{error || publication?.detail || 'Die automatischen Schritte laufen im Hintergrund.'}</p>
         <div class="publication-steps">
           {#each steps as [id, label], index}
