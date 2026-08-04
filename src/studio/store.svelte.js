@@ -288,6 +288,19 @@ export class StudioState {
     this.mutate('Ereignis bearbeiten', (draft) => { const event = draft.document.events.find((entry) => entry.id === id); if (event) setAt(event, path, value); }, { preserveSelection: true });
   }
 
+  setEventVisualAsset(assetId) {
+    const asset = this.assets.find((entry) => entry.id === assetId);
+    if (!asset) return;
+    const id = this.selectedEventId;
+    this.mutate('Ereignisobjekt wählen', (draft) => {
+      const event = draft.document.events.find((entry) => entry.id === id);
+      if (!event) return;
+      event.visual.type = 'custom'; event.visual.assetId = asset.id;
+      event.visual.appearance = clone(asset.appearance); event.visual.spriteAnimation = asset.appearance?.animations?.[0]?.id ?? '';
+      event.visual.animation = clone(asset.animation); event.visual.color = asset.color; event.visual.label = asset.label;
+    }, { preserveSelection: true });
+  }
+
   deleteEvent() {
     const id = this.selectedEventId;
     this.mutate('Ereignis löschen', (draft) => { draft.document.events = draft.document.events.filter((event) => event.id !== id); }, { preserveSelection: true });

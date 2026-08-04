@@ -7,11 +7,12 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Alle neun Originallevel aus `Geburtstagsspiel` als verlustfreie Vorlagen
 - Stift, Linie, Rechteck, Flächenfüllung und Radierer für Wände
 - Franz & Lola, beliebig viele Katzen und Schnüffel-Power frei platzierbar
-- Universelle Objektbibliothek: Musiknote, Bühnenlicht, Eisvogel und eigene Pixelobjekte sind in jeder Karte verwendbar
-- Eigene Spezialobjekte mit Sprite-Sheet, Palette, Frames und Bewegungsanimationen
+- Universelle Objektbibliothek mit echten Renderer-Vorschauen: normale Musiknote, originale Zauberberg-Note, Bühnenlicht, Eisvogel und eigene Pixelobjekte sind in jeder Karte verwendbar
+- Eigene Spezialobjekte mit Sprite-Sheet, Palette, zeitbasierten Bild-Keyframes und Transform-Keyframes für Position, Größe, Drehung und Deckkraft
+- Frei bewegliche Standard-/Dialekt-Textblöcke mit Schriftgröße, Ausrichtung, Farbe, Hintergrund und Rahmen
 - Bäume, Bänke, Lampen, Blumen, Schilder, Felsen, Wasserflächen und freie Symbole
 - Eigener Franz-&-Lola-Charakterbereich mit animierter Vorschau und frei bearbeitbaren Zuständen für Idle, Oben, Rechts, Unten und Links
-- Eigene Pixel-Figuren mit Palette, benannten Animationen, sichtbarer Frame-Leiste, beliebig vielen Frames, FPS und Schleifenmodus
+- Eigene Pixel-Figuren mit Palette, benannten Animationen, Keyframe-Timeline, Scrubbing, Playback und Schleifenmodus
 - Levelgebundene Cutscenes für den Übergang von Passau-Karte zu Level
 - Timeline mit Kamera-, Figuren-, Objekt- und Dialogspuren, Keyframes, Easing und zweisprachigen Texten
 - Verhalten pro Figur: direkte Steuerung, Autopilot, Patrouille sowie unterschiedliche Jagd-, Hinterhalt-, Wach-, Streu- und Zufallsstrategien
@@ -31,7 +32,7 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Sicheres Veröffentlichen per Knopfdruck: Anmeldung, Prüfung, Pull Request, Merge und GitHub-Pages-Deploy laufen geführt und automatisch
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
 
-Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Der Zauberberg besitzt in Editor und Testlauf seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und die animierte Musiknote. Musiknote und Bühnenlichter sind direkt im Canvas auswählbar; Animation, Tempo und Stärke lassen sich ohne Code ändern.
+Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Zusätzlich besitzt jedes der neun Level eine eigene neue Ereignisidee, einen frei beweglichen Textblock und eine individuelle Intro-Cutscene mit unterschiedlicher Dauer, Trackzahl und Dramaturgie. Der Zauberberg besitzt in Editor und Testlauf seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und sowohl die generische als auch die originalgetreue Musiknote.
 
 Eine bloß geöffnete Originalvorlage wird nicht als Entwurf gespeichert. Erst die erste echte Änderung erzeugt eine lokale Kopie; über „Originalvorlage wiederherstellen“ lässt sie sich jederzeit zurücksetzen.
 
@@ -45,7 +46,8 @@ npm run dev
 Vollständige Prüfung:
 
 ```bash
-npm test              # 36 Fachtests: Modell, Katalog, Objekte, Speicher und Testlauf
+npm test              # 40 Fachtests: Modell, Katalog, Keyframes, Objekte, Speicher und Testlauf
+npm run test:e2e      # 13 echte Chromium-Abläufe auf Desktop und Pixel-7-Ansicht
 npm run test:e2e      # 11 Chromium-Abläufe: alle Studio-Bereiche, Publisher und Mobile
 npm run build         # statischer GitHub-Pages-Build
 ```

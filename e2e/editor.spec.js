@@ -78,7 +78,7 @@ test('the Zauberberg music note is selectable directly on canvas and remains edi
   await page.locator('.object-inspector').getByLabel('Tempo').fill('2.5'); await page.locator('.object-inspector').getByLabel('Tempo').blur();
   await page.waitForTimeout(250); await page.reload();
   await page.locator('[data-workspace="objects"]').click();
-  await page.getByRole('button', { name: 'Zauberberg-Note' }).click();
+  await page.locator('.placed-object-strip').getByRole('button', { name: 'Zauberberg-Note', exact: true }).click();
   await expect(page.locator('.object-inspector').getByLabel('Animation')).toHaveValue('spin');
   await expect(page.locator('.object-inspector').getByLabel('Tempo')).toHaveValue('2.5');
   expect(errors).toEqual([]);
@@ -90,7 +90,7 @@ test('universal objects can be created as pixel assets and placed into any map',
   await page.locator('#create-object').click();
   await expect(page.locator('.sprite-studio')).toBeVisible();
   await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
-  await page.getByRole('button', { name: '＋ Frame' }).click();
+  await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
   await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
   await loadTemplate(page, 'hals');
@@ -114,7 +114,7 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.getByLabel('Verwendete Animation')).toHaveValue('right');
   const before = await page.locator('.sheet-grid > button').count();
   await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
-  await page.getByRole('button', { name: '＋ Frame' }).click();
+  await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
   await expect(page.locator('.sheet-grid > button')).toHaveCount(before + 1);
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
   await expect(page.locator('.state-matrix')).toContainText('right');
@@ -127,20 +127,14 @@ test('level-bound cutscenes combine camera, actors, objects, dialogue and timeli
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="cutscenes"]').click();
-  await page.locator('#add-cutscene').click();
-  await expect(page.locator('.timeline-row')).toHaveCount(2);
-  await page.getByRole('button', { name: /Dialog/ }).last().click();
-  await expect(page.locator('.timeline-row')).toHaveCount(3);
-  await page.locator('.cutscene-inspector').getByLabel('Text', { exact: true }).fill('Willkommen im Zauberberg!');
-  await page.locator('.cutscene-inspector').getByLabel('Text', { exact: true }).blur();
-  await page.locator('.cutscene-inspector').getByLabel('Text im Dialekt').fill('Servus im Zauberberg!');
-  await page.locator('.cutscene-inspector').getByLabel('Text im Dialekt').blur();
-  await page.getByRole('button', { name: /Objekt/ }).last().click();
-  await expect(page.locator('.timeline-row')).toHaveCount(4);
+  await expect(page.locator('.timeline-row')).toHaveCount(6);
+  await expect(page.locator('.track-browser')).toContainText('note-solo');
+  await expect(page.locator('.track-browser')).toContainText('rock-katze');
+  await page.locator('.cutscene-transport input').evaluate((input) => { input.value = '3'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await expect(page.locator('.dialogue-card')).toContainText('Rock, Punk und Metal');
   await page.locator('.cutscene-transport button').click();
-  await expect(page.locator('.dialogue-card')).toContainText('Willkommen im Zauberberg!');
   await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="cutscenes"]').click();
-  await expect(page.locator('.timeline-row')).toHaveCount(4);
+  await expect(page.locator('.timeline-row')).toHaveCount(6);
   expect(errors).toEqual([]);
 });
 
@@ -148,7 +142,7 @@ test('events keep triggers, both language variants and visual placement in one d
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'home');
   await page.locator('[data-workspace="events"]').click();
-  await expect(page.locator('.event-browser button')).toHaveCount(2);
+  await expect(page.locator('.event-browser button')).toHaveCount(3);
   await expect(page.locator('.event-browser')).toContainText('Eisvogel an der Ilz');
   await expect(page.locator('.property-panel').getByLabel('Meldung', { exact: true })).toHaveValue('Donnerwetter, ein Eisvogel an der Ilz!');
   await expect(page.locator('.property-panel').getByLabel('Meldung im Dialekt')).toHaveValue('Sakradi, a Eisvogl an da Ilz!');
@@ -159,7 +153,7 @@ test('events keep triggers, both language variants and visual placement in one d
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 3 }); await page.mouse.up();
   await expect(page.locator('.zone-list span')).toHaveCount(2);
   await page.getByRole('button', { name: /Symbol setzen/ }).click(); const visual = await canvasPoint(page, 6, 6); await page.mouse.click(visual.x, visual.y);
-  await expect(page.locator('.property-panel').getByLabel('X')).toHaveValue('6.5');
+  await expect(page.locator('.property-panel').getByLabel('X', { exact: true })).toHaveValue('6.5');
   expect(errors).toEqual([]);
 });
 
@@ -217,7 +211,38 @@ test('@mobile studio has no page overflow and keeps project, navigation and dire
   await openProject(page); await expect(page.locator('[data-template-id]')).toHaveCount(9);
   await page.locator('[data-template-id="bschuett"]').click();
   await page.locator('[data-workspace="playtest"]').click(); await page.locator('#start-playtest').click();
+  await page.getByRole('button', { name: /Intro überspringen/ }).click();
   await expect(page.locator('.mobile-dpad')).toBeVisible();
   await page.locator('.mobile-dpad button').first().tap();
+  expect(errors).toEqual([]);
+});
+
+test('object previews show renderer output and text blocks stay freely editable', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await page.locator('[data-workspace="objects"]').click();
+  await expect(page.locator('.asset-list .object-thumbnail')).toHaveCount(16);
+  await expect(page.locator('[data-asset-id="music-note"] canvas')).toBeVisible();
+  await expect(page.locator('[data-asset-id="zauberberg-note"] canvas')).toBeVisible();
+  await page.locator('[data-asset-id="text-block"]').click();
+  const target = await canvasPoint(page, 8, 8); await page.mouse.click(target.x, target.y);
+  await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
+  await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('Frei in Passau'); await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
+  await page.locator('.object-inspector').getByLabel('X', { exact: true }).fill('5'); await page.locator('.object-inspector').getByLabel('X', { exact: true }).blur();
+  await expect(page.locator('.object-inspector').getByLabel('X', { exact: true })).toHaveValue('5');
+  expect(errors).toEqual([]);
+});
+
+test('sprite and transform animation studios expose keyframes, scrubbing and playback', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await page.locator('[data-workspace="objects"]').click(); await page.locator('[data-asset-id="zauberberg-note"]').click();
+  await page.getByRole('button', { name: /Sprite-Keyframes bearbeiten/ }).click();
+  await expect(page.locator('.keyframe-ruler')).toBeVisible();
+  await page.getByRole('button', { name: '▶ Playback' }).click(); await page.waitForTimeout(120);
+  await expect(page.getByRole('button', { name: 'Ⅱ Pause' })).toBeVisible();
+  await page.getByRole('button', { name: 'Abbrechen' }).click();
+  await page.getByRole('button', { name: /Bewegung mit Keyframes/ }).click();
+  await expect(page.locator('.motion-studio')).toBeVisible();
+  await page.getByRole('button', { name: '＋ Keyframe am Playhead' }).click();
+  await expect(page.locator('.motion-editor-grid > aside button.active')).toContainText('0.00 s');
   expect(errors).toEqual([]);
 });
