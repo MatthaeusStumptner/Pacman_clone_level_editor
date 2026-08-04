@@ -5,6 +5,17 @@
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "secrets": {
+    "required": [
+      "GITHUB_APP_ID",
+      "GITHUB_APP_CLIENT_ID",
+      "GITHUB_APP_CLIENT_SECRET",
+      "GITHUB_INSTALLATION_ID",
+      "GITHUB_APP_PRIVATE_KEY",
+      "SESSION_SECRET",
+      "ALLOWED_GITHUB_LOGINS"
+    ]
+  },
   "vars": {
     "GITHUB_OWNER": "MatthaeusStumptner",
     "GITHUB_REPO": "Geburtstagsspiel",

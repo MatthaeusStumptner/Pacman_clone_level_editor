@@ -11,6 +11,24 @@ import {
   verifyToken,
 } from './security.js';
 
+const REQUIRED_SECRET_BINDINGS = Object.freeze([
+  'GITHUB_APP_ID',
+  'GITHUB_APP_CLIENT_ID',
+  'GITHUB_APP_CLIENT_SECRET',
+  'GITHUB_INSTALLATION_ID',
+  'GITHUB_APP_PRIVATE_KEY',
+  'SESSION_SECRET',
+  'ALLOWED_GITHUB_LOGINS',
+]);
+
+function missingSecretBindings(env) {
+  return REQUIRED_SECRET_BINDINGS.filter((name) => !String(env?.[name] ?? '').trim());
+}
+
+function configurationMessage(missing) {
+  return `Der sichere Publisher ist noch nicht vollständig eingerichtet. Fehlende Cloudflare-Secrets: ${missing.join(', ')}.`;
+}
+
 function response(body, { status = 200, headers = {}, request, env } = {}) {
   return new Response(body, {
     status,
@@ -127,11 +145,27 @@ async function api(request, env, path) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const missing = missingSecretBindings(env);
+    if (url.pathname === '/health') {
+      return json({
+        ok: missing.length === 0,
+        service: 'franz-lola-publisher',
+        ...(missing.length > 0 ? { missingSecrets: missing } : {}),
+      }, { status: missing.length === 0 ? 200 : 503 });
+    }
+    if (missing.length > 0 && (url.pathname.startsWith('/auth/') || url.pathname.startsWith('/api/'))) {
+      const message = configurationMessage(missing);
+      console.error(JSON.stringify({ message: 'publisher configuration incomplete', missing, path: url.pathname }));
+      if (url.pathname.startsWith('/api/')) return json({ error: message }, { status: 503, request, env });
+      return response(message, {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
     try {
       if (url.pathname === '/auth/login' && request.method === 'GET') return login(request, env);
       if (url.pathname === '/auth/callback' && request.method === 'GET') return callback(request, env);
       if (url.pathname.startsWith('/api/')) return api(request, env, url.pathname);
-      if (url.pathname === '/health') return json({ ok: true, service: 'franz-lola-publisher' });
       return response('Nicht gefunden.', { status: 404 });
     } catch (error) {
       console.error(JSON.stringify({ message: 'publisher request failed', error: error instanceof Error ? error.message : 'Unbekannter Fehler', path: url.pathname }));

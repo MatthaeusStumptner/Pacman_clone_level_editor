@@ -69,6 +69,20 @@ openssl rand -hex 32
 
 Anschließend die Callback URL der GitHub App auf die Worker-Adresse aktualisieren.
 
+### Fehler `client_id=undefined`
+
+Wenn GitHub nach „Mit GitHub verbinden“ eine 404-Seite zeigt und in der Adresse
+`client_id=undefined` steht, fehlt dem Worker `GITHUB_APP_CLIENT_ID`:
+
+1. Cloudflare → **Workers & Pages** → `franz-lola-publisher` → **Settings** öffnen.
+2. Unter **Variables and Secrets** `GITHUB_APP_CLIENT_ID` als Typ **Secret** anlegen.
+3. Als Wert die **Client ID** der GitHub App eintragen und **Deploy** wählen.
+
+Auch die übrigen Werte aus der Secret-Tabelle müssen als Typ **Secret** angelegt
+sein. Ab Publisher 1.1.1 verweigert Wrangler einen automatischen Deploy, solange
+einer dieser Pflichtwerte fehlt; der Worker zeigt außerdem eine lesbare
+Einrichtungsfehlermeldung statt zu GitHub weiterzuleiten.
+
 ### 3. Editor und Spiel verbinden
 
 Im Repository `Pacman_clone_level_editor`:
