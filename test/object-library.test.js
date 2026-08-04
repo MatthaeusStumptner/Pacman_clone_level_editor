@@ -11,8 +11,10 @@ class MemoryStorage {
 test('ships reusable Passau objects independently from a particular map', () => {
   const library = new ObjectLibrary(new MemoryStorage());
   const assets = library.list();
-  assert.deepEqual(assets.map((asset) => asset.id), ['music-note', 'stage-lights', 'kingfisher', 'tree', 'bench', 'sign']);
+  assert.deepEqual(assets.map((asset) => asset.id), ['music-note', 'zauberberg-note', 'stage-lights', 'kingfisher', 'tree', 'bench', 'sign', 'text-block', 'brahmahof-mailbox', 'concert-speaker', 'university-book', 'factory-steam', 'river-spark', 'oberhaus-flag', 'cathedral-bell', 'lola-stick']);
   assert.equal(assets.find((asset) => asset.id === 'music-note').appearance.animations[0].id, 'idle');
+  assert.notDeepEqual(assets.find((asset) => asset.id === 'music-note').appearance.pixels, assets.find((asset) => asset.id === 'zauberberg-note').appearance.pixels);
+  assert.equal(assets.find((asset) => asset.id === 'text-block').type, 'text');
   assets[0].name = 'verändert';
   assert.equal(library.list()[0].name, 'Musiknote');
 });
@@ -21,11 +23,11 @@ test('saves an arbitrary pixel object and restores it from browser storage', () 
   const storage = new MemoryStorage();
   const library = new ObjectLibrary(storage);
   const asset = createBlankObjectAsset('Lolas Bühne');
-  asset.appearance.animations[0].frames[0].pixels[0] = `1${'0'.repeat(11)}`;
+  asset.appearance.animations[0].keyframes[0].pixels[0] = `1${'0'.repeat(11)}`;
   const saved = library.save(asset);
   const restored = new ObjectLibrary(storage).list().find((entry) => entry.id === 'lolas-buhne');
   assert.equal(saved.id, 'lolas-buhne');
-  assert.equal(restored.appearance.animations[0].frames[0].pixels[0], `1${'0'.repeat(11)}`);
+  assert.equal(restored.appearance.animations[0].keyframes[0].pixels[0], `1${'0'.repeat(11)}`);
 });
 
 test('places a self-contained sprite instance that survives without the editor library', () => {

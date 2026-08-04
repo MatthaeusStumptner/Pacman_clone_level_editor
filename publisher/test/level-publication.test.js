@@ -18,11 +18,16 @@ test('publication preserves protected map metadata, sprites, objects and level-b
     width: 4, height: 4,
     palette: ['transparent', ...Array.from({ length: 11 }, (_, index) => `#${(index + 1).toString(16).padStart(6, '0')}`)],
     pixels: ['0ab0', '1ab1', '1ab1', '0ab0'],
+    animations: [{ id: 'idle', duration: 1.5, loop: true, keyframes: [{ id: 'a', time: 0, pixels: ['0ab0', '1ab1', '1ab1', '0ab0'] }, { id: 'b', time: 0.75, pixels: ['0000', '1ab1', '1ab1', '0000'] }] }],
   };
   input.decorations = [{
     id: 'note', assetId: 'music-note', name: 'Musiknote', type: 'custom', x: 2, y: 2, width: 2, height: 2,
     color: '#55d9dd', label: '♪', appearance: input.actors.player.appearance, spriteAnimation: 'idle',
     animation: { type: 'bob', speed: 1, amplitude: 0.1 },
+  }, {
+    id: 'copy', assetId: 'text-block', name: 'Text', type: 'text', x: 1, y: 5, width: 5, height: 2, color: '#f5e7bd', label: 'TEXT',
+    content: { standard: 'Frei in Passau', dialect: 'Frei in Passau' }, textStyle: { fontSize: 0.5, align: 'center', background: '#071016', borderColor: '#55d9dd' },
+    animation: { type: 'keyframes', duration: 2, loop: true, keyframes: [{ id: 'start', time: 0, x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, { id: 'end', time: 2, x: 0, y: -0.2, scale: 1, rotation: 0, opacity: 1 }] },
   }];
   input.cutscenes = [{
     id: 'intro', kind: 'intro', name: { standard: 'Ankunft', dialect: 'Oikemma' }, duration: 3, skippable: true,
@@ -39,6 +44,9 @@ test('publication preserves protected map metadata, sprites, objects and level-b
   assert.equal(result.value.source.catalog, 'Geburtstagsspiel');
   assert.equal(result.value.actors.player.appearance.palette.length, 12);
   assert.equal(result.value.decorations[0].appearance.palette.length, 12);
+  assert.equal(result.value.actors.player.appearance.animations[0].keyframes.length, 2);
+  assert.equal(result.value.decorations[1].content.standard, 'Frei in Passau');
+  assert.equal(result.value.decorations[1].animation.type, 'keyframes');
   assert.equal(result.value.cutscenes[0].tracks[1].target, 'note');
   assert.equal(result.value.cutscenes[0].tracks[1].keyframes[1].x, 4);
   assert.equal(result.path, 'src/data/levels/hals.level.json');

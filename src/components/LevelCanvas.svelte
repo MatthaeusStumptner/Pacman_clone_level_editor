@@ -27,6 +27,7 @@
     const powerUps = new Set(level.collectibles.powerUps.map((point) => tileKey(point.x, point.y)));
     renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, {
       cameraEnabled: false,
+      language: studio.language,
       editor: { showGrid: studio.showGrid, showEvents: studio.showEvents, showEventZones: studio.showEvents, cursor: studio.cursor ?? selectionCursor() },
     });
   }
