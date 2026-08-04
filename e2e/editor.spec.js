@@ -59,6 +59,12 @@ async function canvasPoint(page, x, y) {
   return { x: box.x + ((x + 0.5) / 25) * box.width, y: box.y + ((y + 0.5) / 25) * box.height };
 }
 
+async function canvasExactPoint(page, x, y) {
+  const box = await page.locator('#level-canvas').boundingBox();
+  if (!box) throw new Error('Canvas besitzt keine sichtbare Bounding Box.');
+  return { x: box.x + (x / 25) * box.width, y: box.y + (y / 25) * box.height };
+}
+
 test('seven disciplines separate the work and all nine exact templates stay available', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await expect(page.locator('.discipline-nav [data-workspace]')).toHaveCount(7);
@@ -297,8 +303,28 @@ test('object previews show renderer output and text blocks stay freely editable'
   const target = await canvasPoint(page, 8, 8); await page.mouse.click(target.x, target.y);
   await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('Frei in Passau'); await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
-  await page.locator('.object-inspector').getByLabel('X', { exact: true }).fill('5'); await page.locator('.object-inspector').getByLabel('X', { exact: true }).blur();
-  await expect(page.locator('.object-inspector').getByLabel('X', { exact: true })).toHaveValue('5');
+  const xInput = page.locator('.object-inspector').getByLabel('X', { exact: true });
+  const yInput = page.locator('.object-inspector').getByLabel('Y', { exact: true });
+  const widthInput = page.locator('.object-inspector').getByLabel('Breite');
+  const fontInput = page.locator('.object-inspector').getByLabel('Schriftgröße');
+  await page.locator('[data-tool="transform"]').click();
+  const moveFrom = await canvasExactPoint(page, 10, 9); const moveTo = await canvasExactPoint(page, 12.35, 11.15);
+  await page.mouse.move(moveFrom.x, moveFrom.y); await page.mouse.down(); await page.mouse.move(moveTo.x, moveTo.y, { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => Number(await xInput.inputValue())).toBeGreaterThan(10);
+  await expect.poll(async () => Number(await yInput.inputValue())).toBeGreaterThan(10);
+  const beforeWidth = Number(await widthInput.inputValue()); const beforeFont = Number(await fontInput.inputValue());
+  const x = Number(await xInput.inputValue()); const y = Number(await yInput.inputValue());
+  const height = Number(await page.locator('.object-inspector').getByLabel('Höhe').inputValue());
+  const scaleFrom = await canvasExactPoint(page, x + beforeWidth, y + height); const scaleTo = await canvasExactPoint(page, x + beforeWidth + 1.5, y + height + 0.75);
+  await page.mouse.move(scaleFrom.x, scaleFrom.y); await page.mouse.down(); await page.mouse.move(scaleTo.x, scaleTo.y, { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => Number(await widthInput.inputValue())).toBeGreaterThan(beforeWidth);
+  await expect.poll(async () => {
+    const widthScale = Number(await widthInput.inputValue()) / beforeWidth;
+    const fontScale = Number(await fontInput.inputValue()) / beforeFont;
+    return Math.abs(widthScale - fontScale);
+  }).toBeLessThan(0.01);
+  await expect(page.locator('#level-canvas')).toHaveClass(/transform-tool/);
+  await expect(page.locator('.transform-hint')).toContainText('Eckgriffe');
   expect(errors).toEqual([]);
 });
 

@@ -2,7 +2,7 @@ import { createLevelDocument, tileKey, validateLevelDocument } from '@franz-lola
 import { catalogLevel, passauCatalog } from '../catalog.js';
 import { DraftRepository } from '../draft-repository.js';
 import { createStarterLevel, EditorState } from '../editor-state.js';
-import { floodFillPoints, linePoints, previewGuttis, rectanglePoints } from '../editor-tools.js';
+import { floodFillPoints, linePoints, moveRectangle, previewGuttis, rectangleContains, rectanglePoints, scaleRectangle, transformHandleAt } from '../editor-tools.js';
 import { createFranzLolaAppearance } from '../character-template.js';
 import { ObjectLibrary, createBlankObjectAsset, placementFromAsset } from '../object-library.js';
 
@@ -119,7 +119,7 @@ export class StudioState {
 
   setTool(tool) {
     this.tool = tool;
-    if (tool === 'object') this.workspace = 'objects';
+    if (tool === 'object' || tool === 'transform') this.workspace = 'objects';
     if (tool.startsWith('event')) this.workspace = 'events';
   }
 
@@ -169,9 +169,39 @@ export class StudioState {
     if (kind === 'event') this.selectedEventId = this.level.events[index]?.id ?? '';
   }
 
-  pointerDown(point, pointerId, erase = false) {
+  transformSelection() {
+    if (this.selection?.kind !== 'decoration') return null;
+    const item = this.level.decorations[this.selection.index];
+    return item ? { x: item.x, y: item.y, width: item.width, height: item.height } : null;
+  }
+
+  decorationAt(point) {
+    for (let index = this.level.decorations.length - 1; index >= 0; index -= 1) {
+      if (rectangleContains(this.level.decorations[index], point)) return index;
+    }
+    return -1;
+  }
+
+  beginTransform(point, pointerId) {
+    let index = this.selection?.kind === 'decoration' ? this.selection.index : -1;
+    let item = index >= 0 ? this.level.decorations[index] : null;
+    let handle = item ? transformHandleAt(item, point) : null;
+    if (!handle && (!item || !rectangleContains(item, point))) {
+      index = this.decorationAt(point); item = index >= 0 ? this.level.decorations[index] : null;
+      if (item) this.selectEntity('decoration', index);
+    }
+    if (!item) { this.selection = null; return; }
+    if (item.locked) { this.notify('Dieses Objekt ist gesperrt'); return; }
+    handle ??= transformHandleAt(item, point);
+    this.engine.beginTransaction(item.type === 'text' ? 'Textblock transformieren' : 'Objekt transformieren');
+    this.gesture = { pointerId, start: point, last: point, mode: 'transform', action: handle ? 'scale' : 'move', handle, index, original: clone(item) };
+    this.cursor = null;
+  }
+
+  pointerDown(point, pointerId, erase = false, precisePoint = point) {
     const mode = erase ? 'erase' : this.tool;
     if (mode === 'select') { this.selectAt(point); return; }
+    if (mode === 'transform') { this.beginTransform(precisePoint, pointerId); return; }
     if (mode === 'wall' || mode === 'erase') {
       this.engine.beginTransaction(mode === 'wall' ? 'Wände zeichnen' : 'Wände radieren');
       this.engine.setWall(point.x, point.y, mode === 'wall');
@@ -195,10 +225,29 @@ export class StudioState {
     this.cursor = this.cursorFor(point);
   }
 
-  pointerMove(point, pointerId) {
-    this.cursorCopy = `Feld ${point.x}, ${point.y}`;
+  pointerMove(point, pointerId, precisePoint = point) {
+    this.cursorCopy = this.tool === 'transform' ? `Position ${precisePoint.x.toFixed(2)}, ${precisePoint.y.toFixed(2)}` : `Feld ${point.x}, ${point.y}`;
     if (this.gesture?.pointerId === pointerId) {
-      if (['wall', 'erase'].includes(this.gesture.mode) && (point.x !== this.gesture.last.x || point.y !== this.gesture.last.y)) {
+      if (this.gesture.mode === 'transform') {
+        const gesture = this.gesture; const target = this.engine.document.decorations[gesture.index];
+        if (!target) return;
+        if (gesture.action === 'move') {
+          const rectangle = moveRectangle(gesture.original, gesture.start, precisePoint, this.level.board);
+          target.x = rectangle.x; target.y = rectangle.y;
+        }
+        else {
+          const originalFontSize = Number(gesture.original.textStyle?.fontSize) || 0.5;
+          const maximumScale = target.type === 'text' ? 4 / originalFontSize : Infinity;
+          const result = scaleRectangle(gesture.original, gesture.handle, precisePoint, this.level.board, { maximumScale });
+          target.x = result.rectangle.x; target.y = result.rectangle.y; target.width = result.rectangle.width; target.height = result.rectangle.height;
+          if (target.type === 'text') {
+            target.textStyle.fontSize = Math.round(Math.max(0.15, Math.min(4, originalFontSize * result.scale)) * 1000) / 1000;
+            target.textStyle.padding = Math.round(Math.max(0, Math.min(2, (Number(gesture.original.textStyle.padding) || 0) * result.scale)) * 1000) / 1000;
+          }
+        }
+        this.engine.markChanged(); gesture.last = precisePoint;
+        this.level = this.engine.toDocument(); this.revision += 1;
+      } else if (['wall', 'erase'].includes(this.gesture.mode) && (point.x !== this.gesture.last.x || point.y !== this.gesture.last.y)) {
         this.engine.applyWallPoints(linePoints(this.gesture.last, point), this.gesture.mode === 'wall');
         this.gesture.last = point;
         this.level = this.engine.toDocument(); this.revision += 1;
@@ -210,7 +259,8 @@ export class StudioState {
   pointerUp(point, pointerId) {
     if (!this.gesture || this.gesture.pointerId !== pointerId) return;
     const gesture = this.gesture;
-    if (gesture.mode === 'line') { this.engine.beginTransaction('Wandlinie'); this.engine.applyWallPoints(linePoints(gesture.start, point), true); this.engine.endTransaction(); }
+    if (gesture.mode === 'transform') this.engine.endTransaction();
+    else if (gesture.mode === 'line') { this.engine.beginTransaction('Wandlinie'); this.engine.applyWallPoints(linePoints(gesture.start, point), true); this.engine.endTransaction(); }
     else if (gesture.mode === 'rectangle') { this.engine.beginTransaction('Wandrechteck'); this.engine.applyWallPoints(rectanglePoints(gesture.start, point), true); this.engine.endTransaction(); }
     else if (gesture.mode === 'event-zone') {
       const zone = { x: Math.min(gesture.start.x, point.x), y: Math.min(gesture.start.y, point.y), width: Math.abs(point.x - gesture.start.x) + 1, height: Math.abs(point.y - gesture.start.y) + 1 };

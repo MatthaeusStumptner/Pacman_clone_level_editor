@@ -3,7 +3,7 @@
 
   let { studio } = $props();
   const tools = [
-    ['select', '↖', 'Auswahl', 'V'], ['wall', '▦', 'Stift', 'B'], ['line', '╱', 'Linie', 'L'], ['rectangle', '▰', 'Rechteck', 'R'], ['fill', '◩', 'Füllen', 'F'], ['erase', '◇', 'Radierer', 'E'],
+    ['select', '↖', 'Auswahl', 'V'], ['transform', '↔', 'Bewegen', 'M'], ['wall', '▦', 'Stift', 'B'], ['line', '╱', 'Linie', 'L'], ['rectangle', '▰', 'Rechteck', 'R'], ['fill', '◩', 'Füllen', 'F'], ['erase', '◇', 'Radierer', 'E'],
     ['player', '●', 'Start', 'P'], ['cat', '◆', 'Katze', 'K'], ['power', '✦', 'Power', 'G'],
   ];
   const themes = [
@@ -39,7 +39,7 @@
         <label class="switch"><input type="checkbox" bind:checked={studio.showEvents} /><span>Ereignisse</span></label>
       </div>
       <LevelCanvas {studio} />
-      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? 'Element anklicken, um in seinen Bereich zu wechseln' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
+      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? 'Element anklicken, um in seinen Bereich zu wechseln' : studio.tool === 'transform' ? 'Objekt ziehen · Eckgriff ziehen zum Skalieren' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
     </div>
 
     <aside class="property-panel">

@@ -23,6 +23,35 @@ async function loadTemplate(page, id) {
   await expect(page.locator('.document-identity')).toHaveAttribute('data-level-id', id);
 }
 
+async function canvasPoint(page, x, y) {
+  const box = await page.locator('#level-canvas').boundingBox();
+  if (!box) throw new Error('Canvas besitzt keine sichtbare Bounding Box.');
+  return { x: box.x + (x / 25) * box.width, y: box.y + (y / 25) * box.height };
+}
+
+test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @visual', async ({ page }) => {
+  await openCleanEditor(page);
+  await page.locator('[data-workspace="objects"]').click();
+  await page.locator('[data-asset-id="text-block"]').click();
+  const placement = await canvasPoint(page, 7.5, 7.5); await page.mouse.click(placement.x, placement.y);
+  await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
+  await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('ILZ · Franz & Lola gehen mit Gutti nach Passau');
+  await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
+  await page.locator('[data-tool="transform"]').click();
+  const moveFrom = await canvasPoint(page, 10, 8.5); const moveTo = await canvasPoint(page, 12.1, 10.35);
+  await page.mouse.move(moveFrom.x, moveFrom.y); await page.mouse.down(); await page.mouse.move(moveTo.x, moveTo.y, { steps: 10 }); await page.mouse.up();
+  const x = Number(await page.locator('.object-inspector').getByLabel('X', { exact: true }).inputValue());
+  const y = Number(await page.locator('.object-inspector').getByLabel('Y', { exact: true }).inputValue());
+  const width = Number(await page.locator('.object-inspector').getByLabel('Breite').inputValue());
+  const height = Number(await page.locator('.object-inspector').getByLabel('Höhe').inputValue());
+  const scaleFrom = await canvasPoint(page, x + width, y + height); const scaleTo = await canvasPoint(page, x + width + 2, y + height + 1);
+  await page.mouse.move(scaleFrom.x, scaleFrom.y); await page.mouse.down(); await page.mouse.move(scaleTo.x, scaleTo.y, { steps: 10 }); await page.mouse.up();
+  const density = await page.locator('#level-canvas').evaluate((canvas) => canvas.width / canvas.getBoundingClientRect().width);
+  expect(density).toBeGreaterThanOrEqual(1.9);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'output/playwright/textblock-retina-transform.png' });
+});
+
 test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
   await openCleanEditor(page);
   await loadTemplate(page, 'home');
