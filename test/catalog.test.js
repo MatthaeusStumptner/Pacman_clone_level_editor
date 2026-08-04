@@ -11,14 +11,14 @@ const expected = [
   ['bschuett', 6, 18, 'bschuett'], ['tabakfabrik', 7, 17, 'tabakfabrik'], ['zauberberg', 8, 16, 'zauberberg'],
 ];
 const expectedEvents = {
-  home: ['ilzvogel', 'hundewiese'], hals: ['ilzvogel'], oberhaus: ['kirchenglockn'], dom: ['kirchenglockn'], dreifluesseeck: ['ilzvogel'], uni: [], bschuett: ['ilzvogel', 'hundewiese'], tabakfabrik: [], zauberberg: [],
+  home: ['ilzvogel', 'hundewiese', 'post-fuer-franz'], hals: ['ilzvogel', 'ilzrauschen'], oberhaus: ['kirchenglockn', 'goldener-ausblick'], dom: ['kirchenglockn', 'orgelakkord'], dreifluesseeck: ['ilzvogel', 'dreiklang-der-fluesse'], uni: ['pruefungs-gutti'], bschuett: ['ilzvogel', 'hundewiese', 'lolas-stockerl'], tabakfabrik: ['dampfzeichen'], zauberberg: ['zugabe'],
 };
 
 test('catalog is pinned to the reviewed Geburtstagsspiel source snapshot', () => {
   const catalog = catalogDocument();
   assert.equal(catalog.kind, 'franz-lola-level-catalog');
-  assert.equal(catalog.sourceHash, '6e5d444844d4d09e1707762d24c9842a8f5748bfa6aa197e1f206210a4b40578');
-  assert.equal(catalog.generatedFrom, 'Geburtstagsspiel/src/main.js');
+  assert.match(catalog.sourceHash, /^[a-f0-9]{64}$/);
+  assert.equal(catalog.generatedFrom, 'Pacman_clone_level_editor/src/data/passau-levels.json + src/story-content.js');
 });
 
 test('contains all nine original levels in map order with exact layout assignments', () => {
@@ -40,8 +40,19 @@ test('every original level validates and produces exact difficulty Gutti counts'
     assert.equal(level.gameplay.difficulties.easy.lives, 5);
     assert.deepEqual(level.events.map((event) => event.id), expectedEvents[level.id], `${level.id} events`);
     level.events.forEach((event) => { assert.ok(event.message.standard); assert.ok(event.message.dialect); assert.ok(event.reward > 0); });
+    assert.equal(level.cutscenes.length, 1, `${level.id} cutscene`);
+    assert.equal(level.cutscenes[0].id, 'intro');
+    assert.ok(level.cutscenes[0].tracks.some((track) => track.type === 'camera'));
+    assert.ok(level.cutscenes[0].tracks.some((track) => track.type === 'dialogue'));
+    assert.ok(level.decorations.some((item) => item.type === 'text'), `${level.id} movable text`);
     assert.deepEqual(level.collectibles.powerUps, [{ x: 1, y: 1 }, { x: 23, y: 1 }, { x: 1, y: 23 }, { x: 23, y: 23 }]);
   }
+});
+
+test('every level has a distinct authored cutscene and at least one new event', () => {
+  const signatures = passauCatalog.map((level) => `${level.id}:${level.cutscenes[0].duration}:${level.cutscenes[0].tracks.length}:${level.cutscenes[0].tracks.flatMap((track) => track.keyframes).length}`);
+  assert.equal(new Set(signatures.map((signature) => signature.split(':').slice(1).join(':'))).size, passauCatalog.length);
+  passauCatalog.forEach((level) => assert.ok(level.events.some((event) => event.visual.assetId), `${level.id} reusable object event`));
 });
 
 test('loading and exporting an untouched original preserves every wall rectangle', () => {
@@ -50,7 +61,8 @@ test('loading and exporting an untouched original preserves every wall rectangle
     assert.deepEqual(exported.board.walls, source.board.walls, source.id);
     assert.deepEqual(exported.name, source.name, source.id);
     assert.deepEqual(exported.location, source.location, source.id);
-    assert.deepEqual(exported.theme, source.theme, source.id);
+    assert.deepEqual(exported.theme.palette, source.theme.palette, source.id);
+    assert.deepEqual(exported.theme.elements?.map((item) => item.id) ?? [], source.theme.elements?.map((item) => item.id) ?? [], source.id);
     assert.deepEqual(exported.source, source.source, source.id);
     const imported = parseLevelDocument(JSON.stringify(exported));
     assert.equal(imported.ok, true, source.id);

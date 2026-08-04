@@ -22,7 +22,7 @@
       pellets: new Set(),
       powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))),
       elapsed: time,
-    }, { cameraEnabled: true, cameraTarget, zoom: sample.camera?.zoom ?? 1.12 });
+    }, { cameraEnabled: true, cameraTarget, zoom: sample.camera?.zoom ?? 1.12, language: studio.language });
   }
 
   function tick(timestamp) {
