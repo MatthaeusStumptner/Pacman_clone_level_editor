@@ -12,13 +12,25 @@ function level() {
   });
 }
 
-test('publication preserves protected map metadata and editable palettes', () => {
+test('publication preserves protected map metadata, sprites, objects and level-bound cutscenes', () => {
   const input = level();
   input.actors.player.appearance = {
     width: 4, height: 4,
     palette: ['transparent', ...Array.from({ length: 11 }, (_, index) => `#${(index + 1).toString(16).padStart(6, '0')}`)],
     pixels: ['0ab0', '1ab1', '1ab1', '0ab0'],
   };
+  input.decorations = [{
+    id: 'note', assetId: 'music-note', name: 'Musiknote', type: 'custom', x: 2, y: 2, width: 2, height: 2,
+    color: '#55d9dd', label: '♪', appearance: input.actors.player.appearance, spriteAnimation: 'idle',
+    animation: { type: 'bob', speed: 1, amplitude: 0.1 },
+  }];
+  input.cutscenes = [{
+    id: 'intro', kind: 'intro', name: { standard: 'Ankunft', dialect: 'Oikemma' }, duration: 3, skippable: true,
+    tracks: [
+      { id: 'camera', type: 'camera', target: 'camera', keyframes: [{ id: 'start', time: 0, x: 1, y: 6, zoom: 1.35 }, { id: 'end', time: 3, x: 4, y: 6, zoom: 1.12 }] },
+      { id: 'note', type: 'object', target: 'note', keyframes: [{ id: 'start', time: 0, x: 2, y: 2, visible: true }, { id: 'end', time: 3, x: 4, y: 2, visible: true }] },
+    ],
+  }];
   const result = preparePublishedLevel(input, {
     existing: { source: { catalog: 'Geburtstagsspiel', gameLayout: 0, markerClass: 'water', home: false, mapOrder: 1 } },
     nextMapOrder: 9,
@@ -26,6 +38,9 @@ test('publication preserves protected map metadata and editable palettes', () =>
   assert.equal(result.value.source.mapOrder, 1);
   assert.equal(result.value.source.catalog, 'Geburtstagsspiel');
   assert.equal(result.value.actors.player.appearance.palette.length, 12);
+  assert.equal(result.value.decorations[0].appearance.palette.length, 12);
+  assert.equal(result.value.cutscenes[0].tracks[1].target, 'note');
+  assert.equal(result.value.cutscenes[0].tracks[1].keyframes[1].x, 4);
   assert.equal(result.path, 'src/data/levels/hals.level.json');
 });
 
