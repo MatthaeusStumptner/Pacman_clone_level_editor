@@ -65,12 +65,74 @@ export function previewGuttis(level, difficulty = 'easy') {
 }
 
 export function worldPointFromScreen(camera, clientPoint, canvasRect, level) {
+  const point = worldTilePointFromScreen(camera, clientPoint, canvasRect, level);
+  return {
+    x: Math.max(0, Math.min(level.board.columns - 1, Math.floor(point.x))),
+    y: Math.max(0, Math.min(level.board.rows - 1, Math.floor(point.y))),
+  };
+}
+
+export function worldTilePointFromScreen(camera, clientPoint, canvasRect, level) {
   const localX = clientPoint.x - canvasRect.left;
   const localY = clientPoint.y - canvasRect.top;
   const x = (localX - camera.viewport.x) / camera.viewport.width * camera.source.width + camera.source.x;
   const y = (localY - camera.viewport.y) / camera.viewport.height * camera.source.height + camera.source.y;
   return {
-    x: Math.max(0, Math.min(level.board.columns - 1, Math.floor(x / level.board.tileSize))),
-    y: Math.max(0, Math.min(level.board.rows - 1, Math.floor(y / level.board.tileSize))),
+    x: Math.max(0, Math.min(level.board.columns, x / level.board.tileSize)),
+    y: Math.max(0, Math.min(level.board.rows, y / level.board.tileSize)),
+  };
+}
+
+export function rectangleContains(rectangle, point) {
+  return point.x >= rectangle.x && point.x <= rectangle.x + rectangle.width && point.y >= rectangle.y && point.y <= rectangle.y + rectangle.height;
+}
+
+export function transformHandleAt(rectangle, point, radius = 0.55) {
+  const handles = {
+    nw: { x: rectangle.x, y: rectangle.y },
+    ne: { x: rectangle.x + rectangle.width, y: rectangle.y },
+    se: { x: rectangle.x + rectangle.width, y: rectangle.y + rectangle.height },
+    sw: { x: rectangle.x, y: rectangle.y + rectangle.height },
+  };
+  return Object.entries(handles).find(([, handle]) => Math.hypot(point.x - handle.x, point.y - handle.y) <= radius)?.[0] ?? null;
+}
+
+const tidy = (value) => Math.round(value * 1000) / 1000;
+
+export function moveRectangle(rectangle, start, point, bounds) {
+  const maximumX = Math.max(0, bounds.columns - rectangle.width);
+  const maximumY = Math.max(0, bounds.rows - rectangle.height);
+  return {
+    ...rectangle,
+    x: tidy(Math.max(0, Math.min(maximumX, rectangle.x + point.x - start.x))),
+    y: tidy(Math.max(0, Math.min(maximumY, rectangle.y + point.y - start.y))),
+  };
+}
+
+export function scaleRectangle(rectangle, handle, point, bounds, { minimumSize = 0.25, maximumScale = Infinity } = {}) {
+  const signX = handle.includes('e') ? 1 : -1;
+  const signY = handle.includes('s') ? 1 : -1;
+  const anchor = {
+    x: signX > 0 ? rectangle.x : rectangle.x + rectangle.width,
+    y: signY > 0 ? rectangle.y : rectangle.y + rectangle.height,
+  };
+  const originalVector = { x: signX * rectangle.width, y: signY * rectangle.height };
+  const nextVector = { x: point.x - anchor.x, y: point.y - anchor.y };
+  const projectedScale = (nextVector.x * originalVector.x + nextVector.y * originalVector.y) / (originalVector.x ** 2 + originalVector.y ** 2);
+  const availableWidth = signX > 0 ? bounds.columns - anchor.x : anchor.x;
+  const availableHeight = signY > 0 ? bounds.rows - anchor.y : anchor.y;
+  const minimumScale = Math.max(minimumSize / rectangle.width, minimumSize / rectangle.height);
+  const boardScale = Math.min(availableWidth / rectangle.width, availableHeight / rectangle.height);
+  const scale = Math.max(minimumScale, Math.min(projectedScale, boardScale, maximumScale));
+  const width = tidy(rectangle.width * scale); const height = tidy(rectangle.height * scale);
+  return {
+    rectangle: {
+      ...rectangle,
+      x: tidy(signX > 0 ? anchor.x : anchor.x - width),
+      y: tidy(signY > 0 ? anchor.y : anchor.y - height),
+      width,
+      height,
+    },
+    scale,
   };
 }

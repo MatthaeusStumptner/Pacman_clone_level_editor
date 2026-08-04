@@ -1,7 +1,7 @@
 {
   "name": "franz-lola-level-editor",
   "private": true,
-  "version": "2.6.0",
+  "version": "2.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,7 @@
     "test:all": "npm test && npm run test:e2e && npm run build"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#f81452d6bff1e89dec756962848b8af795cc7523",
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#2a3db968bce44f569cad254f25fb7ca3631a29b4",
     "svelte": "^5.56.8"
   },
   "devDependencies": {

@@ -13,6 +13,7 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4191',
     viewport: { width: 1280, height: 720 },
+    deviceScaleFactor: 2,
     video: { mode: 'on', size: { width: 1280, height: 720 } },
     screenshot: 'on',
     trace: 'retain-on-failure',

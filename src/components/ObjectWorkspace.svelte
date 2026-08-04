@@ -62,8 +62,9 @@
       <div class="canvas-column">
         <div class="canvas-toolbar">
           <button class:active={studio.tool === 'select'} onclick={() => studio.setTool('select')}>↖ Auswählen</button>
+          <button class:active={studio.tool === 'transform'} data-tool="transform" onclick={() => studio.setTool('transform')}>↔ Bewegen & skalieren</button>
           <button class:active={studio.tool === 'object'} onclick={() => studio.setTool('object')}>＋ {asset?.name ?? 'Objekt'} platzieren</button>
-          <span class="toolbar-help">Musiknote, Bühnenlicht, Eisvogel und eigene Sprites funktionieren in jedem Theme.</span>
+          <span class="toolbar-help">Objekt ziehen · Eckgriff ziehen skaliert proportional. Musiknote, Bühnenlicht und eigene Sprites funktionieren in jedem Theme.</span>
         </div>
         <LevelCanvas {studio} />
         <div class="placed-object-strip">
@@ -79,14 +80,15 @@
           <label>Name<input value={selected.name} onchange={(event) => studio.updateSelected(['name'], event.currentTarget.value)} /></label>
           <label>Beschriftung<input value={selected.label} maxlength="12" onchange={(event) => studio.updateSelected(['label'], event.currentTarget.value)} /></label>
           {#if selected.type === 'text'}
+            <div class="transform-hint"><span>↔</span><p><strong>Direkt im Level anordnen</strong>Wähle „Bewegen & skalieren“. Ziehen verschiebt den Text frei, die vier Eckgriffe skalieren Block und Schrift gemeinsam.</p><button onclick={() => studio.setTool('transform')}>Werkzeug aktivieren</button></div>
             <label>Text<input value={selected.content.standard} onchange={(event) => studio.updateSelected(['content', 'standard'], event.currentTarget.value)} /></label>
             <label>Text im Dialekt<input value={selected.content.dialect} onchange={(event) => studio.updateSelected(['content', 'dialect'], event.currentTarget.value)} /></label>
             <div class="field-row"><label>Schriftgröße<input type="number" min="0.15" max="4" step="0.05" value={selected.textStyle.fontSize} onchange={(event) => studio.updateSelected(['textStyle', 'fontSize'], number(event))} /></label><label>Ausrichtung<select value={selected.textStyle.align} onchange={(event) => studio.updateSelected(['textStyle', 'align'], event.currentTarget.value)}><option value="left">Links</option><option value="center">Mitte</option><option value="right">Rechts</option></select></label></div>
             <div class="field-row"><label>Hintergrund<input type="color" value={selected.textStyle.background} onchange={(event) => studio.updateSelected(['textStyle', 'background'], event.currentTarget.value)} /></label><label>Rahmen<input type="color" value={selected.textStyle.borderColor} onchange={(event) => studio.updateSelected(['textStyle', 'borderColor'], event.currentTarget.value)} /></label></div>
             <label class="switch"><input type="checkbox" checked={selected.textStyle.uppercase} onchange={(event) => studio.updateSelected(['textStyle', 'uppercase'], event.currentTarget.checked)} /><span>Großbuchstaben</span></label>
           {/if}
-          <div class="field-row"><label>X<input type="number" value={selected.x} onchange={(event) => studio.updateSelected(['x'], number(event))} /></label><label>Y<input type="number" value={selected.y} onchange={(event) => studio.updateSelected(['y'], number(event))} /></label></div>
-          <div class="field-row"><label>Breite<input type="number" min="1" max="24" value={selected.width} onchange={(event) => studio.updateSelected(['width'], number(event))} /></label><label>Höhe<input type="number" min="1" max="24" value={selected.height} onchange={(event) => studio.updateSelected(['height'], number(event))} /></label></div>
+          <div class="field-row"><label>X<input type="number" step="0.05" value={selected.x} onchange={(event) => studio.updateSelected(['x'], number(event))} /></label><label>Y<input type="number" step="0.05" value={selected.y} onchange={(event) => studio.updateSelected(['y'], number(event))} /></label></div>
+          <div class="field-row"><label>Breite<input type="number" min="0.25" max="24" step="0.05" value={selected.width} onchange={(event) => studio.updateSelected(['width'], number(event))} /></label><label>Höhe<input type="number" min="0.25" max="24" step="0.05" value={selected.height} onchange={(event) => studio.updateSelected(['height'], number(event))} /></label></div>
           <label>Farbe<input type="color" value={selected.color} onchange={(event) => studio.updateSelected(['color'], event.currentTarget.value)} /></label>
           <label>Animation<select value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
           <div class="field-row"><label>Tempo<input type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
