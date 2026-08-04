@@ -12,7 +12,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop-chromium', grepInvert: /@mobile/, use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    { name: 'desktop-chromium', grepInvert: /@mobile|@visual/, use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] }, grep: /@mobile/ },
   ],
   webServer: {

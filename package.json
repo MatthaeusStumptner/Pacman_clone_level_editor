@@ -1,7 +1,7 @@
 {
   "name": "franz-lola-level-editor",
   "private": true,
-  "version": "2.5.0",
+  "version": "2.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,10 +10,11 @@
     "catalog:generate": "node scripts/generate-game-catalog.mjs",
     "test": "node --test test/*.test.js",
     "test:e2e": "playwright test",
+    "test:visual": "playwright test --config=playwright.visual.config.js",
     "test:all": "npm test && npm run test:e2e && npm run build"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#v1.7.0",
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#f81452d6bff1e89dec756962848b8af795cc7523",
     "svelte": "^5.56.8"
   },
   "devDependencies": {
