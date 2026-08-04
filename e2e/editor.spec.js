@@ -99,6 +99,11 @@ test('one reactive document keeps drawing, history, autosave and reload synchron
   await page.reload();
   await expect(page.locator('#level-id')).toHaveValue('meine-ilz-runde');
   await expect(page.locator('#level-name')).toHaveValue('Meine Ilz-Runde');
+  await openProject(page);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Entwurf Meine Ilz-Runde löschen' }).click();
+  await expect(page.locator('#project-drawer')).not.toContainText('Meine Ilz-Runde');
+  await expect(page.locator('#level-id')).toHaveValue('meine-ilz-runde');
   expect(errors).toEqual([]);
 });
 
@@ -249,7 +254,7 @@ test('testplay runs the same intro, camera and direct controls as the game', asy
   expect(errors).toEqual([]);
 });
 
-test('authorized non-technical editors publish one validated level and see the live result', async ({ page }) => {
+test('authorized non-technical editors publish several selected drafts together and see the live result', async ({ page }) => {
   const errors = []; const published = []; let checks = 0;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
@@ -257,18 +262,21 @@ test('authorized non-technical editors publish one validated level and see the l
     const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
-    if (path === '/api/publish') { published.push(request.postDataJSON().level); return route.fulfill({ status: 202, headers, json: { publicationId: 42 } }); }
+    if (path === '/api/publish') { published.push(request.postDataJSON().levels); return route.fulfill({ status: 202, headers, json: { publicationId: 42 } }); }
     if (path === '/api/publications/42') { checks += 1; return route.fulfill({ headers, json: checks > 1 ? { state: 'published', detail: 'Das Level ist live.', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/' } : { state: 'deploying', detail: 'Das Spiel wird veröffentlicht.' } }); }
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
   await page.goto('/#publisher_session=test.session-token'); await expect(page.locator('#level-canvas')).toBeVisible();
-  await loadTemplate(page, 'hals');
+  await loadTemplate(page, 'home'); await page.waitForTimeout(250);
+  await loadTemplate(page, 'hals'); await page.waitForTimeout(250);
   await page.locator('[data-workspace="publish"]').click();
   await expect(page.locator('.publisher-user')).toContainText('Franz-Lola-Redaktion');
   await expect.poll(() => page.url()).not.toContain('publisher_session');
+  await expect(page.locator('.publish-candidate')).toHaveCount(2);
+  await page.getByLabel('Level Dahoam · Am Bramerhof auswählen').check();
   await page.locator('#publisher-confirm').click();
-  await expect(page.locator('.publish-state')).toContainText('Level ist live!', { timeout: 10_000 });
-  expect(published).toHaveLength(1); expect(published[0].id).toBe('hals'); expect(errors).toEqual([]);
+  await expect(page.locator('.publish-state')).toContainText('Level sind live!', { timeout: 10_000 });
+  expect(published).toHaveLength(1); expect(published[0].map((level) => level.id).sort()).toEqual(['hals', 'home']); expect(errors).toEqual([]);
 });
 
 test('all visible controls have accessible names', async ({ page }) => {
@@ -303,6 +311,8 @@ test('object previews show renderer output and text blocks stay freely editable'
   const target = await canvasPoint(page, 8, 8); await page.mouse.click(target.x, target.y);
   await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('Frei in Passau'); await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
+  await page.getByLabel('Hintergrund transparent').check();
+  await expect(page.getByLabel('Hintergrund transparent')).toBeChecked();
   const xInput = page.locator('.object-inspector').getByLabel('X', { exact: true });
   const yInput = page.locator('.object-inspector').getByLabel('Y', { exact: true });
   const widthInput = page.locator('.object-inspector').getByLabel('Breite');

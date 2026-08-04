@@ -15,6 +15,7 @@ test('ships reusable Passau objects independently from a particular map', () => 
   assert.equal(assets.find((asset) => asset.id === 'music-note').appearance.animations[0].id, 'idle');
   assert.notDeepEqual(assets.find((asset) => asset.id === 'music-note').appearance.pixels, assets.find((asset) => asset.id === 'zauberberg-note').appearance.pixels);
   assert.equal(assets.find((asset) => asset.id === 'text-block').type, 'text');
+  assert.equal(assets.find((asset) => asset.id === 'text-block').textStyle.backgroundOpacity, 0.88);
   assets[0].name = 'verändert';
   assert.equal(library.list()[0].name, 'Musiknote');
 });

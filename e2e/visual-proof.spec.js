@@ -37,6 +37,7 @@ test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @vi
   await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('ILZ · Franz & Lola gehen mit Gutti nach Passau');
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
+  await page.getByLabel('Hintergrund transparent').check();
   await page.locator('[data-tool="transform"]').click();
   const moveFrom = await canvasPoint(page, 10, 8.5); const moveTo = await canvasPoint(page, 12.1, 10.35);
   await page.mouse.move(moveFrom.x, moveFrom.y); await page.mouse.down(); await page.mouse.move(moveTo.x, moveTo.y, { steps: 10 }); await page.mouse.up();
@@ -50,6 +51,27 @@ test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @vi
   expect(density).toBeGreaterThanOrEqual(1.9);
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'output/playwright/textblock-retina-transform.png' });
+});
+
+test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @visual', async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear());
+  await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
+    return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
+  });
+  await page.goto('/#publisher_session=visual.session');
+  await expect(page.locator('#level-canvas')).toBeVisible();
+  await loadTemplate(page, 'home'); await page.waitForTimeout(250);
+  await loadTemplate(page, 'hals'); await page.waitForTimeout(250);
+  await page.locator('[data-workspace="publish"]').click();
+  await expect(page.locator('.publish-candidate')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Alle spielbaren' }).click();
+  await expect(page.locator('.publish-candidate input:checked')).toHaveCount(2);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'output/playwright/batch-publish-selection.png' });
 });
 
 test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {

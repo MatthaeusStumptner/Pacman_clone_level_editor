@@ -40,8 +40,10 @@ export class DraftRepository {
 
   remove(id) {
     const workspace = this.readWorkspace();
+    if (!workspace.drafts[id]) return false;
     delete workspace.drafts[id];
     if (workspace.activeId === id) workspace.activeId = null;
     this.storage.setItem(this.key, JSON.stringify(workspace));
+    return true;
   }
 }
