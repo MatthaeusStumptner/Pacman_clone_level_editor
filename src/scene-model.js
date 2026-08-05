@@ -6,6 +6,7 @@ export function sceneEntity(level, selection) {
   if (selection.kind === 'player') return level.actors.player;
   if (selection.kind === 'cat') return level.actors.cats[selection.index] ?? null;
   if (selection.kind === 'decoration') return level.decorations[selection.index] ?? null;
+  if (selection.kind === 'wall') return level.board?.walls?.[selection.index] ?? null;
   if (selection.kind === 'event') return level.events[selection.index] ?? null;
   if (selection.kind === 'theme-element') return level.theme.elements?.[selection.index] ?? null;
   return null;
@@ -27,6 +28,14 @@ export function sceneGroups(level) {
         { kind: 'player', index: 0, label: 'Franz & Lola', detail: 'Spieler', icon: 'FL', canHide: true, canLock: false, canReorder: false },
         ...level.actors.cats.map((cat, index) => ({ kind: 'cat', index, label: `Katze ${index + 1}`, detail: cat.behavior?.strategy || 'Katze', icon: '◆', canHide: true, canLock: false, canReorder: false })),
       ],
+    },
+    {
+      id: 'walls', label: 'Wände', icon: '▦',
+      nodes: (level.board?.walls ?? []).map((wall, index) => ({
+        kind: 'wall', index, label: wall.name || 'Wand ' + (index + 1),
+        detail: wall.width + '×' + wall.height + ' · ' + (wall.pattern || 'Theme'),
+        icon: '▦', canHide: false, canLock: false, canReorder: false,
+      })),
     },
     {
       id: 'objects', label: 'Objekte & Texte', icon: '◆',
@@ -64,6 +73,9 @@ export function sceneCandidatesAt(level, point, { hidden = new Set(), themeBound
     const bounds = themeBounds(level.theme.elements[index].id);
     if (contains(bounds, point)) add('theme-element', index);
   }
+  for (let index = level.board.walls.length - 1; index >= 0; index -= 1) {
+    if (contains(level.board.walls[index], point)) add('wall', index);
+  }
   return candidates;
 }
 
@@ -79,5 +91,6 @@ export function workspaceForSelection(selection) {
   if (!selection) return 'level';
   if (selection.kind === 'player' || selection.kind === 'cat') return 'characters';
   if (selection.kind === 'event') return 'events';
+  if (selection.kind === 'wall') return 'level';
   return 'objects';
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createStarterLevel, EditorState, compactWallCells, wallRectanglesToCells } from '../src/editor-state.js';
+import { createStarterLevel, EditorState, compactWallCells, subtractWallCell, wallRectanglesToCells } from '../src/editor-state.js';
 
 test('compacts edited wall cells without changing their occupied area', () => {
   const cells = new Set(['1,1', '2,1', '3,1', '1,2', '2,2', '3,2', '6,4']);
@@ -80,4 +80,39 @@ test('keeps localized event triggers and visuals through history and export', ()
   state.mutate('Ereignis', (draft) => { draft.document.events.push({ id: 'eisvogel', name: { standard: 'Eisvogel', dialect: 'Eisvogl' }, message: { standard: 'Entdeckt', dialect: 'Gfundn' }, reward: 150, trigger: { type: 'zone', zones: [{ x: 1, y: 12, width: 2, height: 1 }] }, visual: { type: 'kingfisher', x: 0.375, y: 6 } }); });
   const exported = state.toDocument(); assert.equal(exported.events[0].message.dialect, 'Gfundn'); assert.equal(exported.events[0].visual.type, 'kingfisher');
   assert.equal(state.undo(), true); assert.equal(state.toDocument().events.length, 0); assert.equal(state.redo(), true); assert.equal(state.toDocument().events[0].reward, 150);
+});
+
+test('splits an erased styled wall while preserving every instance property', () => {
+  const wall = {
+    id: 'brick-yard',
+    name: 'Backsteinmauer',
+    x: 1, y: 1, width: 3, height: 3,
+    useThemeColor: false,
+    color: '#a14f3f',
+    accent: '#f1c27d',
+    pattern: 'brick',
+    opacity: 0.8,
+    effects: [{ id: 'glitch-1', type: 'glitch', intensity: 0.35, speed: 1, color: '#55d9dd' }],
+  };
+  const pieces = subtractWallCell(wall, 2, 2);
+  assert.equal(pieces.length, 4);
+  assert.equal(wallRectanglesToCells(pieces).has('2,2'), false);
+  assert.equal(wallRectanglesToCells(pieces).size, 8);
+  for (const piece of pieces) {
+    assert.equal(piece.pattern, 'brick');
+    assert.equal(piece.color, '#a14f3f');
+    assert.equal(piece.opacity, 0.8);
+    assert.deepEqual(piece.effects, wall.effects);
+  }
+});
+
+test('keeps newly painted blocks as individually editable instances', () => {
+  const state = new EditorState(createStarterLevel());
+  state.mutate('Zwei Blöcke', (draft) => {
+    draft.setWall(8, 8, true);
+    draft.setWall(9, 8, true);
+  });
+  const added = state.toDocument().board.walls.filter((wall) => wall.y === 8 && (wall.x === 8 || wall.x === 9));
+  assert.equal(added.length, 2);
+  assert.ok(added.every((wall) => wall.width === 1 && wall.height === 1 && wall.id));
 });

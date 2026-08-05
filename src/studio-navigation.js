@@ -8,7 +8,8 @@ function selectionRoute(studio) {
 
 export function routeFromStudio(studio) {
   const route = { levelId: studio.level.id, workspace: studio.workspace };
-  if (studio.workspace === 'objects') {
+  if (studio.workspace === 'level') route.selection = selectionRoute(studio);
+  else if (studio.workspace === 'objects') {
     route.assetId = studio.selectedAssetId;
     route.selection = selectionRoute(studio);
   } else if (studio.workspace === 'characters') route.selection = selectionRoute(studio);
@@ -31,6 +32,7 @@ function applySelection(studio, value) {
   const kind = value.slice(0, separator);
   const identity = value.slice(separator + 1);
   const collections = {
+    wall: studio.level.board.walls,
     cat: studio.level.actors.cats,
     decoration: studio.level.decorations,
     'theme-element': studio.level.theme.elements ?? [],

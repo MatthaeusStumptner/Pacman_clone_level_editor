@@ -184,7 +184,7 @@ export class StudioState {
       this.selection = next;
       this.selections = [clone(next)];
     }
-    this.engine.selected = this.selection && ['player', 'cat', 'decoration'].includes(this.selection.kind) ? clone(this.selection) : null;
+    this.engine.selected = this.selection && ['player', 'cat', 'decoration', 'wall'].includes(this.selection.kind) ? clone(this.selection) : null;
     if (kind === 'event') this.selectedEventId = this.level.events[index]?.id ?? '';
   }
 
@@ -199,6 +199,7 @@ export class StudioState {
     if (this.selection.kind === 'player') return 'Franz & Lola';
     if (this.selection.kind === 'cat') return `Katze ${this.selection.index + 1}`;
     if (this.selection.kind === 'event') return entity?.name?.standard ?? 'Ereignis';
+    if (this.selection.kind === 'wall') return entity?.name || 'Wand ' + (this.selection.index + 1);
     if (this.selection.kind === 'theme-element') return entity?.id === 'stage-note' ? 'Zauberberg-Note' : entity?.id === 'stage-lights' ? 'Bühnenlichter' : entity?.id ?? 'Theme-Element';
     return entity?.name || entity?.content?.standard || entity?.label || entity?.type || 'Objekt';
   }
@@ -342,12 +343,15 @@ export class StudioState {
     const cats = selected.filter((entry) => entry.kind === 'cat').map((entry) => entry.index).sort((a, b) => b - a);
     const decorations = selected.filter((entry) => entry.kind === 'decoration').map((entry) => entry.index).sort((a, b) => b - a);
     const events = selected.filter((entry) => entry.kind === 'event').map((entry) => entry.index).sort((a, b) => b - a);
-    if (!cats.length && !decorations.length && !events.length) return;
+    const walls = selected.filter((entry) => entry.kind === 'wall').map((entry) => entry.index).sort((a, b) => b - a);
+    if (!cats.length && !decorations.length && !events.length && !walls.length) return;
     this.engine.selected = null;
     this.mutate(selected.length > 1 ? 'Elemente löschen' : 'Element löschen', (draft) => {
       cats.forEach((index) => draft.document.actors.cats.splice(index, 1));
       decorations.forEach((index) => draft.document.decorations.splice(index, 1));
       events.forEach((index) => draft.document.events.splice(index, 1));
+      walls.forEach((index) => draft.document.board.walls.splice(index, 1));
+      if (walls.length) draft.refreshWallCells();
     }, { preserveSelection: false });
     this.clearSelection();
   }
@@ -361,9 +365,24 @@ export class StudioState {
       if (selection.kind === 'cat') target = draft.document.actors.cats[selection.index];
       if (selection.kind === 'decoration') target = draft.document.decorations[selection.index];
       if (selection.kind === 'theme-element') target = draft.document.theme.elements?.[selection.index];
+      if (selection.kind === 'wall') target = draft.document.board.walls[selection.index];
       if (target) setAt(target, path, value);
+      if (selection.kind === 'wall') draft.refreshWallCells();
     }, { preserveSelection: true });
     this.selection = selection;
+  }
+
+  updateSelectedWalls(path, value, label = 'Wände gemeinsam bearbeiten') {
+    const selections = (this.selections.length ? this.selections : this.selection ? [this.selection] : [])
+      .filter((selection) => selection.kind === 'wall');
+    if (!selections.length) return;
+    this.mutate(label, (draft) => {
+      selections.forEach((selection) => {
+        const target = draft.document.board.walls[selection.index];
+        if (target) setAt(target, path, value);
+      });
+      draft.refreshWallCells();
+    }, { preserveSelection: true });
   }
 
   saveAsset(asset) {

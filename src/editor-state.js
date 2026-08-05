@@ -38,6 +38,34 @@ export function compactWallCells(cells) {
   return rectangles;
 }
 
+function nextWallId(walls, x, y) {
+  const base = 'wall-' + x + '-' + y;
+  const ids = new Set(walls.map((wall) => wall.id).filter(Boolean));
+  if (!ids.has(base)) return base;
+  let suffix = 2;
+  while (ids.has(base + '-' + suffix)) suffix += 1;
+  return base + '-' + suffix;
+}
+
+export function subtractWallCell(wall, x, y) {
+  if (x < wall.x || x >= wall.x + wall.width || y < wall.y || y >= wall.y + wall.height) return [clone(wall)];
+  const pieces = [];
+  const topHeight = y - wall.y;
+  const bottomHeight = wall.y + wall.height - y - 1;
+  const leftWidth = x - wall.x;
+  const rightWidth = wall.x + wall.width - x - 1;
+  if (topHeight > 0) pieces.push({ x: wall.x, y: wall.y, width: wall.width, height: topHeight });
+  if (bottomHeight > 0) pieces.push({ x: wall.x, y: y + 1, width: wall.width, height: bottomHeight });
+  if (leftWidth > 0) pieces.push({ x: wall.x, y, width: leftWidth, height: 1 });
+  if (rightWidth > 0) pieces.push({ x: x + 1, y, width: rightWidth, height: 1 });
+  return pieces.map((rectangle, index) => ({
+    ...clone(wall),
+    ...rectangle,
+    ...(wall.id ? { id: index === 0 ? wall.id : wall.id + '-part-' + (index + 1) } : {}),
+    ...(wall.name && index > 0 ? { name: wall.name + ' · Teil ' + (index + 1) } : {}),
+  }));
+}
+
 function snapshotOf(state) {
   return {
     document: clone(state.document),
@@ -110,9 +138,17 @@ export class EditorState {
     if (!changed) return false;
     if (enabled) {
       this.wallCells.add(key);
+      this.document.board.walls.push({
+        id: nextWallId(this.document.board.walls, x, y),
+        name: 'Wand ' + (this.document.board.walls.length + 1),
+        x, y, width: 1, height: 1,
+      });
       this.removeObjectsAt(x, y);
-    } else this.wallCells.delete(key);
-    this.wallsDirty = true;
+    } else {
+      this.wallCells.delete(key);
+      this.document.board.walls = this.document.board.walls.flatMap((wall) => subtractWallCell(wall, x, y));
+    }
+    this.wallsDirty = false;
     this.markChanged();
     return true;
   }
@@ -125,8 +161,7 @@ export class EditorState {
 
   setPlayer(point) {
     if (!this.isInside(point.x, point.y)) return false;
-    this.wallCells.delete(tileKey(point.x, point.y));
-    this.wallsDirty = true;
+    this.setWall(point.x, point.y, false);
     this.document.actors.player = { ...this.document.actors.player, ...point };
     this.selected = { kind: 'player', index: 0 };
     this.markChanged();
@@ -135,8 +170,7 @@ export class EditorState {
 
   addCat(point, appearance = {}) {
     if (!this.isInside(point.x, point.y)) return false;
-    this.wallCells.delete(tileKey(point.x, point.y));
-    this.wallsDirty = true;
+    this.setWall(point.x, point.y, false);
     this.document.actors.cats.push({ x: point.x, y: point.y, renderer: 'cat', color: '#ff6b5f', accent: '#9e302e', ...clone(appearance) });
     this.selected = { kind: 'cat', index: this.document.actors.cats.length - 1 };
     this.markChanged();
@@ -148,8 +182,7 @@ export class EditorState {
     const index = this.document.collectibles.powerUps.findIndex((item) => item.x === point.x && item.y === point.y);
     if (index >= 0) this.document.collectibles.powerUps.splice(index, 1);
     else {
-      this.wallCells.delete(tileKey(point.x, point.y));
-      this.wallsDirty = true;
+      this.setWall(point.x, point.y, false);
       this.document.collectibles.powerUps.push({ ...point });
     }
     this.markChanged();
@@ -180,6 +213,7 @@ export class EditorState {
     const selected = this.selected;
     if (selected.kind === 'cat') this.document.actors.cats.splice(selected.index, 1);
     else if (selected.kind === 'decoration') this.document.decorations.splice(selected.index, 1);
+    else if (selected.kind === 'wall') { this.document.board.walls.splice(selected.index, 1); this.refreshWallCells(); }
     else return false;
     this.selected = null;
     this.markChanged();
@@ -191,6 +225,7 @@ export class EditorState {
     if (this.selected.kind === 'player') return this.document.actors.player;
     if (this.selected.kind === 'cat') return this.document.actors.cats[this.selected.index] ?? null;
     if (this.selected.kind === 'decoration') return this.document.decorations[this.selected.index] ?? null;
+    if (this.selected.kind === 'wall') return this.document.board.walls[this.selected.index] ?? null;
     return null;
   }
 
@@ -212,9 +247,13 @@ export class EditorState {
     return x >= 0 && y >= 0 && x < this.document.board.columns && y < this.document.board.rows;
   }
 
+  refreshWallCells() {
+    this.wallCells = wallRectanglesToCells(this.document.board.walls);
+    this.wallsDirty = false;
+  }
+
   toDocument() {
-    const walls = this.wallsDirty ? compactWallCells(this.wallCells) : clone(this.document.board.walls);
-    return createLevelDocument({ ...this.document, board: { ...this.document.board, walls } });
+    return createLevelDocument(this.document);
   }
 
   restore(snapshot) {
