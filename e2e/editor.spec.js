@@ -65,6 +65,40 @@ async function canvasExactPoint(page, x, y) {
   return { x: box.x + (x / 25) * box.width, y: box.y + (y / 25) * box.height };
 }
 
+test('URL router restores level, discipline and selection with browser history', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await page.locator('[data-workspace="objects"]').click();
+  await page.locator('.placed-object-strip').getByRole('button', { name: 'Zauberberg-Note', exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get('workspace')).toBe('objects');
+  await expect.poll(() => new URL(page.url()).searchParams.get('selection')).toBe('theme-element:stage-note');
+  await page.locator('[data-workspace="characters"]').click();
+  await expect.poll(() => new URL(page.url()).searchParams.get('workspace')).toBe('characters');
+  await page.goBack();
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
+  await page.reload();
+  await expect(page.locator('.document-identity')).toHaveAttribute('data-level-id', 'zauberberg');
+  await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
+  await expect(page).toHaveTitle(/Zauberberg.*Objekte.*Franz & Lola Studio/);
+  expect(errors).toEqual([]);
+});
+
+test('router keeps the publisher fragment separate and makes a closed project drawer inert', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/?level=hals&workspace=events&selection=__proto__%3Aignored#publisher_session=invalid-but-safe');
+  await expect(page.locator('.document-identity')).toHaveAttribute('data-level-id', 'hals');
+  await expect(page.locator('[data-workspace="events"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#project-drawer')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('#project-drawer')).toHaveAttribute('inert', '');
+  await openProject(page);
+  await expect(page.locator('#project-drawer')).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('#project-drawer')).not.toHaveAttribute('inert', '');
+  expect(new URL(page.url()).searchParams.get('workspace')).toBe('events');
+  expect(errors).toEqual([]);
+});
+
 test('seven disciplines separate the work and all nine exact templates stay available', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await expect(page.locator('.discipline-nav [data-workspace]')).toHaveCount(7);
