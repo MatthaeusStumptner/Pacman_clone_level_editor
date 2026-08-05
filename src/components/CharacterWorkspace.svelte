@@ -3,6 +3,7 @@
   import ActorThumbnail from './ActorThumbnail.svelte';
   import MobileFocusTabs from './MobileFocusTabs.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
+  import VisualEffectsEditor from './VisualEffectsEditor.svelte';
 
   let { studio } = $props();
   let editing = $state(false);
@@ -72,6 +73,7 @@
             <div class="field-row"><label>Fell<input type="color" value={actor.color} onchange={(event) => update(['color'], event.currentTarget.value)} /></label><label>Akzent<input type="color" value={actor.accent} onchange={(event) => update(['accent'], event.currentTarget.value)} /></label></div>
           {/if}
           <label>Tempo-Multiplikator<input type="number" min="0.1" max="4" step="0.1" value={actor.behavior.speedMultiplier} onchange={(event) => update(['behavior', 'speedMultiplier'], number(event))} /></label>
+          <VisualEffectsEditor effects={actor.effects ?? []} title="Figureneffekte" onchange={(effects) => update(['effects'], effects)} />
           {#if targetKind === 'cat'}<button class="danger" onclick={() => studio.deleteSelection()}>Katze entfernen</button>{/if}
         {/if}
         <div class="property-section"><span class="section-number">PHYS</span><h3>Spielgefühl</h3></div>

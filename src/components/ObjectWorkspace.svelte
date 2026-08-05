@@ -1,5 +1,7 @@
 <script>
+  import EdgeEffectsEditor from './EdgeEffectsEditor.svelte';
   import LevelCanvas from './LevelCanvas.svelte';
+  import VisualEffectsEditor from './VisualEffectsEditor.svelte';
   import MobileFocusTabs from './MobileFocusTabs.svelte';
   import MotionTimelineEditor from './MotionTimelineEditor.svelte';
   import ObjectThumbnail from './ObjectThumbnail.svelte';
@@ -63,7 +65,7 @@
             {/each}
           </div>
           {#if asset}
-            <div class="asset-summary"><span class="eyebrow">AKTIVES ASSET</span><strong>{asset.name}</strong><p>{asset.description}</p>{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button></div>
+            <div class="asset-summary"><span class="eyebrow">AKTIVES ASSET</span><strong>{asset.name}</strong><p>{asset.description}</p>{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button><VisualEffectsEditor effects={asset.effects ?? []} title="Asset-Effekte" onchange={(effects) => studio.saveAsset({ ...asset, effects })} /></div>
           {/if}
         {/if}
       </aside>
@@ -92,28 +94,32 @@
             <div class="field-row"><label>Schriftgröße<input type="number" min="0.15" max="4" step="0.05" value={selected.textStyle.fontSize} onchange={(event) => studio.updateSelected(['textStyle', 'fontSize'], number(event))} /></label><label>Ausrichtung<select value={selected.textStyle.align} onchange={(event) => studio.updateSelected(['textStyle', 'align'], event.currentTarget.value)}><option value="left">Links</option><option value="center">Mitte</option><option value="right">Rechts</option></select></label></div>
             <div class="field-row"><label>Hintergrund<input type="color" value={selected.textStyle.background} onchange={(event) => studio.updateSelected(['textStyle', 'background'], event.currentTarget.value)} /></label><label>Rahmen<input type="color" value={selected.textStyle.borderColor} onchange={(event) => studio.updateSelected(['textStyle', 'borderColor'], event.currentTarget.value)} /></label></div>
             <label class="switch"><input type="checkbox" aria-label="Hintergrund transparent" checked={selected.textStyle.backgroundOpacity === 0} onchange={(event) => studio.updateSelected(['textStyle', 'backgroundOpacity'], event.currentTarget.checked ? 0 : 0.88)} /><span>Hintergrund transparent</span></label>
+            <label class="switch"><input type="checkbox" aria-label="Rahmen ausblenden" checked={(selected.textStyle.borderOpacity ?? 0) === 0} onchange={(event) => studio.updateSelected(['textStyle', 'borderOpacity'], event.currentTarget.checked ? 0 : 1)} /><span>Nur Text · Rahmen ausblenden</span></label>
             <label class="switch"><input type="checkbox" checked={selected.textStyle.uppercase} onchange={(event) => studio.updateSelected(['textStyle', 'uppercase'], event.currentTarget.checked)} /><span>Großbuchstaben</span></label>
           {/if}
           <div class="field-row"><label>X<input type="number" step="0.05" value={selected.x} onchange={(event) => studio.updateSelected(['x'], number(event))} /></label><label>Y<input type="number" step="0.05" value={selected.y} onchange={(event) => studio.updateSelected(['y'], number(event))} /></label></div>
           <div class="field-row"><label>Breite<input type="number" min="0.25" max="24" step="0.05" value={selected.width} onchange={(event) => studio.updateSelected(['width'], number(event))} /></label><label>Höhe<input type="number" min="0.25" max="24" step="0.05" value={selected.height} onchange={(event) => studio.updateSelected(['height'], number(event))} /></label></div>
           <label>Farbe<input type="color" value={selected.color} onchange={(event) => studio.updateSelected(['color'], event.currentTarget.value)} /></label>
           <label>Animation<select aria-label="Bewegungsanimation" value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
-          <div class="field-row"><label>Tempo<input type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
+          <div class="field-row"><label>Tempo<input aria-label="Bewegungsanimation Tempo" type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input aria-label="Bewegungsanimation Stärke" type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
           {#if selected.appearance?.animations?.length}<label>Sprite-Animation<select value={selected.spriteAnimation} onchange={(event) => studio.updateSelected(['spriteAnimation'], event.currentTarget.value)}>{#each selected.appearance.animations as animation}<option value={animation.id}>{animation.id}</option>{/each}</select></label>{/if}
           <button onclick={() => openMotion('selection')}>◆ Keyframe-Bewegung öffnen</button>
           {#if selected.appearance}<button onclick={() => editingPlacedSprite = true}>▦ Sprite-Keyframes öffnen</button>{/if}
+          <VisualEffectsEditor effects={selected.effects ?? []} onchange={(effects) => studio.updateSelected(['effects'], effects, 'Objekteffekte bearbeiten')} />
           <label class="switch"><input type="checkbox" checked={selected.locked} onchange={(event) => studio.updateSelected(['locked'], event.currentTarget.checked)} /><span>Position sperren</span></label>
           <button class="danger" onclick={() => studio.deleteSelection()}>Objekt löschen</button>
         {:else if selected && studio.selection?.kind === 'theme-element'}
           <div class="property-section"><span class="section-number">SYS</span><h3>{selected.id === 'stage-note' ? 'Zauberberg-Note' : selected.id === 'stage-lights' ? 'Bühnenlichter' : selected.id}</h3></div>
           <p class="hint">Dieses originale Kulissenelement wurde direkt im Canvas ausgewählt. Du kannst seine Animation ändern oder das entsprechende Asset aus der Bibliothek in andere Karten setzen.</p>
           <label>Animation<select aria-label="Bewegungsanimation" value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
-          <div class="field-row"><label>Tempo<input type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
+          <div class="field-row"><label>Tempo<input aria-label="Bewegungsanimation Tempo" type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input aria-label="Bewegungsanimation Stärke" type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
           <button onclick={() => openMotion('selection')}>◆ Keyframe-Bewegung öffnen</button>
           <button onclick={() => { studio.selectedAssetId = selected.id === 'stage-note' ? 'zauberberg-note' : 'stage-lights'; studio.setTool('object'); }}>In dieser Karte frei platzieren</button>
         {:else}
           <div class="empty-inspector"><span>↖</span><strong>Objekt auswählen</strong><p>Wähle ein Element im Canvas oder Szenenbaum. Das gilt auch für Musiknote und Bühnenlicht.</p></div>
         {/if}
+        <div class="property-section"><span class="section-number">EDGE</span><h3>Levelränder & Atmosphäre</h3></div>
+        <EdgeEffectsEditor effects={studio.level.theme.edgeEffects ?? []} onchange={(effects) => studio.update(['theme', 'edgeEffects'], effects, 'Levelränder bearbeiten')} />
       </aside>
       {#if mobilePanel !== 'canvas'}<button class="mobile-panel-scrim" aria-label="Mobile Seitenleiste schließen" onclick={() => mobilePanel = 'canvas'}></button>{/if}
       <MobileFocusTabs value={mobilePanel} options={[["scene", "☷", "Szene"], ["canvas", "▦", "Canvas"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />

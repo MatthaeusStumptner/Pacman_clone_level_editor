@@ -16,6 +16,8 @@ const levels = source.levels.map((level) => {
   return {
     ...level,
     decorations: story.decorations,
+    theme: { ...level.theme, edgeEffects: story.edgeEffects ?? [] },
+    actors: { ...level.actors, cats: level.actors.cats.map((cat, index) => ({ ...cat, ...(story.catEffects?.[index] ? { effects: story.catEffects[index] } : {}) })) },
     events: [...events, ...(story.event ? [story.event] : [])],
     cutscenes: story.cutscene ? [story.cutscene] : [],
   };

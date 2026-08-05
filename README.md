@@ -9,15 +9,18 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Franz & Lola, beliebig viele Katzen und Schnüffel-Power frei platzierbar
 - Universelle Objektbibliothek mit echten Renderer-Vorschauen: normale Musiknote, originale Zauberberg-Note, Bühnenlicht, Eisvogel und eigene Pixelobjekte sind in jeder Karte verwendbar
 - Eigene Spezialobjekte mit Sprite-Sheet, Palette, zeitbasierten Bild-Keyframes und Transform-Keyframes für Position, Größe, Drehung und Deckkraft
-- Frei bewegliche Standard-/Dialekt-Textblöcke mit Schriftgröße, Ausrichtung, Farbe, Hintergrund und Rahmen
+- Frei bewegliche Standard-/Dialekt-Textblöcke mit Schriftgröße, Ausrichtung, Farbe sowie unabhängig ausblendbarem Hintergrund und Rahmen; standardmäßig erscheint nur der scharfe Text
 - Bäume, Bänke, Lampen, Blumen, Schilder, Felsen, Wasserflächen und freie Symbole
 - Eigener Franz-&-Lola-Charakterbereich mit echten Renderer-Vorschauen in Figurenliste, Detailansicht, Sprite-Playback und allen frei bearbeitbaren Zuständen für Idle, Oben, Rechts, Unten und Links
 - Eigene Pixel-Figuren mit Palette, benannten Animationen, Keyframe-Timeline, Scrubbing, Playback und Schleifenmodus
+- Rechteckige und additive Pixel-Mehrfachauswahl: gleiche Farben finden, Auswahl umfärben, löschen, verschieben oder invertieren
 - Levelgebundene Cutscenes für den Übergang von Passau-Karte zu Level
 - Timeline mit Kamera-, Figuren-, Objekt- und Dialogspuren, Keyframes, Easing und zweisprachigen Texten
 - Verhalten pro Figur: direkte Steuerung, Autopilot, Patrouille sowie unterschiedliche Jagd-, Hinterhalt-, Wach-, Streu- und Zufallsstrategien
 - Direkte Auswahl aller Spezialelemente im Canvas – einschließlich Zauberberg-Musiknote und Bühnenlichtern
 - Animierbare Dekorationen und fest eingebaute Kulissenelemente mit Schweben, Pulsieren, Blinken und Drehen
+- Stapelbare visuelle Effekte für Figuren, Katzen, Objekte und Ereignissymbole: Glitch, Neon, Hologramm, Echo und Funkeln
+- Animierte Levelränder mit Wasserströmung, springenden Fischen, Booten, Blättern, Glühwürmchen, Nebel, Vögeln, Stadtlichtern, Dampf, Funken und Bühnenpuls
 - No-Code-Ereignisse mit Triggerzonen, Tast-/Wischfolgen oder Zeittriggern, Punktbelohnungen und globalem, Level- oder Rundengültigkeitsbereich
 - Standarddeutsche und niederbairische Ereignistexte sowie Eisvogel-, Pfoten-, Glocken- oder frei gestaltbare Symbole
 - Frei anpassbare Physikprofile pro Schwierigkeit (Tempo, Katzenzahl, Leben, Power-Dauer, Zufall und Startschutz)
@@ -29,7 +32,7 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Transaktionsbasiertes Undo/Redo: ein kompletter Zeichenstrich ist ein Schritt
 - Mehrere automatisch gespeicherte `localStorage`-Entwürfe
 - Import/Export einzelner Level sowie Export des vollständigen Originalkatalogs
-- Sicheres Veröffentlichen per Knopfdruck: einen oder mehrere lokale Entwürfe auswählen; Anmeldung, gemeinsamer Pull Request, Prüfung, Merge und GitHub-Pages-Deploy laufen geführt und automatisch
+- Sicheres Veröffentlichen per Knopfdruck: einen oder mehrere lokale Entwürfe auswählen; Anmeldung, gemeinsamer Pull Request, Prüfung, Merge und GitHub-Pages-Deploy laufen geführt und automatisch; Prozent, aktuelle GitHub-Phase, Laufzeit, letzter Check und Aktivitätslog bleiben live sichtbar
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
 
 Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Zusätzlich besitzt jedes der neun Level eine eigene neue Ereignisidee, einen frei beweglichen Textblock und eine individuelle Intro-Cutscene mit unterschiedlicher Dauer, Trackzahl und Dramaturgie. Der Zauberberg besitzt in Editor und Testlauf seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und sowohl die generische als auch die originalgetreue Musiknote.
@@ -48,7 +51,7 @@ Vollständige Prüfung:
 ```bash
 npm test              # Fachtests: Modell, Katalog, Keyframes, Objekte, Speicher und Testlauf
 npm run test:e2e      # echte Chromium-Abläufe inklusive aller neun Level, Publisher und Mobile
-npm run test:visual   # drei kurze Videos für Figuren, Ereignisse und Cutscenes unter output/playwright
+npm run test:visual   # fünf Videos für Text/Transformation, Publisher, Figuren, Ereignisse und Cutscenes unter output/playwright
 npm run build         # statischer GitHub-Pages-Build
 ```
 

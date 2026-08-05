@@ -1,6 +1,7 @@
 <script>
   import LevelCanvas from './LevelCanvas.svelte';
   import MobileFocusTabs from './MobileFocusTabs.svelte';
+  import VisualEffectsEditor from './VisualEffectsEditor.svelte';
 
   let { studio } = $props();
   let mobilePanel = $state('canvas');
@@ -44,6 +45,7 @@
         <div class="field-row"><label>X<input type="number" step="0.125" value={event.visual.x} onchange={(input) => studio.updateEvent(['visual', 'x'], number(input))} /></label><label>Y<input type="number" step="0.125" value={event.visual.y} onchange={(input) => studio.updateEvent(['visual', 'y'], number(input))} /></label></div>
         <div class="field-row"><label>Farbe<input type="color" value={event.visual.color} onchange={(input) => studio.updateEvent(['visual', 'color'], input.currentTarget.value)} /></label><label>Akzent<input type="color" value={event.visual.accent} onchange={(input) => studio.updateEvent(['visual', 'accent'], input.currentTarget.value)} /></label></div>
         <label>Freies Symbol<input value={event.visual.label} maxlength="8" onchange={(input) => studio.updateEvent(['visual', 'label'], input.currentTarget.value)} /></label>
+        <VisualEffectsEditor effects={event.visual.effects ?? []} title="Ereigniseffekte" onchange={(effects) => studio.updateEvent(['visual', 'effects'], effects)} />
         <button class="danger" onclick={() => studio.deleteEvent()}>Ereignis löschen</button>
       {:else}<div class="empty-inspector"><span>!</span><strong>Ereignis auswählen</strong><p>Oder lege ein neues Ereignis an.</p></div>{/if}
     </aside>

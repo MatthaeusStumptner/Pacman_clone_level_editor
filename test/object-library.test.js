@@ -15,7 +15,8 @@ test('ships reusable Passau objects independently from a particular map', () => 
   assert.equal(assets.find((asset) => asset.id === 'music-note').appearance.animations[0].id, 'idle');
   assert.notDeepEqual(assets.find((asset) => asset.id === 'music-note').appearance.pixels, assets.find((asset) => asset.id === 'zauberberg-note').appearance.pixels);
   assert.equal(assets.find((asset) => asset.id === 'text-block').type, 'text');
-  assert.equal(assets.find((asset) => asset.id === 'text-block').textStyle.backgroundOpacity, 0.88);
+  assert.equal(assets.find((asset) => asset.id === 'text-block').textStyle.backgroundOpacity, 0);
+  assert.equal(assets.find((asset) => asset.id === 'text-block').textStyle.borderOpacity, 0);
   assets[0].name = 'verändert';
   assert.equal(library.list()[0].name, 'Musiknote');
 });
@@ -34,6 +35,7 @@ test('saves an arbitrary pixel object and restores it from browser storage', () 
 test('places a self-contained sprite instance that survives without the editor library', () => {
   const asset = createBlankObjectAsset('Konzertplakat');
   asset.animation = { type: 'pulse', speed: 2, amplitude: 0.2 };
+  asset.effects = [{ id: 'glitch', type: 'glitch', intensity: 0.5, speed: 2, color: '#ff4f87' }];
   const placement = placementFromAsset(asset, { x: 7, y: 9 }, 3);
   assert.equal(placement.assetId, 'konzertplakat');
   assert.equal(placement.x, 7);
@@ -41,4 +43,6 @@ test('places a self-contained sprite instance that survives without the editor l
   assert.equal(placement.spriteAnimation, 'idle');
   assert.notStrictEqual(placement.appearance, asset.appearance);
   assert.deepEqual(placement.animation, asset.animation);
+  assert.deepEqual(placement.effects, asset.effects);
+  assert.notStrictEqual(placement.effects, asset.effects);
 });

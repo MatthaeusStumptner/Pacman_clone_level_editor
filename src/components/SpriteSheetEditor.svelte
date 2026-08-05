@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { PLAYER_STATES } from '../character-template.js';
   import { insertSpriteKeyframe, keyframeAtTime, prepareAppearanceForEditing } from '../animation-tools.js';
+  import { applyTokenToSelection, invertPixelSelection, moveSelectedPixels, selectPixelRectangle, selectPixelsByToken } from '../pixel-selection.js';
   import ActorThumbnail from './ActorThumbnail.svelte';
 
   let { appearance, title = 'Sprite-Sheet', showStates = true, onsave = () => {}, oncancel = () => {} } = $props();
@@ -16,6 +17,11 @@
   let newColor = $state('#55d9dd');
   let newAnimationName = $state('animation');
   let painting = $state(false);
+  let pixelTool = $state('paint');
+  let pixelSelection = $state([]);
+  let selectionAnchor = $state(null);
+  let selectionBase = $state([]);
+  let selecting = $state(false);
   let playhead = $state(0);
   let playing = $state(false);
   let lastTimestamp = 0;
@@ -50,6 +56,38 @@
   function paint(x, y, erase = false) {
     const next = [...rows]; const token = erase ? '0' : paletteIndex.toString(36);
     next[y] = `${next[y].slice(0, x)}${token}${next[y].slice(x + 1)}`; setRows(next);
+  }
+  function isPixelSelected(x, y) { return pixelSelection.includes(`${x}:${y}`); }
+  function startPixelGesture(event, x, y) {
+    event.preventDefault();
+    if (pixelTool === 'paint') { painting = true; paint(x, y, event.button === 2); return; }
+    selecting = true; selectionAnchor = { x, y }; selectionBase = event.shiftKey ? [...pixelSelection] : [];
+    pixelSelection = selectPixelRectangle(selectionBase, selectionAnchor, { x, y }, draft.width, draft.height, true);
+  }
+  function continuePixelGesture(event, x, y) {
+    if (!event.buttons) return;
+    if (pixelTool === 'paint' && painting) paint(x, y, (event.buttons & 2) > 0);
+    if (pixelTool === 'select' && selecting && selectionAnchor) pixelSelection = selectPixelRectangle(selectionBase, selectionAnchor, { x, y }, draft.width, draft.height, true);
+  }
+  function endPixelGesture() { painting = false; selecting = false; }
+  function applySelection(erase = false) {
+    if (!pixelSelection.length) return;
+    setRows(applyTokenToSelection(rows, pixelSelection, erase ? '0' : paletteIndex.toString(36)));
+  }
+  function selectSameColor() {
+    const first = pixelSelection[0]; if (!first) return;
+    const [x, y] = first.split(':').map(Number); pixelSelection = selectPixelsByToken(rows, rows[y]?.[x] ?? '0');
+  }
+  function moveSelection(dx, dy) {
+    if (!pixelSelection.length) return;
+    const result = moveSelectedPixels(rows, pixelSelection, dx, dy); if (!result.moved) return;
+    setRows(result.rows); pixelSelection = result.selection;
+  }
+  function pixelKeydown(event) {
+    if (pixelTool !== 'select') return;
+    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); applySelection(true); return; }
+    const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+    if (direction) { event.preventDefault(); moveSelection(...direction); }
   }
   function addAnimation() {
     const base = newAnimationName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'animation';
@@ -100,18 +138,28 @@
     <div class="keyframe-transport"><button onclick={() => { playhead = 0; playing = false; }}>■</button><button class="primary" disabled={!selectedAnimation} onclick={() => { if (playhead >= selectedAnimation.duration) playhead = 0; playing = !playing; lastTimestamp = 0; }}>{playing ? 'Ⅱ Pause' : '▶ Playback'}</button><input type="range" min="0" max={selectedAnimation?.duration ?? 1} step="0.01" bind:value={playhead} disabled={!selectedAnimation} /><code>{playhead.toFixed(2)} / {(selectedAnimation?.duration ?? 0).toFixed(2)} s</code></div>
     {#if selectedAnimation}<div class="keyframe-ruler"><div class="timeline-playhead" style:left={`${playhead / selectedAnimation.duration * 100}%`}></div>{#each selectedAnimation.keyframes as frame}<button class:active={frame.id === selectedKeyframeId} style:left={`${frame.time / selectedAnimation.duration * 100}%`} onclick={() => { selectedKeyframeId = frame.id; playhead = frame.time; playing = false; }} title={`${frame.id} · ${frame.time.toFixed(2)} s`}></button>{/each}</div>{/if}
   </div>
-  <div class="sprite-layout">
+  <div class="sprite-layout" data-pixel-tool={pixelTool} data-pixel-selection-count={pixelSelection.length}>
     <aside class="sprite-sheet-strip">
       {#if showStates}<strong>Player States</strong><div class="state-tabs">{#each PLAYER_STATES as state}<button class:active={selectedState === state} onclick={() => activateState(state)}>{state === 'idle' ? '•' : state === 'up' ? '↑' : state === 'right' ? '→' : state === 'down' ? '↓' : '←'}<span>{state}</span></button>{/each}</div><label>Verwendete Animation<select value={draft.stateAnimations?.[selectedState] || selectedAnimationId} onchange={mapState}>{#each draft.animations as animation}<option value={animation.id}>{animation.id}</option>{/each}</select></label>{/if}
       <strong>Animationen</strong><div class="animation-list"><button class:active={selectedAnimationId === 'base'} onclick={() => selectAnimation('base')}>Basisbild</button>{#each draft.animations as animation}<button class:active={selectedAnimationId === animation.id} onclick={() => selectAnimation(animation.id)}>{animation.id}<small>{animation.keyframes.length} Keyframes · {animation.duration.toFixed(2)} s</small></button>{/each}</div>
       <div class="inline-create"><input bind:value={newAnimationName} aria-label="Name der neuen Animation" /><button onclick={addAnimation}>＋</button></div><button class="danger-subtle" onclick={deleteAnimation} disabled={!selectedAnimation}>Animation löschen</button>
     </aside>
     <div class="pixel-editor-column">
-      <div class="frame-toolbar"><strong>{selectedKeyframe ? `${selectedAnimation.id} · ${selectedKeyframe.id}` : 'Basisbild'}</strong><span>{draft.width} × {draft.height} Pixel</span></div>
-      <div class="pixel-grid" role="grid" tabindex="0" aria-label="Pixelraster" style={`--sprite-columns:${draft.width}; --sprite-rows:${draft.height}`} onpointerleave={() => painting = false}>
-        {#each rows as row, y}{#each [...row] as token, x}<button data-x={x} data-y={y} aria-label={`Pixel ${x}, ${y}`} style:background={tokenColor(token) === 'transparent' ? 'transparent' : tokenColor(token)} onpointerdown={(event) => { event.preventDefault(); painting = true; paint(x, y, event.button === 2); }} onpointerenter={(event) => { if (painting && event.buttons) paint(x, y, (event.buttons & 2) > 0); }} onpointerup={() => painting = false} oncontextmenu={(event) => event.preventDefault()}></button>{/each}{/each}
+      <div class="frame-toolbar"><strong>{selectedKeyframe ? `${selectedAnimation.id} · ${selectedKeyframe.id}` : 'Basisbild'}</strong><span>{draft.width} × {draft.height} Pixel · {pixelSelection.length ? `${pixelSelection.length} ausgewählt` : 'keine Auswahl'}</span></div>
+      <div class="pixel-toolbox" role="toolbar" aria-label="Pixelwerkzeuge">
+        <button class:active={pixelTool === 'paint'} aria-pressed={pixelTool === 'paint'} onclick={() => pixelTool = 'paint'}>✎ Malen</button>
+        <button class:active={pixelTool === 'select'} aria-pressed={pixelTool === 'select'} onclick={() => pixelTool = 'select'}>⬚ Auswählen</button>
+        <button disabled={!pixelSelection.length} onclick={selectSameColor}>Gleiche Farbe</button>
+        <button disabled={!pixelSelection.length} onclick={() => applySelection(false)}>Farbe anwenden</button>
+        <button disabled={!pixelSelection.length} onclick={() => applySelection(true)}>Auswahl löschen</button>
+        <button onclick={() => pixelSelection = Array.from({ length: draft.height }, (_, y) => Array.from({ length: draft.width }, (_, x) => `${x}:${y}`)).flat()}>Alles</button>
+        <button onclick={() => pixelSelection = invertPixelSelection(pixelSelection, draft.width, draft.height)}>Umkehren</button>
+        <button onclick={() => pixelSelection = []}>Aufheben</button>
       </div>
-      <div class="frame-actions"><button onclick={() => setRows(rows.map((row) => [...row].reverse().join('')))}>⇆ Spiegeln</button><button onclick={() => setRows(Array.from({ length: draft.height }, () => '0'.repeat(draft.width)))}>Leeren</button>{#if selectedAnimation}<button onclick={duplicateAfter}>＋ Keyframe duplizieren</button><button onclick={addKeyframe}>＋ Am Playhead</button><button onclick={deleteKeyframe} disabled={selectedAnimation.keyframes.length <= 1}>− Keyframe</button>{/if}</div>
+      <div class="pixel-grid" role="grid" tabindex="0" aria-label="Pixelraster" style={`--sprite-columns:${draft.width}; --sprite-rows:${draft.height}`} onkeydown={pixelKeydown} onpointerleave={endPixelGesture}>
+        {#each rows as row, y}{#each [...row] as token, x}<button class:selected-pixel={isPixelSelected(x, y)} data-x={x} data-y={y} aria-label={`Pixel ${x}, ${y}`} aria-pressed={isPixelSelected(x, y)} style:background={tokenColor(token) === 'transparent' ? 'transparent' : tokenColor(token)} onpointerdown={(event) => startPixelGesture(event, x, y)} onpointerenter={(event) => continuePixelGesture(event, x, y)} onpointerup={endPixelGesture} oncontextmenu={(event) => event.preventDefault()}></button>{/each}{/each}
+      </div>
+      <div class="frame-actions"><button onclick={() => setRows(rows.map((row) => [...row].reverse().join('')))}>⇆ Spiegeln</button>{#if pixelSelection.length}<button onclick={() => moveSelection(-1, 0)}>←</button><button onclick={() => moveSelection(0, -1)}>↑</button><button onclick={() => moveSelection(0, 1)}>↓</button><button onclick={() => moveSelection(1, 0)}>→</button>{/if}<button onclick={() => setRows(Array.from({ length: draft.height }, () => '0'.repeat(draft.width)))}>Leeren</button>{#if selectedAnimation}<button onclick={duplicateAfter}>＋ Keyframe duplizieren</button><button onclick={addKeyframe}>＋ Am Playhead</button><button onclick={deleteKeyframe} disabled={selectedAnimation.keyframes.length <= 1}>− Keyframe</button>{/if}</div>
     </div>
     <aside class="sprite-properties">
       <strong>Keyframes</strong><div class="sheet-grid">{#each selectedAnimation?.keyframes ?? [{ id: 'base', time: 0, pixels: draft.pixels }] as frame}<button class:active={frame.id === selectedKeyframeId} onclick={() => { selectedKeyframeId = frame.id; playhead = frame.time; playing = false; }} title={`${frame.time.toFixed(2)} s`}><span class="sprite-thumbnail" style={`--thumb-columns:${draft.width}`}>{#each frame.pixels as row}{#each [...row] as token}<i style:background={tokenColor(token) === 'transparent' ? 'transparent' : tokenColor(token)}></i>{/each}{/each}</span><small>{frame.time.toFixed(2)}s</small></button>{/each}</div>

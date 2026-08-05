@@ -180,19 +180,73 @@ export async function createPublication(env, { files, login }) {
   return { number: pullRequest.number, url: pullRequest.html_url, branch };
 }
 
+const WORKFLOW_STEPS = {
+  validation: [
+    ['identity', 27, 'Auftrag und geänderte Dateien werden geprüft.', ['verify publisher', 'changed files']],
+    ['checkout', 32, 'Der vorgeschlagene Levelstand wird geladen.', ['checkout proposed']],
+    ['setup', 37, 'Die sichere Node.js-Umgebung wird vorbereitet.', ['setup node']],
+    ['dependencies', 42, 'Spielabhängigkeiten werden installiert.', ['install dependencies']],
+    ['tests', 49, 'Alle automatischen Spiel- und Leveltests laufen.', ['full game test', 'npm test']],
+    ['build', 56, 'Das fertige GitHub-Pages-Spiel wird gebaut.', ['build game', 'npm run build']],
+    ['merge', 62, 'Die geprüften Level werden in das Spiel übernommen.', ['merge publication']],
+    ['dispatch', 66, 'Der GitHub-Pages-Deploy wird gestartet.', ['trigger github pages']],
+  ],
+  deploy: [
+    ['checkout', 70, 'Der veröffentlichte Spielstand wird geladen.', ['checkout']],
+    ['setup', 74, 'Die Build-Umgebung wird vorbereitet.', ['setup node']],
+    ['dependencies', 79, 'Spielabhängigkeiten werden installiert.', ['install dependencies', 'npm ci']],
+    ['tests', 84, 'Der Live-Stand durchläuft nochmals alle Tests.', ['test', 'npm test']],
+    ['build', 89, 'Das optimierte Browser-Spiel wird gebaut.', ['build', 'npm run build']],
+    ['artifact', 93, 'Das fertige Seitenpaket wird an GitHub Pages übergeben.', ['upload artifact', 'upload pages']],
+    ['pages', 97, 'GitHub Pages schaltet die neue Version live.', ['deploy to github pages', 'deploy pages']],
+  ],
+};
+
+export function workflowProgress(run, jobs = [], kind = 'validation') {
+  const definitions = WORKFLOW_STEPS[kind] ?? WORKFLOW_STEPS.validation;
+  const steps = jobs.flatMap((job) => job.steps ?? []);
+  const match = (step) => definitions.find(([, , , needles]) => needles.some((needle) => String(step.name ?? '').toLowerCase().includes(needle)));
+  const relevant = steps.map((step) => ({ step, definition: match(step) })).filter((entry) => entry.definition);
+  const active = relevant.find(({ step }) => step.status === 'in_progress')
+    ?? relevant.find(({ step }) => step.status === 'queued')
+    ?? [...relevant].reverse().find(({ step }) => step.status === 'completed');
+  const fallbackProgress = kind === 'validation' ? 25 : 68;
+  const fallbackPhase = kind === 'validation' ? 'validation-queued' : 'deploy-queued';
+  const fallbackDetail = kind === 'validation' ? 'GitHub reserviert gerade einen sicheren Prüfplatz.' : 'Der GitHub-Pages-Build wurde angefordert und wartet auf einen Runner.';
+  if (!active) return { phase: fallbackPhase, phaseLabel: kind === 'validation' ? 'Prüfung wird vorbereitet' : 'Live-Build wird vorbereitet', progress: fallbackProgress, detail: fallbackDetail };
+  const [id, progress, detail] = active.definition;
+  const completedSteps = relevant.filter(({ step }) => step.status === 'completed' && step.conclusion === 'success').length;
+  return {
+    phase: `${kind}-${id}`,
+    phaseLabel: active.step.status === 'completed' ? `${active.step.name} abgeschlossen` : active.step.name,
+    progress,
+    detail,
+    completedSteps,
+    totalSteps: relevant.length || definitions.length,
+  };
+}
+
+async function runProgress(env, run, kind) {
+  if (!run?.id || run.status === 'completed') return workflowProgress(run, [], kind);
+  const jobs = await githubRequest(env, `${repositoryPath(env, `/actions/runs/${run.id}/jobs`)}?per_page=100`);
+  return workflowProgress(run, jobs.jobs ?? [], kind);
+}
+
 export async function publicationStatus(env, number) {
   const pull = await githubRequest(env, repositoryPath(env, `/pulls/${number}`));
-  if (pull.state === 'closed' && !pull.merged_at) return { state: 'failed', detail: 'Die Veröffentlichung wurde geschlossen.' };
+  const checkedAt = new Date().toISOString();
+  if (pull.state === 'closed' && !pull.merged_at) return { state: 'failed', phase: 'failed', progress: 100, detail: 'Die Veröffentlichung wurde geschlossen.', checkedAt };
   const sha = pull.merged_at ? pull.merge_commit_sha : pull.head.sha;
   const runs = await githubRequest(env, `${repositoryPath(env, '/actions/runs')}?head_sha=${encodeURIComponent(sha)}&per_page=20`);
   const relevant = runs.workflow_runs?.find((run) => pull.merged_at
     ? run.name === 'Deploy to GitHub Pages'
     : run.name === 'Validate and publish editor content');
   if (!pull.merged_at) {
-    if (relevant?.status === 'completed' && relevant.conclusion !== 'success') return { state: 'failed', detail: 'Die automatischen Prüfungen sind fehlgeschlagen.', actionsUrl: relevant.html_url };
-    return { state: 'testing', detail: 'GitHub prüft das Level.', actionsUrl: relevant?.html_url };
+    if (relevant?.status === 'completed' && relevant.conclusion !== 'success') return { state: 'failed', phase: 'validation-failed', progress: 100, detail: 'Die automatischen Prüfungen sind fehlgeschlagen.', actionsUrl: relevant.html_url, checkedAt };
+    if (relevant?.status === 'completed') return { state: 'testing', phase: 'validation-merge', phaseLabel: 'Prüfung bestanden · Übernahme läuft', progress: 64, detail: 'Alle Prüfungen sind grün. GitHub übernimmt die Level jetzt in den Hauptstand.', actionsUrl: relevant.html_url, checkedAt };
+    return { state: 'testing', ...(await runProgress(env, relevant, 'validation')), actionsUrl: relevant?.html_url, checkedAt };
   }
-  if (!relevant || relevant.status !== 'completed') return { state: 'deploying', detail: 'Das Spiel wird auf GitHub Pages veröffentlicht.', actionsUrl: relevant?.html_url };
-  if (relevant.conclusion !== 'success') return { state: 'failed', detail: 'Der GitHub-Pages-Deploy ist fehlgeschlagen.', actionsUrl: relevant.html_url };
-  return { state: 'published', detail: 'Das Level ist live.', actionsUrl: relevant.html_url, gameUrl: env.GAME_URL, commit: sha };
+  if (!relevant || relevant.status !== 'completed') return { state: 'deploying', ...(await runProgress(env, relevant, 'deploy')), actionsUrl: relevant?.html_url, checkedAt };
+  if (relevant.conclusion !== 'success') return { state: 'failed', phase: 'deploy-failed', progress: 100, detail: 'Der GitHub-Pages-Deploy ist fehlgeschlagen.', actionsUrl: relevant.html_url, checkedAt };
+  return { state: 'published', phase: 'published', phaseLabel: 'GitHub Pages ist aktuell', progress: 100, detail: 'Die neue Version ist live.', actionsUrl: relevant.html_url, gameUrl: env.GAME_URL, commit: sha, checkedAt };
 }

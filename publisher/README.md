@@ -82,6 +82,8 @@ Im Repository `Geburtstagsspiel`:
 
 Nun kann ein erlaubter Account im Editor auf **Veröffentlichen** klicken, bis zu 20 spielbare Entwürfe auswählen und sie gemeinsam prüfen lassen. Der Worker akzeptiert höchstens 5 MB pro Veröffentlichung und 1 MB pro Level; alle ausgewählten Dateien landen in genau einem Pull Request. Nicht erlaubte Accounts erhalten nur eine neutrale Fehlermeldung.
 
+Während der Veröffentlichung zeigt der Editor die tatsächlich laufenden GitHub-Schritte: sichere Übertragung, Checkout, Abhängigkeiten, Tests, Build, Merge und GitHub-Pages-Deployment. Dazu kommen Prozentanzeige, verstrichene Zeit, Zeitpunkt des letzten Checks, ein Aktivitätslog und ein manueller Status-Check. Vorübergehende Netzwerkfehler werden mehrfach erneut versucht und nicht sofort als Abbruch dargestellt.
+
 ## Lokale Prüfung
 
 Benötigt Node.js 22.3 oder neuer:

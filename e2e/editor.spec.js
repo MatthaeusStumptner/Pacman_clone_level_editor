@@ -170,12 +170,12 @@ test('canvas selection stays in context, overlap cycling works and explicit open
   await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
   await page.getByRole('button', { name: /In Objektwerkstatt öffnen/ }).click();
   await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
-  await page.locator('.object-inspector').getByLabel('Bewegungsanimation').selectOption('spin');
-  await page.locator('.object-inspector').getByLabel('Tempo').fill('2.5'); await page.locator('.object-inspector').getByLabel('Tempo').blur();
+  await page.locator('.object-inspector').getByLabel('Bewegungsanimation', { exact: true }).selectOption('spin');
+  await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).fill('2.5'); await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).blur();
   await page.waitForTimeout(250);
   await page.reload();
-  await expect(page.locator('.object-inspector').getByLabel('Bewegungsanimation')).toHaveValue('spin');
-  await expect(page.locator('.object-inspector').getByLabel('Tempo')).toHaveValue('2.5');
+  await expect(page.locator('.object-inspector').getByLabel('Bewegungsanimation', { exact: true })).toHaveValue('spin');
+  await expect(page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true })).toHaveValue('2.5');
   expect(errors).toEqual([]);
 });
 
@@ -259,6 +259,13 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect.poll(() => canvasSignature(page.locator('.sprite-playback-stage .actor-thumbnail'))).not.toBe(idleSignature);
   const before = await page.locator('.sheet-grid > button').count();
   await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await page.getByRole('button', { name: '⬚ Auswählen' }).click();
+  await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await page.locator('.pixel-grid button[data-x="1"][data-y="0"]').click({ modifiers: ['Shift'] });
+  await expect(page.locator('.sprite-layout')).toHaveAttribute('data-pixel-selection-count', '2');
+  await page.getByRole('button', { name: 'Farbe anwenden' }).click();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.sprite-layout')).toHaveAttribute('data-pixel-selection-count', '2');
   await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
   await expect(page.locator('.sheet-grid > button')).toHaveCount(before + 1);
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
@@ -354,8 +361,8 @@ test('authorized non-technical editors publish several selected drafts together 
     const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
-    if (path === '/api/publish') { published.push(request.postDataJSON().levels); return route.fulfill({ status: 202, headers, json: { publicationId: 42 } }); }
-    if (path === '/api/publications/42') { checks += 1; return route.fulfill({ headers, json: checks > 1 ? { state: 'published', detail: 'Das Level ist live.', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/' } : { state: 'deploying', detail: 'Das Spiel wird veröffentlicht.' } }); }
+    if (path === '/api/publish') { published.push(request.postDataJSON().levels); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Level wurden sicher übertragen.' } }); }
+    if (path === '/api/publications/42') { checks += 1; return route.fulfill({ headers, json: checks > 1 ? { state: 'published', phase: 'published', phaseLabel: 'GitHub Pages ist aktuell', progress: 100, detail: 'Das Level ist live.', checkedAt: '2026-08-05T18:00:00.000Z', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/' } : { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T17:59:58.000Z' } }); }
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
   await page.goto('/#publisher_session=test.session-token'); await expect(page.locator('#level-canvas')).toBeVisible();
@@ -367,6 +374,9 @@ test('authorized non-technical editors publish several selected drafts together 
   await expect(page.locator('.publish-candidate')).toHaveCount(2);
   await page.getByLabel('Level Dahoam · Am Bramerhof auswählen').check();
   await page.locator('#publisher-confirm').click();
+  await expect(page.getByRole('progressbar', { name: 'Veröffentlichungsfortschritt' })).toHaveAttribute('aria-valuenow', '100');
+  await expect(page.locator('.publish-activity')).toContainText('GitHub Pages ist aktuell');
+  await expect(page.locator('.publication-steps .done')).toHaveCount(5);
   await expect(page.locator('.publish-state')).toContainText('Level sind live!', { timeout: 10_000 });
   expect(published).toHaveLength(1); expect(published[0].map((level) => level.id).sort()).toEqual(['hals', 'home']); expect(errors).toEqual([]);
 });
@@ -421,6 +431,12 @@ test('object previews show renderer output and text blocks stay freely editable'
   await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Freier Textblock' }).click();
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('Frei in Passau'); await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
   await page.getByLabel('Hintergrund transparent').check();
+  await expect(page.getByLabel('Rahmen ausblenden')).toBeChecked();
+  await page.locator('.object-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
+  await expect(page.locator('.object-inspector [data-effect-type="glitch"]')).toHaveCount(1);
+  await page.locator('.edge-effect-editor').getByRole('button', { name: '＋ Rand-Effekt' }).click();
+  await expect(page.locator('.edge-effect-card')).toHaveCount(1);
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '1');
   await expect(page.getByLabel('Hintergrund transparent')).toBeChecked();
   const xInput = page.locator('.object-inspector').getByLabel('X', { exact: true });
   const yInput = page.locator('.object-inspector').getByLabel('Y', { exact: true });
