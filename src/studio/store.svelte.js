@@ -415,6 +415,7 @@ export class StudioState {
       event.visual.type = 'custom'; event.visual.assetId = asset.id;
       event.visual.appearance = clone(asset.appearance); event.visual.spriteAnimation = asset.appearance?.animations?.[0]?.id ?? '';
       event.visual.animation = clone(asset.animation); event.visual.color = asset.color; event.visual.label = asset.label;
+      event.visual.effects = clone(asset.effects ?? []);
     }, { preserveSelection: true });
   }
 

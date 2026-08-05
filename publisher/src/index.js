@@ -103,6 +103,9 @@ async function publish(request, env, session) {
   return json({
     publicationId: publication.number,
     state: 'testing',
+    phase: 'upload-complete',
+    phaseLabel: 'Level sicher übertragen',
+    progress: 22,
     detail: `${prepared.length === 1 ? 'Das Level wurde' : `${prepared.length} Level wurden`} übertragen und werden automatisch geprüft.`,
     prUrl: publication.url,
     warnings,

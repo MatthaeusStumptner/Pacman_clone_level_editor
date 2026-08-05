@@ -8,6 +8,8 @@
   let renderer;
   let renderResult;
   let animationFrame;
+  let lastDraw = 0;
+  let visible = true;
 
   function selectionCursor() {
     const selection = studio.selection;
@@ -35,7 +37,8 @@
   }
 
   function animate(timestamp) {
-    draw(timestamp);
+    // 10 FPS is sufficient for an editor preview and keeps every tool immediately responsive.
+    if (visible && (!lastDraw || timestamp - lastDraw >= 100)) { draw(timestamp); lastDraw = timestamp; }
     animationFrame = requestAnimationFrame(animate);
   }
 
@@ -76,7 +79,8 @@
     renderer.setLevel(studio.editorLevel);
     animationFrame = requestAnimationFrame(animate);
     const resize = new ResizeObserver(() => draw()); resize.observe(canvas);
-    return () => { cancelAnimationFrame(animationFrame); resize.disconnect(); };
+    const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) draw(); }); intersection.observe(canvas);
+    return () => { cancelAnimationFrame(animationFrame); resize.disconnect(); intersection.disconnect(); };
   });
 
   $effect(() => {

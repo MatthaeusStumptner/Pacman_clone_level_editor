@@ -13,7 +13,8 @@
     class: className = '',
   } = $props();
   let canvas;
-  let frame;
+  let frame; let lastDraw = 0;
+  let visible = true;
 
   function draw(timestamp = 0) {
     if (!canvas) return;
@@ -39,13 +40,14 @@
     });
   }
 
-  function animate(timestamp) { draw(timestamp); frame = requestAnimationFrame(animate); }
+  function animate(timestamp) { if (visible && (!lastDraw || timestamp - lastDraw >= 100)) { draw(timestamp); lastDraw = timestamp; } frame = requestAnimationFrame(animate); }
 
   onMount(() => {
     if (elapsed === null) frame = requestAnimationFrame(animate); else draw(elapsed * 1000);
     const resize = new ResizeObserver(() => draw(elapsed === null ? performance.now() : elapsed * 1000));
     resize.observe(canvas);
-    return () => { cancelAnimationFrame(frame); resize.disconnect(); };
+    const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) draw(elapsed === null ? performance.now() : elapsed * 1000); }); intersection.observe(canvas);
+    return () => { cancelAnimationFrame(frame); resize.disconnect(); intersection.disconnect(); };
   });
 
   $effect(() => {

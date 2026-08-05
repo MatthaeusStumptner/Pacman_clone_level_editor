@@ -9,13 +9,13 @@ function decoration(assetId, id, x, y, overrides = {}) {
   return {
     id, assetId, name: source.name, type: source.type, x, y, width: source.width, height: source.height,
     color: source.color, label: source.label, layer: 'scenery', locked: false,
-    appearance: source.appearance, spriteAnimation: source.appearance?.animations?.[0]?.id ?? '', animation: source.animation,
+    appearance: source.appearance, spriteAnimation: source.appearance?.animations?.[0]?.id ?? '', animation: source.animation, effects: source.effects ?? [],
     ...(source.content ? { content: source.content, textStyle: source.textStyle } : {}), ...overrides,
   };
 }
 
 function textBlock(id, x, y, width, standard, dialect, color = '#f5e7bd') {
-  return decoration('text-block', id, x, y, { width, content: localized(standard, dialect), color });
+  return decoration('text-block', id, x, y, { width, content: localized(standard, dialect), color, textStyle: { ...asset('text-block').textStyle, backgroundOpacity: 0, borderOpacity: 0 } });
 }
 
 function eventFromAsset({ id, name, dialectName, message, dialectMessage, assetId, trigger, reward = 120, scope = 'level', x = 12.5, y = 18.5 }) {
@@ -24,7 +24,7 @@ function eventFromAsset({ id, name, dialectName, message, dialectMessage, assetI
     id, kind: 'easter-egg', name: localized(name, dialectName), message: localized(message, dialectMessage), reward, scope, trigger,
     visual: {
       type: 'custom', x, y, color: source.color, accent: '#f5c451', label: source.label, visibility: 'after-trigger',
-      assetId, appearance: source.appearance, spriteAnimation: source.appearance?.animations?.[0]?.id ?? '', animation: source.animation,
+      assetId, appearance: source.appearance, spriteAnimation: source.appearance?.animations?.[0]?.id ?? '', animation: source.animation, effects: source.effects ?? [],
     },
   };
 }
@@ -36,6 +36,62 @@ const dialogue = (keyframes) => ({ id: 'dialogue', type: 'dialogue', target: 'di
 const cam = (id, time, x, y, zoom, easing = 'ease-in-out') => ({ id, time, x, y, zoom, easing });
 const pose = (id, time, x, y, state = 'idle', easing = 'linear', visible = true, animation = '') => ({ id, time, x, y, state, easing, visible, animation });
 const line = (id, time, duration, speaker, standard, dialect) => ({ id, time, duration, speaker, text: localized(standard, dialect), easing: 'step' });
+const effect = (id, type, color, intensity = 0.55, speed = 1) => ({ id, type, color, intensity, speed });
+const edge = (id, type, side, color, accent, count = 5, intensity = 0.55, speed = 1) => ({ id, type, side, color, accent, count, intensity, speed });
+const LEVEL_ATMOSPHERES = {
+  home: [
+    edge('gartenblaetter', 'leaves', 'both', '#8fcfa8', '#f5c451', 7, 0.45, 0.65),
+    edge('abend-gluehwuermchen', 'fireflies', 'both', '#f5c451', '#fff3b0', 6, 0.5, 0.8),
+  ],
+  hals: [
+    edge('ilz-stroemung', 'water-flow', 'left', '#2379a3', '#8ce5ec', 6, 0.7, 0.9),
+    edge('ilz-fische', 'fish', 'left', '#8ce5ec', '#f5c451', 5, 0.65, 0.8),
+    edge('ilz-zille', 'boat', 'left', '#b4794f', '#f5e7bd', 1, 0.7, 0.35),
+  ],
+  bschuett: [
+    edge('park-ufer', 'water-flow', 'left', '#2379a3', '#8ce5ec', 5, 0.6, 0.75),
+    edge('park-fische', 'fish', 'left', '#8ce5ec', '#f5c451', 4, 0.5, 0.65),
+    edge('park-blaetter', 'leaves', 'right', '#8fcfa8', '#d7b56d', 8, 0.55, 0.8),
+  ],
+  dom: [
+    edge('dom-lichter', 'city-lights', 'both', '#f5c451', '#ffb4d0', 7, 0.55, 0.7),
+    edge('dom-tauben', 'birds', 'both', '#f3eee0', '#55d9dd', 4, 0.45, 0.55),
+  ],
+  dreifluesseeck: [
+    edge('drei-fluesse', 'water-flow', 'both', '#2379a3', '#8ce5ec', 8, 0.75, 1.05),
+    edge('drei-fluesse-fische', 'fish', 'both', '#8ce5ec', '#f5c451', 7, 0.7, 0.9),
+    edge('donau-schiff', 'boat', 'right', '#d7b56d', '#f5e7bd', 1, 0.75, 0.3),
+  ],
+  oberhaus: [
+    edge('oberhaus-nebel', 'mist', 'both', '#b7d7dd', '#ffffff', 8, 0.5, 0.45),
+    edge('stadtlichter', 'city-lights', 'both', '#f5c451', '#ffb4d0', 9, 0.65, 0.6),
+    edge('veste-voegel', 'birds', 'left', '#f3eee0', '#55d9dd', 5, 0.5, 0.7),
+  ],
+  uni: [
+    edge('inn-stroemung', 'water-flow', 'right', '#2379a3', '#8ce5ec', 6, 0.65, 0.95),
+    edge('inn-boot', 'boat', 'right', '#d7b56d', '#f5e7bd', 1, 0.65, 0.4),
+    edge('campus-lichter', 'fireflies', 'left', '#f5c451', '#55d9dd', 5, 0.4, 0.8),
+  ],
+  tabakfabrik: [
+    edge('fabrik-dampf', 'steam', 'both', '#f0d0a0', '#ffffff', 7, 0.6, 0.75),
+    edge('fabrik-funken', 'sparks', 'both', '#ff9a45', '#f5c451', 6, 0.7, 1.4),
+  ],
+  zauberberg: [
+    edge('buehnen-puls', 'stage-pulse', 'both', '#ff4f87', '#55d9dd', 8, 0.75, 1.2),
+    edge('gitarren-funken', 'sparks', 'both', '#f5c451', '#ff4f87', 9, 0.8, 1.8),
+  ],
+};
+const LEVEL_CAT_EFFECTS = {
+  home: { 0: [effect('geburtstags-funkeln', 'sparkle', '#f5c451', 0.25, 0.7)] },
+  hals: { 0: [effect('ilz-neon', 'neon', '#55d9dd', 0.3, 0.8)] },
+  bschuett: { 0: [effect('park-echo', 'echo', '#8fcfa8', 0.25, 0.7)] },
+  dom: { 0: [effect('orgel-neon', 'neon', '#f5c451', 0.35, 0.8)] },
+  dreifluesseeck: { 0: [effect('fluss-funkeln', 'sparkle', '#8ce5ec', 0.35, 1.1)] },
+  oberhaus: { 0: [effect('veste-echo', 'echo', '#b7d7dd', 0.25, 0.55)] },
+  uni: { 0: [effect('campus-hologramm', 'hologram', '#55d9dd', 0.3, 0.75)] },
+  tabakfabrik: { 0: [effect('fabrik-glitch', 'glitch', '#ff9a45', 0.55, 1.8)] },
+  zauberberg: { 0: [effect('rock-glitch', 'glitch', '#ff4f87', 0.75, 2.4), effect('rock-neon', 'neon', '#55d9dd', 0.45, 1.2)] },
+};
 
 export function storyContent(levelId, player = { x: 12, y: 20 }) {
   const p = player;
@@ -134,5 +190,6 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
   };
-  return clone(stories[levelId] ?? { decorations: [], event: null, cutscene: null });
+  const story = stories[levelId] ?? { decorations: [], event: null, cutscene: null };
+  return clone({ ...story, edgeEffects: LEVEL_ATMOSPHERES[levelId] ?? [], catEffects: LEVEL_CAT_EFFECTS[levelId] ?? {} });
 }

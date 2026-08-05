@@ -150,7 +150,29 @@
             "#67583e"
           ],
           "water": "#17657a"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "gartenblaetter",
+            "type": "leaves",
+            "side": "both",
+            "color": "#8fcfa8",
+            "accent": "#f5c451",
+            "count": 7,
+            "intensity": 0.45,
+            "speed": 0.65
+          },
+          {
+            "id": "abend-gluehwuermchen",
+            "type": "fireflies",
+            "side": "both",
+            "color": "#f5c451",
+            "accent": "#fff3b0",
+            "count": 6,
+            "intensity": 0.5,
+            "speed": 0.8
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -179,7 +201,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "geburtstags-funkeln",
+                "type": "sparkle",
+                "color": "#f5c451",
+                "intensity": 0.25,
+                "speed": 0.7
+              }
+            ]
           },
           {
             "x": 12,
@@ -355,7 +386,8 @@
             "type": "none",
             "speed": 1,
             "amplitude": 0.1
-          }
+          },
+          "effects": []
         },
         {
           "id": "adresse-bramerhof",
@@ -377,6 +409,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Am Bramerhof 30",
             "dialect": "Am Bramerhof 30"
@@ -386,7 +419,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -556,7 +591,8 @@
               "type": "none",
               "speed": 1,
               "amplitude": 0.1
-            }
+            },
+            "effects": []
           }
         }
       ],
@@ -838,7 +874,39 @@
             "#3a3f48"
           ],
           "water": "#0a5368"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "ilz-stroemung",
+            "type": "water-flow",
+            "side": "left",
+            "color": "#2379a3",
+            "accent": "#8ce5ec",
+            "count": 6,
+            "intensity": 0.7,
+            "speed": 0.9
+          },
+          {
+            "id": "ilz-fische",
+            "type": "fish",
+            "side": "left",
+            "color": "#8ce5ec",
+            "accent": "#f5c451",
+            "count": 5,
+            "intensity": 0.65,
+            "speed": 0.8
+          },
+          {
+            "id": "ilz-zille",
+            "type": "boat",
+            "side": "left",
+            "color": "#b4794f",
+            "accent": "#f5e7bd",
+            "count": 1,
+            "intensity": 0.7,
+            "speed": 0.35
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -867,7 +935,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "ilz-neon",
+                "type": "neon",
+                "color": "#55d9dd",
+                "intensity": 0.3,
+                "speed": 0.8
+              }
+            ]
           },
           {
             "x": 12,
@@ -1042,7 +1119,16 @@
             "type": "pulse",
             "speed": 0.75,
             "amplitude": 0.18
-          }
+          },
+          "effects": [
+            {
+              "id": "wasser-funkeln",
+              "type": "sparkle",
+              "intensity": 0.6,
+              "speed": 1.2,
+              "color": "#55d9dd"
+            }
+          ]
         },
         {
           "id": "hals-schild",
@@ -1064,6 +1150,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Hals · an der Ilz",
             "dialect": "Hals · an da Ilz"
@@ -1073,7 +1160,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -1201,7 +1290,16 @@
               "type": "pulse",
               "speed": 0.75,
               "amplitude": 0.18
-            }
+            },
+            "effects": [
+              {
+                "id": "wasser-funkeln",
+                "type": "sparkle",
+                "intensity": 0.6,
+                "speed": 1.2,
+                "color": "#55d9dd"
+              }
+            ]
           }
         }
       ],
@@ -1490,7 +1588,39 @@
             "#806049"
           ],
           "water": "#28687f"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "oberhaus-nebel",
+            "type": "mist",
+            "side": "both",
+            "color": "#b7d7dd",
+            "accent": "#ffffff",
+            "count": 8,
+            "intensity": 0.5,
+            "speed": 0.45
+          },
+          {
+            "id": "stadtlichter",
+            "type": "city-lights",
+            "side": "both",
+            "color": "#f5c451",
+            "accent": "#ffb4d0",
+            "count": 9,
+            "intensity": 0.65,
+            "speed": 0.6
+          },
+          {
+            "id": "veste-voegel",
+            "type": "birds",
+            "side": "left",
+            "color": "#f3eee0",
+            "accent": "#55d9dd",
+            "count": 5,
+            "intensity": 0.5,
+            "speed": 0.7
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -1519,7 +1649,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "veste-echo",
+                "type": "echo",
+                "color": "#b7d7dd",
+                "intensity": 0.25,
+                "speed": 0.55
+              }
+            ]
           },
           {
             "x": 12,
@@ -1695,7 +1834,8 @@
             "type": "bob",
             "speed": 0.4,
             "amplitude": 0.08
-          }
+          },
+          "effects": []
         },
         {
           "id": "oberhaus-banner",
@@ -1717,6 +1857,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Veste Oberhaus",
             "dialect": "Veste Oberhaus"
@@ -1726,7 +1867,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -1857,7 +2000,8 @@
               "type": "bob",
               "speed": 0.4,
               "amplitude": 0.08
-            }
+            },
+            "effects": []
           }
         }
       ],
@@ -2182,7 +2326,29 @@
             "#8a7559"
           ],
           "water": "#287e9b"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "dom-lichter",
+            "type": "city-lights",
+            "side": "both",
+            "color": "#f5c451",
+            "accent": "#ffb4d0",
+            "count": 7,
+            "intensity": 0.55,
+            "speed": 0.7
+          },
+          {
+            "id": "dom-tauben",
+            "type": "birds",
+            "side": "both",
+            "color": "#f3eee0",
+            "accent": "#55d9dd",
+            "count": 4,
+            "intensity": 0.45,
+            "speed": 0.55
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -2211,7 +2377,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "orgel-neon",
+                "type": "neon",
+                "color": "#f5c451",
+                "intensity": 0.35,
+                "speed": 0.8
+              }
+            ]
           },
           {
             "x": 12,
@@ -2387,7 +2562,8 @@
             "type": "spin",
             "speed": 0.25,
             "amplitude": 0.08
-          }
+          },
+          "effects": []
         },
         {
           "id": "dom-tafel",
@@ -2409,6 +2585,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Dom St. Stephan",
             "dialect": "Dom St. Stephan"
@@ -2418,7 +2595,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -2543,7 +2722,8 @@
               "type": "spin",
               "speed": 0.25,
               "amplitude": 0.08
-            }
+            },
+            "effects": []
           }
         }
       ],
@@ -2862,7 +3042,39 @@
             "#385961"
           ],
           "water": "#177f8f"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "drei-fluesse",
+            "type": "water-flow",
+            "side": "both",
+            "color": "#2379a3",
+            "accent": "#8ce5ec",
+            "count": 8,
+            "intensity": 0.75,
+            "speed": 1.05
+          },
+          {
+            "id": "drei-fluesse-fische",
+            "type": "fish",
+            "side": "both",
+            "color": "#8ce5ec",
+            "accent": "#f5c451",
+            "count": 7,
+            "intensity": 0.7,
+            "speed": 0.9
+          },
+          {
+            "id": "donau-schiff",
+            "type": "boat",
+            "side": "right",
+            "color": "#d7b56d",
+            "accent": "#f5e7bd",
+            "count": 1,
+            "intensity": 0.75,
+            "speed": 0.3
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -2891,7 +3103,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "fluss-funkeln",
+                "type": "sparkle",
+                "color": "#8ce5ec",
+                "intensity": 0.35,
+                "speed": 1.1
+              }
+            ]
           },
           {
             "x": 12,
@@ -3066,7 +3287,16 @@
             "type": "pulse",
             "speed": 0.75,
             "amplitude": 0.18
-          }
+          },
+          "effects": [
+            {
+              "id": "wasser-funkeln",
+              "type": "sparkle",
+              "intensity": 0.6,
+              "speed": 1.2,
+              "color": "#55d9dd"
+            }
+          ]
         },
         {
           "id": "flussnamen",
@@ -3088,6 +3318,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Donau · Inn · Ilz",
             "dialect": "Donau · Inn · Ilz"
@@ -3097,7 +3328,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -3232,7 +3465,16 @@
               "type": "pulse",
               "speed": 0.75,
               "amplitude": 0.18
-            }
+            },
+            "effects": [
+              {
+                "id": "wasser-funkeln",
+                "type": "sparkle",
+                "intensity": 0.6,
+                "speed": 1.2,
+                "color": "#55d9dd"
+              }
+            ]
           }
         }
       ],
@@ -3581,7 +3823,39 @@
             "#59636d"
           ],
           "water": "#3cae9d"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "inn-stroemung",
+            "type": "water-flow",
+            "side": "right",
+            "color": "#2379a3",
+            "accent": "#8ce5ec",
+            "count": 6,
+            "intensity": 0.65,
+            "speed": 0.95
+          },
+          {
+            "id": "inn-boot",
+            "type": "boat",
+            "side": "right",
+            "color": "#d7b56d",
+            "accent": "#f5e7bd",
+            "count": 1,
+            "intensity": 0.65,
+            "speed": 0.4
+          },
+          {
+            "id": "campus-lichter",
+            "type": "fireflies",
+            "side": "left",
+            "color": "#f5c451",
+            "accent": "#55d9dd",
+            "count": 5,
+            "intensity": 0.4,
+            "speed": 0.8
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -3610,7 +3884,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "campus-hologramm",
+                "type": "hologram",
+                "color": "#55d9dd",
+                "intensity": 0.3,
+                "speed": 0.75
+              }
+            ]
           },
           {
             "x": 12,
@@ -3786,7 +4069,8 @@
             "type": "none",
             "speed": 1,
             "amplitude": 0.1
-          }
+          },
+          "effects": []
         },
         {
           "id": "campus-tafel",
@@ -3808,6 +4092,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Campus an der Innstraße",
             "dialect": "Campus an da Innstraßn"
@@ -3817,7 +4102,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -3913,7 +4200,8 @@
               "type": "none",
               "speed": 1,
               "amplitude": 0.1
-            }
+            },
+            "effects": []
           }
         }
       ],
@@ -4214,7 +4502,39 @@
             "#426750"
           ],
           "water": "#14708a"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "park-ufer",
+            "type": "water-flow",
+            "side": "left",
+            "color": "#2379a3",
+            "accent": "#8ce5ec",
+            "count": 5,
+            "intensity": 0.6,
+            "speed": 0.75
+          },
+          {
+            "id": "park-fische",
+            "type": "fish",
+            "side": "left",
+            "color": "#8ce5ec",
+            "accent": "#f5c451",
+            "count": 4,
+            "intensity": 0.5,
+            "speed": 0.65
+          },
+          {
+            "id": "park-blaetter",
+            "type": "leaves",
+            "side": "right",
+            "color": "#8fcfa8",
+            "accent": "#d7b56d",
+            "count": 8,
+            "intensity": 0.55,
+            "speed": 0.8
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -4243,7 +4563,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "park-echo",
+                "type": "echo",
+                "color": "#8fcfa8",
+                "intensity": 0.25,
+                "speed": 0.7
+              }
+            ]
           },
           {
             "x": 12,
@@ -4369,7 +4698,8 @@
             "type": "none",
             "speed": 1,
             "amplitude": 0.15
-          }
+          },
+          "effects": []
         },
         {
           "id": "park-regel",
@@ -4391,6 +4721,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Skaten · Spielen · Gassi",
             "dialect": "Skaten · Spuin · Gassi"
@@ -4400,7 +4731,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -4568,7 +4901,8 @@
               "type": "spin",
               "speed": 0.2,
               "amplitude": 0.04
-            }
+            },
+            "effects": []
           }
         }
       ],
@@ -4863,7 +5197,29 @@
             "#925945"
           ],
           "water": "#37606d"
-        }
+        },
+        "edgeEffects": [
+          {
+            "id": "fabrik-dampf",
+            "type": "steam",
+            "side": "both",
+            "color": "#f0d0a0",
+            "accent": "#ffffff",
+            "count": 7,
+            "intensity": 0.6,
+            "speed": 0.75
+          },
+          {
+            "id": "fabrik-funken",
+            "type": "sparks",
+            "side": "both",
+            "color": "#ff9a45",
+            "accent": "#f5c451",
+            "count": 6,
+            "intensity": 0.7,
+            "speed": 1.4
+          }
+        ]
       },
       "actors": {
         "player": {
@@ -4892,7 +5248,16 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "fabrik-glitch",
+                "type": "glitch",
+                "color": "#ff9a45",
+                "intensity": 0.55,
+                "speed": 1.8
+              }
+            ]
           },
           {
             "x": 12,
@@ -5067,7 +5432,16 @@
             "type": "bob",
             "speed": 0.45,
             "amplitude": 0.18
-          }
+          },
+          "effects": [
+            {
+              "id": "dampf-echo",
+              "type": "echo",
+              "intensity": 0.35,
+              "speed": 0.7,
+              "color": "#f0d0a0"
+            }
+          ]
         },
         {
           "id": "fabrik-tafel",
@@ -5089,6 +5463,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "Kultur in der Tabakfabrik",
             "dialect": "Kultur in da Tabakfabrik"
@@ -5098,7 +5473,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -5186,7 +5563,16 @@
               "type": "bob",
               "speed": 0.45,
               "amplitude": 0.18
-            }
+            },
+            "effects": [
+              {
+                "id": "dampf-echo",
+                "type": "echo",
+                "intensity": 0.35,
+                "speed": 0.7,
+                "color": "#f0d0a0"
+              }
+            ]
           }
         }
       ],
@@ -5528,6 +5914,28 @@
               "amplitude": 0.15
             }
           }
+        ],
+        "edgeEffects": [
+          {
+            "id": "buehnen-puls",
+            "type": "stage-pulse",
+            "side": "both",
+            "color": "#ff4f87",
+            "accent": "#55d9dd",
+            "count": 8,
+            "intensity": 0.75,
+            "speed": 1.2
+          },
+          {
+            "id": "gitarren-funken",
+            "type": "sparks",
+            "side": "both",
+            "color": "#f5c451",
+            "accent": "#ff4f87",
+            "count": 9,
+            "intensity": 0.8,
+            "speed": 1.8
+          }
         ]
       },
       "actors": {
@@ -5557,7 +5965,23 @@
                 "x": 22,
                 "y": 22
               }
-            }
+            },
+            "effects": [
+              {
+                "id": "rock-glitch",
+                "type": "glitch",
+                "color": "#ff4f87",
+                "intensity": 0.75,
+                "speed": 2.4
+              },
+              {
+                "id": "rock-neon",
+                "type": "neon",
+                "color": "#55d9dd",
+                "intensity": 0.45,
+                "speed": 1.2
+              }
+            ]
           },
           {
             "x": 12,
@@ -5740,7 +6164,16 @@
             "type": "bob",
             "speed": 1.1,
             "amplitude": 0.125
-          }
+          },
+          "effects": [
+            {
+              "id": "buehnen-neon",
+              "type": "neon",
+              "intensity": 0.65,
+              "speed": 1.2,
+              "color": "#63d9d4"
+            }
+          ]
         },
         {
           "id": "zauberberg-box",
@@ -5811,7 +6244,16 @@
             "type": "pulse",
             "speed": 0.55,
             "amplitude": 0.06
-          }
+          },
+          "effects": [
+            {
+              "id": "bass-echo",
+              "type": "echo",
+              "intensity": 0.45,
+              "speed": 1.8,
+              "color": "#ff4f87"
+            }
+          ]
         },
         {
           "id": "konzertplakat",
@@ -5833,6 +6275,7 @@
             "speed": 1,
             "amplitude": 0.15
           },
+          "effects": [],
           "content": {
             "standard": "ROCK · PUNK · METAL",
             "dialect": "ROCK · PUNK · METAL"
@@ -5842,7 +6285,9 @@
             "align": "center",
             "verticalAlign": "middle",
             "background": "#071016",
+            "backgroundOpacity": 0,
             "borderColor": "#55d9dd",
+            "borderOpacity": 0,
             "padding": 0.2,
             "uppercase": false
           }
@@ -5944,7 +6389,16 @@
               "type": "bob",
               "speed": 1.1,
               "amplitude": 0.125
-            }
+            },
+            "effects": [
+              {
+                "id": "buehnen-neon",
+                "type": "neon",
+                "intensity": 0.65,
+                "speed": 1.2,
+                "color": "#63d9d4"
+              }
+            ]
           }
         }
       ],

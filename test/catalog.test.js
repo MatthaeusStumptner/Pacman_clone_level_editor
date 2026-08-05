@@ -52,6 +52,10 @@ test('every original level validates and produces exact difficulty Gutti counts'
     assert.ok(level.cutscenes[0].tracks.some((track) => track.type === 'camera'));
     assert.ok(level.cutscenes[0].tracks.some((track) => track.type === 'dialogue'));
     assert.ok(level.decorations.some((item) => item.type === 'text'), `${level.id} movable text`);
+    assert.ok(level.theme.edgeEffects.length >= 2, `${level.id} animated edge atmosphere`);
+    assert.ok(level.theme.edgeEffects.every((effect) => effect.id && effect.type && effect.side), `${level.id} valid edge effects`);
+    assert.equal(level.decorations.find((item) => item.type === 'text').textStyle.borderOpacity, 0, `${level.id} borderless text`);
+    assert.ok(level.actors.cats[0]?.effects?.length >= 1, `${level.id} sample cat effect`);
     assert.deepEqual(level.collectibles.powerUps, [{ x: 1, y: 1 }, { x: 23, y: 1 }, { x: 1, y: 23 }, { x: 23, y: 23 }]);
   }
 });

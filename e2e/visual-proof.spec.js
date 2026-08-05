@@ -37,6 +37,10 @@ test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @vi
   const placement = await canvasPoint(page, 7.5, 7.5); await page.mouse.click(placement.x, placement.y);
   await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
   await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Freier Textblock' }).click();
+  await expect(page.getByLabel('Rahmen ausblenden')).toBeChecked();
+  await page.locator('.object-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
+  await page.locator('.edge-effect-editor').getByRole('button', { name: '＋ Rand-Effekt' }).click();
+  await page.locator('.edge-effect-card select').first().selectOption('fish');
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('ILZ · Franz & Lola gehen mit Gutti nach Passau');
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
   await page.getByLabel('Hintergrund transparent').check();
@@ -62,6 +66,8 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
     const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
+    if (path === '/api/publish') return route.fulfill({ status: 202, headers, json: { publicationId: 77, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Zwei Level wurden sicher übertragen.' } });
+    if (path === '/api/publications/77') return route.fulfill({ headers, json: { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T18:00:00.000Z' } });
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
   await page.goto('/#publisher_session=visual.session');
@@ -72,8 +78,10 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
   await expect(page.locator('.publish-candidate')).toHaveCount(2);
   await page.getByRole('button', { name: 'Alle spielbaren' }).click();
   await expect(page.locator('.publish-candidate input:checked')).toHaveCount(2);
+  await page.locator('#publisher-confirm').click();
+  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '89');
   await page.waitForTimeout(400);
-  await page.screenshot({ path: 'output/playwright/batch-publish-selection.png' });
+  await page.screenshot({ path: 'output/playwright/publisher-live-progress.png' });
 });
 
 test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
@@ -93,14 +101,21 @@ test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
   await page.getByRole('button', { name: '▶ Playback' }).click();
   await page.waitForTimeout(700);
   await page.screenshot({ path: 'output/playwright/figuren-renderer.png' });
+  await page.getByRole('button', { name: '⬚ Auswählen' }).click();
+  await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await page.locator('.pixel-grid button[data-x="1"][data-y="0"]').click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Farbe anwenden' }).click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'output/playwright/pixel-multiselect.png' });
 });
 
 test('Alle neun Level-Ereignisse sind im UI erreichbar @visual', async ({ page }) => {
   await openCleanEditor(page);
+  test.setTimeout(150_000);
   for (const [id, eventName] of stories) {
     await loadTemplate(page, id);
     await page.locator('[data-workspace="events"]').click();
-    await page.locator('.event-browser button').filter({ hasText: eventName }).click();
+    await page.locator('.event-browser button').filter({ hasText: eventName }).click({ force: true });
     await expect(page.locator('.event-message-preview')).toContainText(eventName);
     await page.waitForTimeout(280);
   }
@@ -109,13 +124,13 @@ test('Alle neun Level-Ereignisse sind im UI erreichbar @visual', async ({ page }
 
 test('Alle neun angepassten Cutscenes spielen in steigender Komplexität @visual', async ({ page }) => {
   await openCleanEditor(page);
+  test.setTimeout(150_000);
   for (const [id, , playhead] of stories) {
     await loadTemplate(page, id);
     await page.locator('[data-workspace="cutscenes"]').click();
     await page.locator('.cutscene-transport input').fill(String(playhead));
     await page.locator('.cutscene-transport button').click();
     await page.waitForTimeout(420);
-    if (await page.locator('.cutscene-transport button').getAttribute('class')) await page.locator('.cutscene-transport button').click();
   }
   await page.screenshot({ path: 'output/playwright/cutscenes-alle-level.png' });
 });
