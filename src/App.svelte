@@ -8,6 +8,8 @@
   import PlaytestWorkspace from './components/PlaytestWorkspace.svelte';
   import PublishWorkspace from './components/PublishWorkspace.svelte';
   import { StudioState } from './studio/store.svelte.js';
+  import { StudioRouter } from './studio-router.js';
+  import { applyStudioRoute, routeFromStudio } from './studio-navigation.js';
 
   const studio = new StudioState();
   let projectOpen = $state(false);
@@ -25,6 +27,16 @@
     ['playtest', '●', 'Testspiel', 'Echte Simulation'],
     ['publish', '↑', 'Live', 'Veröffentlichen'],
   ];
+
+  let activeWorkspace = $derived(workspaces.find(([id]) => id === studio.workspace) ?? workspaces[0]);
+  let routerReady = $state(false);
+  let applyingRoute = false;
+  let router;
+
+  $effect(() => {
+    const route = routeFromStudio(studio);
+    if (routerReady && !applyingRoute) router.sync(route);
+  });
 
   async function importFile(event) {
     const file = event.currentTarget.files?.[0];
@@ -46,29 +58,47 @@
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? studio.redo() : studio.undo(); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); studio.redo(); return; }
     if (editing || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === 'Escape') { event.preventDefault(); studio.clearSelection(); return; }
     const tools = { v: 'select', m: 'transform', b: 'wall', l: 'line', r: 'rectangle', f: 'fill', e: 'erase', p: 'player', k: 'cat', g: 'power', o: 'object', i: 'event-visual' };
     const tool = tools[event.key.toLowerCase()];
-    if (tool) { event.preventDefault(); studio.setTool(tool); }
-    if (event.key === 'Delete' || event.key === 'Backspace') studio.deleteSelection();
+    if (tool) {
+      event.preventDefault(); studio.setTool(tool);
+      if (tool === 'object') studio.workspace = 'objects';
+      if (tool === 'event-visual') studio.workspace = 'events';
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); studio.deleteSelection(); }
   }
 
   onMount(() => {
+    router = new StudioRouter();
+    const stopRouter = router.start(routeFromStudio(studio), (route) => {
+      applyingRoute = true;
+      try {
+        applyStudioRoute(studio, route);
+      } finally {
+        applyingRoute = false;
+      }
+    });
+    routerReady = true;
     window.addEventListener('keydown', keyboard);
-    return () => window.removeEventListener('keydown', keyboard);
+    return () => { stopRouter(); window.removeEventListener('keydown', keyboard); };
   });
 </script>
 
-<svelte:head><meta name="description" content="Level, Objekte, Figuren und Cutscenes für Franz & Lola ohne Programmierkenntnisse gestalten." /></svelte:head>
+<svelte:head>
+  <title>{studio.level.name.standard} · {activeWorkspace[2]} · Franz & Lola Studio</title>
+  <meta name="description" content="Level, Objekte, Figuren und Cutscenes für Franz & Lola ohne Programmierkenntnisse gestalten." />
+</svelte:head>
 
 <div class="studio-shell" class:project-open={projectOpen}>
   <header class="studio-topbar">
     <button class="brand" onclick={() => projectOpen = !projectOpen} aria-expanded={projectOpen} aria-controls="project-drawer"><span class="brand-mark">FL</span><span><b>Franz & Lola</b><small>GAME STUDIO</small></span><i>⌄</i></button>
-    <div class="document-identity" data-level-id={studio.level.id}><span>{studio.level.icon}</span><div><strong>{studio.level.name.standard}</strong><small>{studio.level.location.area} · {studio.level.board.columns}×{studio.level.board.rows}</small></div></div>
+    <div class="document-identity" data-level-id={studio.level.id}><span>{studio.level.icon}</span><div><strong>{studio.level.name.standard}</strong><small>{studio.level.location.area} · {activeWorkspace[2]} · {studio.level.board.columns}×{studio.level.board.rows}</small></div></div>
     <div class="topbar-status"><span class:invalid={!studio.validation.ok}>{studio.validation.ok ? '✓ SPIELBAR' : `⚠ ${studio.validation.errors.length} FEHLER`}</span><span>{studio.saveStatus}</span><button onclick={() => studio.undo()} disabled={!studio.canUndo} title="Rückgängig (Strg+Z)">↶</button><button onclick={() => studio.redo()} disabled={!studio.canRedo} title="Wiederholen (Strg+Y)">↷</button></div>
     <button class="mobile-project-button" onclick={() => projectOpen = !projectOpen}>☰ Projekt</button>
   </header>
 
-  <aside class="project-drawer" id="project-drawer" aria-label="Projekt und Vorlagen">
+  <aside class="project-drawer" id="project-drawer" aria-label="Projekt und Vorlagen" aria-hidden={!projectOpen} inert={!projectOpen}>
     <header><span class="eyebrow">PROJEKT</span><button onclick={() => projectOpen = false} aria-label="Projektleiste schließen">×</button></header>
     <div class="project-actions"><button class="primary" onclick={() => { studio.newLevel(); projectOpen = false; }}>＋ Neues Level</button><button onclick={() => importInput.click()}>↓ JSON importieren</button><input class="visually-hidden" bind:this={importInput} type="file" accept="application/json,.json" aria-label="Leveldatei auswählen" onchange={importFile} /></div>
     <label class="search-field"><span>⌕</span><input bind:value={search} placeholder="Passauer Orte suchen" /></label>
@@ -80,7 +110,7 @@
 
   <nav class="discipline-nav" aria-label="Arbeitsbereiche">
     {#each workspaces as [id, icon, label, description]}
-      <button class:active={studio.workspace === id} data-workspace={id} onclick={() => switchWorkspace(id)}><span>{icon}</span><div><strong>{label}</strong><small>{description}</small></div>{#if id === 'events' && studio.level.events.length}<em>{studio.level.events.length}</em>{/if}{#if id === 'cutscenes' && studio.level.cutscenes.length}<em>{studio.level.cutscenes.length}</em>{/if}</button>
+      <button class:active={studio.workspace === id} data-workspace={id} aria-current={studio.workspace === id ? 'page' : undefined} onclick={() => switchWorkspace(id)}><span>{icon}</span><div><strong>{label}</strong><small>{description}</small></div>{#if id === 'events' && studio.level.events.length}<em>{studio.level.events.length}</em>{/if}{#if id === 'cutscenes' && studio.level.cutscenes.length}<em>{studio.level.cutscenes.length}</em>{/if}</button>
     {/each}
   </nav>
 

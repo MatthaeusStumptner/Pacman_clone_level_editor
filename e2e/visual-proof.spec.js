@@ -32,9 +32,11 @@ async function canvasPoint(page, x, y) {
 test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @visual', async ({ page }) => {
   await openCleanEditor(page);
   await page.locator('[data-workspace="objects"]').click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
   await page.locator('[data-asset-id="text-block"]').click();
   const placement = await canvasPoint(page, 7.5, 7.5); await page.mouse.click(placement.x, placement.y);
-  await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Freier Textblock' }).click();
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('ILZ · Franz & Lola gehen mit Gutti nach Passau');
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
   await page.getByLabel('Hintergrund transparent').check();

@@ -1,28 +1,30 @@
 <script>
   import LevelCanvas from './LevelCanvas.svelte';
+  import MobileFocusTabs from './MobileFocusTabs.svelte';
 
   let { studio } = $props();
+  let mobilePanel = $state('canvas');
   let event = $derived(studio.selectedEvent);
   const slug = (value) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'ereignis';
   function number(input) { return Number(input.currentTarget.value); }
-  function select(id) { studio.selectedEventId = id; studio.selection = { kind: 'event', index: studio.level.events.findIndex((entry) => entry.id === id) }; }
+  function select(id) { studio.selectEntity('event', studio.level.events.findIndex((entry) => entry.id === id)); mobilePanel = 'inspector'; }
   function rename(value) { const id = slug(value); studio.updateEvent(['id'], id); studio.selectedEventId = id; }
 </script>
 
 <section class="workspace event-workspace" aria-labelledby="event-workspace-title">
   <header class="workspace-header"><div><span class="eyebrow">EREIGNISREGIE</span><h2 id="event-workspace-title">Eastereggs & Ereignisse</h2><p>Trigger, sichtbares Symbol, Hochdeutsch und Niederbairisch gehören zu einem klaren Ereignis.</p></div><button class="primary" id="add-event" onclick={() => studio.addEvent()}>＋ Ereignis</button></header>
-  <div class="event-grid">
-    <aside class="event-browser">
+  <div class="event-grid focus-layout">
+    <aside class:mobile-active={mobilePanel === 'scene'} class="event-browser" data-focus-panel="scene">
       <strong>Ereignisse im Level</strong>
       {#each studio.level.events as entry}<button class:active={entry.id === studio.selectedEventId} onclick={() => select(entry.id)}><span>{entry.visual.type === 'kingfisher' ? '◆' : entry.visual.type === 'bell' ? '♜' : entry.visual.label || '!'}</span><span><b>{entry.name.standard}</b><small>{entry.trigger.type} · {entry.reward >= 0 ? '+' : ''}{entry.reward}</small></span></button>{/each}
       {#if !studio.level.events.length}<p class="hint">Noch kein Ereignis in diesem Level.</p>{/if}
     </aside>
-    <div class="canvas-column">
+    <div class="canvas-column mobile-active" data-focus-panel="canvas">
       <div class="canvas-toolbar"><button class:active={studio.tool === 'select'} onclick={() => studio.setTool('select')}>↖ Auswählen</button><button class:active={studio.tool === 'event-zone'} onclick={() => studio.setTool('event-zone')} disabled={!event}>▧ Triggerzone zeichnen</button><button class:active={studio.tool === 'event-visual'} onclick={() => studio.setTool('event-visual')} disabled={!event}>! Symbol setzen</button></div>
       <LevelCanvas {studio} />
       {#if event}<div class="event-message-preview"><span class="eyebrow">LIVE-TEXT</span><strong>{event.name[studio.language]}</strong><p>{event.message[studio.language]}</p><button onclick={() => studio.language = studio.language === 'standard' ? 'dialect' : 'standard'}>{studio.language === 'standard' ? 'Schöne Sprache' : 'Niederbairisch*'}</button></div>{/if}
     </div>
-    <aside class="property-panel">
+    <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">
       {#if event}
         <div class="property-section"><span class="section-number">EVT</span><h3>{event.name.standard}</h3></div>
         <label>ID<input value={event.id} onchange={(input) => rename(input.currentTarget.value)} /></label>
@@ -45,5 +47,7 @@
         <button class="danger" onclick={() => studio.deleteEvent()}>Ereignis löschen</button>
       {:else}<div class="empty-inspector"><span>!</span><strong>Ereignis auswählen</strong><p>Oder lege ein neues Ereignis an.</p></div>{/if}
     </aside>
+    {#if mobilePanel !== 'canvas'}<button class="mobile-panel-scrim" aria-label="Mobile Seitenleiste schließen" onclick={() => mobilePanel = 'canvas'}></button>{/if}
+    <MobileFocusTabs value={mobilePanel} options={[["scene", "!", "Ereignisse"], ["canvas", "▦", "Canvas"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />
   </div>
 </section>

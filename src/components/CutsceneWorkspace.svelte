@@ -1,7 +1,9 @@
 <script>
   import CutscenePreview from './CutscenePreview.svelte';
+  import MobileFocusTabs from './MobileFocusTabs.svelte';
 
   let { studio } = $props();
+  let mobilePanel = $state('canvas');
   let cutscene = $derived(studio.selectedCutscene);
   let track = $derived(studio.selectedTrack);
   let keyframe = $derived(studio.selectedKeyframe);
@@ -9,7 +11,7 @@
   const trackIcons = { camera: '◎', actor: 'FL', object: '◆', dialogue: '“' };
   function number(event) { return Number(event.currentTarget.value); }
   function selectCutscene(id) { studio.selectedCutsceneId = id; const selected = studio.level.cutscenes.find((entry) => entry.id === id); studio.selectedTrackId = selected?.tracks[0]?.id ?? ''; studio.selectedKeyframeId = selected?.tracks[0]?.keyframes[0]?.id ?? ''; }
-  function selectTrack(entry) { studio.selectedTrackId = entry.id; studio.selectedKeyframeId = entry.keyframes[0]?.id ?? ''; }
+  function selectTrack(entry) { studio.selectedTrackId = entry.id; studio.selectedKeyframeId = entry.keyframes[0]?.id ?? ''; mobilePanel = 'inspector'; }
   function updateDialogue(language, value) {
     const frames = track.keyframes.map((frame) => frame.id === keyframe.id ? { ...frame, text: { ...frame.text, [language]: value } } : frame);
     studio.updateTrack(['keyframes'], frames);
@@ -28,8 +30,8 @@
     <div class="cutscene-selector">
       {#each studio.level.cutscenes as entry}<button class:active={entry.id === cutscene.id} onclick={() => selectCutscene(entry.id)}><span>{entry.kind === 'intro' ? 'IN' : entry.kind === 'outro' ? 'OUT' : '→'}</span><strong>{entry.name.standard}</strong><small>{entry.duration}s</small></button>{/each}
     </div>
-    <div class="cutscene-grid">
-      <aside class="track-browser">
+    <div class="cutscene-grid focus-layout">
+      <aside class:mobile-active={mobilePanel === 'scene'} class="track-browser" data-focus-panel="scene">
         <div class="panel-title"><strong>Spuren</strong><span>{cutscene.tracks.length}</span></div>
         {#each cutscene.tracks as entry}
           <button class:active={entry.id === studio.selectedTrackId} onclick={() => selectTrack(entry)}><span>{trackIcons[entry.type]}</span><span><strong>{entry.id}</strong><small>{trackNames[entry.type]} · {entry.target}</small></span><em>{entry.keyframes.length}</em></button>
@@ -37,7 +39,7 @@
         <div class="track-add-grid"><button onclick={() => studio.addTrack('camera')}>◎ Kamera</button><button onclick={() => studio.addTrack('actor')}>FL Figur</button><button onclick={() => studio.addTrack('object')}>◆ Objekt</button><button onclick={() => studio.addTrack('dialogue')}>“ Dialog</button></div>
       </aside>
 
-      <div class="cutscene-center">
+      <div class="cutscene-center mobile-active" data-focus-panel="canvas">
         <CutscenePreview {studio} {cutscene} />
         <div class="timeline" style={`--timeline-duration:${cutscene.duration}`}>
           <header><strong>Timeline</strong><span>0 s</span><span>{(cutscene.duration / 2).toFixed(1)} s</span><span>{cutscene.duration.toFixed(1)} s</span></header>
@@ -47,7 +49,7 @@
         </div>
       </div>
 
-      <aside class="property-panel cutscene-inspector">
+      <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel cutscene-inspector" data-focus-panel="inspector">
         <div class="property-section"><span class="section-number">SCN</span><h3>{cutscene.name.standard}</h3></div>
         <label>Name<input value={cutscene.name.standard} onchange={(event) => studio.updateCutscene(['name', 'standard'], event.currentTarget.value)} /></label>
         <label>Name im Dialekt<input value={cutscene.name.dialect} onchange={(event) => studio.updateCutscene(['name', 'dialect'], event.currentTarget.value)} /></label>
@@ -80,6 +82,8 @@
         {/if}
         <button class="danger" onclick={() => studio.deleteCutscene()}>Cutscene löschen</button>
       </aside>
+      {#if mobilePanel !== 'canvas'}<button class="mobile-panel-scrim" aria-label="Mobile Seitenleiste schließen" onclick={() => mobilePanel = 'canvas'}></button>{/if}
+      <MobileFocusTabs value={mobilePanel} options={[["scene", "☷", "Spuren"], ["canvas", "▶", "Timeline"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />
     </div>
   {/if}
 </section>

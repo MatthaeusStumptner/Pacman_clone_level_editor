@@ -1,17 +1,19 @@
 <script>
   import { createFranzLolaAppearance, PLAYER_STATES } from '../character-template.js';
   import ActorThumbnail from './ActorThumbnail.svelte';
+  import MobileFocusTabs from './MobileFocusTabs.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
 
   let { studio } = $props();
   let editing = $state(false);
+  let mobilePanel = $state('canvas');
   let targetKind = $derived(studio.selection?.kind === 'cat' ? 'cat' : 'player');
   let targetIndex = $derived(studio.selection?.kind === 'cat' ? studio.selection.index : 0);
   let actor = $derived(targetKind === 'player' ? studio.level.actors.player : studio.level.actors.cats[targetIndex]);
   let appearance = $derived(actor?.appearance ?? (targetKind === 'player' ? createFranzLolaAppearance() : null));
   let profile = $derived(studio.level.gameplay.difficulties[studio.difficulty]);
 
-  function select(kind, index) { studio.selectEntity(kind, index); editing = false; }
+  function select(kind, index) { studio.selectEntity(kind, index); editing = false; mobilePanel = 'inspector'; }
   function number(event) { return Number(event.currentTarget.value); }
   function update(path, value) { studio.updateSelected(path, value, 'Figur bearbeiten'); }
 </script>
@@ -33,8 +35,8 @@
       />
     {/key}
   {:else}
-    <div class="character-layout">
-      <aside class="actor-browser">
+    <div class="character-layout focus-layout">
+      <aside class:mobile-active={mobilePanel === 'scene'} class="actor-browser" data-focus-panel="scene">
         <strong>Figuren im Level</strong>
         <button class:active={targetKind === 'player'} onclick={() => select('player', 0)}><span class="actor-avatar actual"><ActorThumbnail actor={studio.level.actors.player} kind="player" state="idle" label="Franz und Lola" /></span><span><b>Franz & Lola</b><small>Spieler · gemeinsam</small></span></button>
         {#each studio.level.actors.cats as cat, index}
@@ -43,7 +45,7 @@
         <button onclick={() => { studio.setTool('cat'); studio.workspace = 'level'; }}>＋ Katze im Level setzen</button>
       </aside>
 
-      <div class="character-stage">
+      <div class="character-stage mobile-active" data-focus-panel="canvas">
         {#if actor}
           <div class="character-hero">
             <ActorThumbnail actor={actor} {appearance} kind={targetKind} state="idle" class="actor-preview-large" label={targetKind === 'player' ? 'Franz und Lola in Originaldarstellung' : `Katze ${targetIndex + 1} in Spieldarstellung`} />
@@ -58,7 +60,7 @@
         {/if}
       </div>
 
-      <aside class="property-panel">
+      <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">
         {#if actor}
           <div class="property-section"><span class="section-number">AI</span><h3>Verhalten</h3></div>
           <div class="field-row"><label>X<input type="number" value={actor.x} onchange={(event) => update(['x'], number(event))} /></label><label>Y<input type="number" value={actor.y} onchange={(event) => update(['y'], number(event))} /></label></div>
@@ -77,6 +79,8 @@
         <div class="field-row"><label>Franz Tempo<input type="number" step="0.05" value={profile.playerSpeed} onchange={(event) => studio.update(['gameplay', 'difficulties', studio.difficulty, 'playerSpeed'], number(event))} /></label><label>Katze Tempo<input type="number" step="0.05" value={profile.catSpeed} onchange={(event) => studio.update(['gameplay', 'difficulties', studio.difficulty, 'catSpeed'], number(event))} /></label></div>
         <div class="field-row"><label>Leben<input type="number" min="1" value={profile.lives} onchange={(event) => studio.update(['gameplay', 'difficulties', studio.difficulty, 'lives'], number(event))} /></label><label>Katzen<input type="number" min="0" max="12" value={profile.catCount} onchange={(event) => studio.update(['gameplay', 'difficulties', studio.difficulty, 'catCount'], number(event))} /></label></div>
       </aside>
+      {#if mobilePanel !== 'canvas'}<button class="mobile-panel-scrim" aria-label="Mobile Seitenleiste schließen" onclick={() => mobilePanel = 'canvas'}></button>{/if}
+      <MobileFocusTabs value={mobilePanel} options={[["scene", "FL", "Figuren"], ["canvas", "▦", "Vorschau"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />
     </div>
   {/if}
 </section>
