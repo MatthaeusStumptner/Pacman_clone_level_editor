@@ -24,6 +24,18 @@ async function loadTemplate(page, id) {
   await expect(page.locator('.document-identity')).toHaveAttribute('data-level-id', id);
 }
 
+async function openObjectLibrary(page) {
+  await page.locator('[data-workspace="objects"]').click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
+  await expect(page.locator('.asset-list')).toBeVisible();
+}
+
+async function openSceneTree(page) {
+  const tabs = page.locator('.sidebar-mode-tabs:visible');
+  await tabs.getByRole('button', { name: /Szene/ }).click();
+  await expect(page.locator('.scene-tree:visible')).toBeVisible();
+}
+
 async function canvasHasVisiblePixels(locator) {
   return locator.evaluate((canvas) => {
     const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
@@ -69,7 +81,7 @@ test('URL router restores level, discipline and selection with browser history',
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="objects"]').click();
-  await page.locator('.placed-object-strip').getByRole('button', { name: 'Zauberberg-Note', exact: true }).click();
+  await page.locator('[data-scene-key="theme-element:stage-note"] .scene-node-main').click();
   await expect.poll(() => new URL(page.url()).searchParams.get('workspace')).toBe('objects');
   await expect.poll(() => new URL(page.url()).searchParams.get('selection')).toBe('theme-element:stage-note');
   await page.locator('[data-workspace="characters"]').click();
@@ -141,22 +153,65 @@ test('one reactive document keeps drawing, history, autosave and reload synchron
   expect(errors).toEqual([]);
 });
 
-test('the Zauberberg music note is selectable directly on canvas and remains editable', async ({ page }) => {
+test('canvas selection stays in context, overlap cycling works and explicit opening remains editable', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="level"]').click();
   await page.locator('[data-tool="select"]').click();
-  const note = await canvasPoint(page, 12, 7);
+  const note = await canvasPoint(page, 11, 8);
   await page.mouse.click(note.x, note.y);
-  await expect(page.locator('[data-workspace="objects"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.selection-summary')).toBeVisible();
+  await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Zugabe');
+  await page.keyboard.down('Alt');
+  await page.mouse.click(note.x, note.y);
+  await page.keyboard.up('Alt');
+  await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Note');
+  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('button', { name: /In Objektwerkstatt öffnen/ }).click();
   await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
-  await page.locator('.object-inspector').getByLabel('Animation').selectOption('spin');
+  await page.locator('.object-inspector').getByLabel('Bewegungsanimation').selectOption('spin');
   await page.locator('.object-inspector').getByLabel('Tempo').fill('2.5'); await page.locator('.object-inspector').getByLabel('Tempo').blur();
-  await page.waitForTimeout(250); await page.reload();
-  await page.locator('[data-workspace="objects"]').click();
-  await page.locator('.placed-object-strip').getByRole('button', { name: 'Zauberberg-Note', exact: true }).click();
-  await expect(page.locator('.object-inspector').getByLabel('Animation')).toHaveValue('spin');
+  await page.waitForTimeout(250);
+  await page.reload();
+  await expect(page.locator('.object-inspector').getByLabel('Bewegungsanimation')).toHaveValue('spin');
   await expect(page.locator('.object-inspector').getByLabel('Tempo')).toHaveValue('2.5');
+  expect(errors).toEqual([]);
+});
+
+test('scene tree searches, filters, multi-selects, hides, locks and reorders stable instances', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await openSceneTree(page);
+  const tree = page.locator('.scene-tree');
+  await tree.getByLabel('Szenenbaum durchsuchen').fill('Konzertbox');
+  await expect(tree.locator('.scene-node')).toHaveCount(1);
+  await tree.getByLabel('Szenenbaum durchsuchen').fill('');
+  await tree.getByLabel('Elementtyp filtern').selectOption('objects');
+  await expect(tree.locator('.scene-node')).toHaveCount(3);
+  await tree.getByLabel('Elementtyp filtern').selectOption('all');
+
+  const note = tree.locator('[data-scene-key="decoration:zauberberg-note-frei"]');
+  const speaker = tree.locator('[data-scene-key="decoration:zauberberg-box"]');
+  await note.locator('.scene-node-main').click();
+  await speaker.locator('.scene-node-main').click({ modifiers: ['Shift'] });
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '2');
+  await expect(page.locator('.selection-summary')).toContainText('2 Elemente ausgewählt');
+
+  await speaker.getByRole('button', { name: 'Konzertbox ausblenden' }).click();
+  await expect(speaker).toHaveClass(/hidden/);
+  await speaker.getByRole('button', { name: 'Konzertbox einblenden' }).click();
+  await speaker.getByRole('button', { name: 'Konzertbox sperren' }).click();
+  await expect(speaker).toHaveClass(/locked/);
+  await speaker.getByRole('button', { name: 'Konzertbox entsperren' }).click();
+
+  const before = await tree.locator('[data-scene-key^="decoration:"]').evaluateAll((nodes) => nodes.map((node) => node.dataset.sceneKey));
+  await note.getByRole('button', { name: 'Zauberberg-Note nach vorne' }).click();
+  const after = await tree.locator('[data-scene-key^="decoration:"]').evaluateAll((nodes) => nodes.map((node) => node.dataset.sceneKey));
+  expect(after).not.toEqual(before);
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '0');
   expect(errors).toEqual([]);
 });
 
@@ -170,12 +225,15 @@ test('universal objects can be created as pixel assets and placed into any map',
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
   await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
   await loadTemplate(page, 'hals');
-  await page.locator('[data-workspace="objects"]').click();
+  await openObjectLibrary(page);
   await page.locator('[data-asset-id="music-note"]').click();
   const target = await canvasPoint(page, 2, 2); await page.mouse.click(target.x, target.y);
-  await expect(page.locator('.placed-object-strip')).toContainText('Musiknote');
-  await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="objects"]').click();
-  await expect(page.locator('.placed-object-strip')).toContainText('Musiknote');
+  await openSceneTree(page);
+  await expect(page.locator('.scene-tree')).toContainText('Musiknote');
+  await page.waitForTimeout(250);
+  await page.reload();
+  await expect(page.locator('.scene-tree')).toContainText('Musiknote');
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
   await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
   expect(errors).toEqual([]);
 });
@@ -328,6 +386,22 @@ test('@mobile studio has no page overflow and keeps project, navigation and dire
   expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.width + 1);
   await openProject(page); await expect(page.locator('[data-template-id]')).toHaveCount(9);
   await page.locator('[data-template-id="bschuett"]').click();
+  const focusTabs = page.locator('.mobile-focus-tabs:visible');
+  await expect(focusTabs).toBeVisible();
+  await focusTabs.getByRole('button', { name: /Szene/ }).click();
+  await expect(page.locator('[data-focus-panel="scene"].mobile-active')).toBeVisible();
+  await expect(page.locator('#level-canvas')).toBeVisible();
+  await page.locator('[data-focus-panel="scene"] .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await expect(page.locator('.scene-tree:visible')).toBeVisible();
+  await page.screenshot({ path: 'output/playwright/mobile-focus-panels.png' });
+  const sceneSheet = await page.locator('[data-focus-panel="scene"].mobile-active').boundingBox();
+  if (!sceneSheet) throw new Error('Mobiles Szenen-Sheet besitzt keine Bounding Box.');
+  await page.mouse.click(8, Math.max(8, sceneSheet.y - 8));
+  await expect(page.locator('.mobile-panel-scrim')).toHaveCount(0);
+  await focusTabs.getByRole('button', { name: /Details/ }).click();
+  await expect(page.locator('[data-focus-panel="inspector"].mobile-active')).toBeVisible();
+  await focusTabs.getByRole('button', { name: /Canvas/ }).click();
+  await expect(page.locator('#level-canvas')).toBeVisible();
   await page.locator('[data-workspace="playtest"]').click(); await page.locator('#start-playtest').click();
   await page.getByRole('button', { name: /Intro überspringen/ }).click();
   await expect(page.locator('.mobile-dpad')).toBeVisible();
@@ -337,13 +411,14 @@ test('@mobile studio has no page overflow and keeps project, navigation and dire
 
 test('object previews show renderer output and text blocks stay freely editable', async ({ page }) => {
   const errors = await openCleanEditor(page);
-  await page.locator('[data-workspace="objects"]').click();
+  await openObjectLibrary(page);
   await expect(page.locator('.asset-list .object-thumbnail')).toHaveCount(16);
   await expect(page.locator('[data-asset-id="music-note"] canvas')).toBeVisible();
   await expect(page.locator('[data-asset-id="zauberberg-note"] canvas')).toBeVisible();
   await page.locator('[data-asset-id="text-block"]').click();
   const target = await canvasPoint(page, 8, 8); await page.mouse.click(target.x, target.y);
-  await page.locator('.placed-object-strip button').filter({ hasText: 'Freier Textblock' }).click();
+  await openSceneTree(page);
+  await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Freier Textblock' }).click();
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('Frei in Passau'); await page.locator('.object-inspector').getByLabel('Text', { exact: true }).blur();
   await page.getByLabel('Hintergrund transparent').check();
   await expect(page.getByLabel('Hintergrund transparent')).toBeChecked();
@@ -374,7 +449,7 @@ test('object previews show renderer output and text blocks stay freely editable'
 
 test('sprite and transform animation studios expose keyframes, scrubbing and playback', async ({ page }) => {
   const errors = await openCleanEditor(page);
-  await page.locator('[data-workspace="objects"]').click(); await page.locator('[data-asset-id="zauberberg-note"]').click();
+  await openObjectLibrary(page); await page.locator('[data-asset-id="zauberberg-note"]').click();
   await page.getByRole('button', { name: /Sprite-Keyframes bearbeiten/ }).click();
   await expect(page.locator('.keyframe-ruler')).toBeVisible();
   await page.getByRole('button', { name: '▶ Playback' }).click(); await page.waitForTimeout(120);

@@ -1,7 +1,9 @@
 <script>
   import LevelCanvas from './LevelCanvas.svelte';
+  import MobileFocusTabs from './MobileFocusTabs.svelte';
   import MotionTimelineEditor from './MotionTimelineEditor.svelte';
   import ObjectThumbnail from './ObjectThumbnail.svelte';
+  import SceneTree from './SceneTree.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
 
   let { studio } = $props();
@@ -9,6 +11,8 @@
   let editingPlacedSprite = $state(false);
   let editingMotion = $state(false);
   let motionSource = $state('selection');
+  let sidebarMode = $state('scene');
+  let mobilePanel = $state('canvas');
   let selected = $derived.by(() => studio.selectedEntity());
   let asset = $derived(studio.selectedAsset);
   let motionTarget = $derived(motionSource === 'asset' ? asset : selected);
@@ -17,8 +21,8 @@
     : motionTarget);
   const animationTypes = [['none', 'Keine'], ['bob', 'Schweben'], ['pulse', 'Pulsieren'], ['blink', 'Blinken'], ['spin', 'Drehen'], ['keyframes', 'Eigene Keyframes']];
 
-  function selectAsset(id) { studio.selectedAssetId = id; studio.setTool('object'); editingAsset = false; editingMotion = false; }
-  function createAsset() { studio.createAsset(); editingAsset = true; }
+  function selectAsset(id) { studio.selectedAssetId = id; studio.setTool('object'); editingAsset = false; editingMotion = false; mobilePanel = 'canvas'; }
+  function createAsset() { studio.createAsset(); sidebarMode = 'library'; editingAsset = true; }
   function number(event) { return Number(event.currentTarget.value); }
   function saveAssetAppearance(appearance) { studio.saveAsset({ ...asset, appearance }); editingAsset = false; }
   function savePlacedAppearance(appearance) { studio.updateSelected(['appearance'], appearance, 'Objekt-Sprite speichern'); editingPlacedSprite = false; }
@@ -43,38 +47,40 @@
   {:else if editingMotion && motionTarget}
     <MotionTimelineEditor animation={motionTarget.animation} previewAsset={motionPreview} title={`Bewegung · ${motionTarget.name || motionTarget.id || 'Objekt'}`} onsave={saveMotion} oncancel={() => editingMotion = false} />
   {:else}
-    <div class="workspace-grid object-grid">
-      <aside class="asset-library">
-        <div class="panel-title"><strong>Objektbibliothek</strong><span>{studio.assets.length} Assets</span></div>
-        <p class="hint">Ein Objekt auswählen und anschließend ins Level klicken.</p>
-        <div class="asset-list">
-          {#each studio.assets as entry}
-            <button class:active={entry.id === studio.selectedAssetId} data-asset-id={entry.id} onclick={() => selectAsset(entry.id)}>
-              <span class="asset-icon actual"><ObjectThumbnail asset={entry} language={studio.language} /></span><span><strong>{entry.name}</strong><small>{entry.category}</small></span><em>{entry.width}×{entry.height}</em>
-            </button>
-          {/each}
-        </div>
-        {#if asset}
-          <div class="asset-summary"><span class="eyebrow">AKTIVES ASSET</span><strong>{asset.name}</strong><p>{asset.description}</p>{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button></div>
+    <div class="workspace-grid object-grid focus-layout">
+      <aside class:mobile-active={mobilePanel === 'scene'} class="asset-library object-sidebar" data-focus-panel="scene">
+        <div class="sidebar-mode-tabs"><button class:active={sidebarMode === 'scene'} onclick={() => sidebarMode = 'scene'}>☷ Szene</button><button class:active={sidebarMode === 'library'} onclick={() => sidebarMode = 'library'}>◆ Bibliothek</button></div>
+        {#if sidebarMode === 'scene'}
+          <SceneTree {studio} onselect={() => mobilePanel = 'inspector'} />
+        {:else}
+          <div class="panel-title"><strong>Objektbibliothek</strong><span>{studio.assets.length} Assets</span></div>
+          <p class="hint">Ein Asset auswählen und anschließend ins Level klicken. Platzierte Instanzen stehen im Szenenbaum.</p>
+          <div class="asset-list">
+            {#each studio.assets as entry}
+              <button class:active={entry.id === studio.selectedAssetId} data-asset-id={entry.id} onclick={() => selectAsset(entry.id)}>
+                <span class="asset-icon actual"><ObjectThumbnail asset={entry} language={studio.language} /></span><span><strong>{entry.name}</strong><small>{entry.category}</small></span><em>{entry.width}×{entry.height}</em>
+              </button>
+            {/each}
+          </div>
+          {#if asset}
+            <div class="asset-summary"><span class="eyebrow">AKTIVES ASSET</span><strong>{asset.name}</strong><p>{asset.description}</p>{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button></div>
+          {/if}
         {/if}
       </aside>
 
-      <div class="canvas-column">
+      <div class="canvas-column mobile-active" data-focus-panel="canvas">
         <div class="canvas-toolbar">
           <button class:active={studio.tool === 'select'} onclick={() => studio.setTool('select')}>↖ Auswählen</button>
           <button class:active={studio.tool === 'transform'} data-tool="transform" onclick={() => studio.setTool('transform')}>↔ Bewegen & skalieren</button>
           <button class:active={studio.tool === 'object'} onclick={() => studio.setTool('object')}>＋ {asset?.name ?? 'Objekt'} platzieren</button>
-          <span class="toolbar-help">Objekt ziehen · Eckgriff ziehen skaliert proportional. Musiknote, Bühnenlicht und eigene Sprites funktionieren in jedem Theme.</span>
+          <button onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>◆ Asset wählen</button>
+          <span class="toolbar-help">Klick wählt · Shift ergänzt · Alt wählt darunter · Doppelklick öffnet Details.</span>
         </div>
         <LevelCanvas {studio} />
-        <div class="placed-object-strip">
-          <strong>Objekte im Level</strong>
-          <div>{#each studio.level.decorations as item, index}<button class:active={studio.selection?.kind === 'decoration' && studio.selection.index === index} onclick={() => studio.selectEntity('decoration', index)}>{item.name || item.label || item.type}<small>{item.x},{item.y}</small></button>{/each}</div>
-          {#if studio.level.theme.elements?.length}<strong>Theme-Elemente</strong><div>{#each studio.level.theme.elements as item, index}<button class:active={studio.selection?.kind === 'theme-element' && studio.selection.index === index} onclick={() => studio.selectEntity('theme-element', index)}>{item.id === 'stage-note' ? 'Zauberberg-Note' : item.id === 'stage-lights' ? 'Bühnenlichter' : item.id}</button>{/each}</div>{/if}
-        </div>
+        <footer class="canvas-status"><span>{studio.selectionCount ? `${studio.selectionCount} ausgewählt` : 'Keine Auswahl'}</span><span>Instanzen verwaltest du im Szenenbaum</span><strong>{studio.saveStatus}</strong></footer>
       </div>
 
-      <aside class="property-panel object-inspector">
+      <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel object-inspector" data-focus-panel="inspector">
         {#if selected && studio.selection?.kind === 'decoration'}
           <div class="property-section"><span class="section-number">OBJ</span><h3>{selected.name || selected.label || selected.type}</h3></div>
           <label>Name<input value={selected.name} onchange={(event) => studio.updateSelected(['name'], event.currentTarget.value)} /></label>
@@ -91,7 +97,7 @@
           <div class="field-row"><label>X<input type="number" step="0.05" value={selected.x} onchange={(event) => studio.updateSelected(['x'], number(event))} /></label><label>Y<input type="number" step="0.05" value={selected.y} onchange={(event) => studio.updateSelected(['y'], number(event))} /></label></div>
           <div class="field-row"><label>Breite<input type="number" min="0.25" max="24" step="0.05" value={selected.width} onchange={(event) => studio.updateSelected(['width'], number(event))} /></label><label>Höhe<input type="number" min="0.25" max="24" step="0.05" value={selected.height} onchange={(event) => studio.updateSelected(['height'], number(event))} /></label></div>
           <label>Farbe<input type="color" value={selected.color} onchange={(event) => studio.updateSelected(['color'], event.currentTarget.value)} /></label>
-          <label>Animation<select value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
+          <label>Animation<select aria-label="Bewegungsanimation" value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
           <div class="field-row"><label>Tempo<input type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
           {#if selected.appearance?.animations?.length}<label>Sprite-Animation<select value={selected.spriteAnimation} onchange={(event) => studio.updateSelected(['spriteAnimation'], event.currentTarget.value)}>{#each selected.appearance.animations as animation}<option value={animation.id}>{animation.id}</option>{/each}</select></label>{/if}
           <button onclick={() => openMotion('selection')}>◆ Keyframe-Bewegung öffnen</button>
@@ -101,14 +107,16 @@
         {:else if selected && studio.selection?.kind === 'theme-element'}
           <div class="property-section"><span class="section-number">SYS</span><h3>{selected.id === 'stage-note' ? 'Zauberberg-Note' : selected.id === 'stage-lights' ? 'Bühnenlichter' : selected.id}</h3></div>
           <p class="hint">Dieses originale Kulissenelement wurde direkt im Canvas ausgewählt. Du kannst seine Animation ändern oder das entsprechende Asset aus der Bibliothek in andere Karten setzen.</p>
-          <label>Animation<select value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
+          <label>Animation<select aria-label="Bewegungsanimation" value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
           <div class="field-row"><label>Tempo<input type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} onchange={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} onchange={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
           <button onclick={() => openMotion('selection')}>◆ Keyframe-Bewegung öffnen</button>
           <button onclick={() => { studio.selectedAssetId = selected.id === 'stage-note' ? 'zauberberg-note' : 'stage-lights'; studio.setTool('object'); }}>In dieser Karte frei platzieren</button>
         {:else}
-          <div class="empty-inspector"><span>↖</span><strong>Objekt auswählen</strong><p>Wähle ein Element im Canvas oder in der Liste. Das gilt auch für Musiknote und Bühnenlicht.</p></div>
+          <div class="empty-inspector"><span>↖</span><strong>Objekt auswählen</strong><p>Wähle ein Element im Canvas oder Szenenbaum. Das gilt auch für Musiknote und Bühnenlicht.</p></div>
         {/if}
       </aside>
+      {#if mobilePanel !== 'canvas'}<button class="mobile-panel-scrim" aria-label="Mobile Seitenleiste schließen" onclick={() => mobilePanel = 'canvas'}></button>{/if}
+      <MobileFocusTabs value={mobilePanel} options={[["scene", "☷", "Szene"], ["canvas", "▦", "Canvas"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />
     </div>
   {/if}
 </section>

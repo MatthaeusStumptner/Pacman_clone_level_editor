@@ -5,6 +5,7 @@ import { createStarterLevel, EditorState } from '../editor-state.js';
 import { floodFillPoints, linePoints, moveRectangle, previewGuttis, rectangleContains, rectanglePoints, scaleRectangle, transformHandleAt } from '../editor-tools.js';
 import { createFranzLolaAppearance } from '../character-template.js';
 import { ObjectLibrary, createBlankObjectAsset, placementFromAsset } from '../object-library.js';
+import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, workspaceForSelection } from '../scene-model.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const slug = (value, fallback = 'eintrag') => String(value || fallback)
@@ -24,6 +25,9 @@ export class StudioState {
   workspace = $state('level');
   level = $state.raw(null);
   selection = $state.raw(null);
+  selections = $state.raw([]);
+  hiddenSceneNodes = $state.raw(new Set());
+  sceneRevision = $state(0);
   tool = $state('select');
   difficulty = $state('easy');
   showGrid = $state(true);
@@ -49,6 +53,18 @@ export class StudioState {
   selectedAsset = $derived.by(() => this.assets.find((asset) => asset.id === this.selectedAssetId) ?? this.assets[0] ?? null);
   selectedEvent = $derived.by(() => this.level?.events.find((event) => event.id === this.selectedEventId) ?? null);
   selectedCutscene = $derived.by(() => this.level?.cutscenes.find((cutscene) => cutscene.id === this.selectedCutsceneId) ?? null);
+  selectionCount = $derived.by(() => this.selections.length);
+  editorLevel = $derived.by(() => {
+    this.sceneRevision;
+    if (!this.level) return null;
+    const visible = (kind, item, index) => !this.hiddenSceneNodes.has(sceneSelectionKey(this.level, { kind, index }));
+    return {
+      ...this.level,
+      actors: { ...this.level.actors, cats: this.level.actors.cats.filter((item, index) => visible('cat', item, index)) },
+      decorations: this.level.decorations.filter((item, index) => visible('decoration', item, index)),
+      events: this.level.events.filter((item, index) => visible('event', item, index)),
+    };
+  });
   selectedTrack = $derived.by(() => this.selectedCutscene?.tracks.find((track) => track.id === this.selectedTrackId) ?? null);
   selectedKeyframe = $derived.by(() => this.selectedTrack?.keyframes.find((frame) => frame.id === this.selectedKeyframeId) ?? null);
 
@@ -67,7 +83,10 @@ export class StudioState {
 
   sync({ save = true, preserveSelection = true } = {}) {
     this.level = this.engine.toDocument();
-    if (!preserveSelection || this.engine.selected) this.selection = clone(this.engine.selected);
+    if (!preserveSelection || this.engine.selected) {
+      this.selection = clone(this.engine.selected);
+      this.selections = this.selection ? [clone(this.selection)] : [];
+    }
     if (!this.level.events.some((event) => event.id === this.selectedEventId)) this.selectedEventId = this.level.events[0]?.id ?? '';
     if (!this.level.cutscenes.some((cutscene) => cutscene.id === this.selectedCutsceneId)) this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
     this.revision += 1;
@@ -103,6 +122,9 @@ export class StudioState {
   load(level, message = 'Level geladen') {
     this.engine = new EditorState(createLevelDocument(level));
     this.selection = null;
+    this.selections = [];
+    this.hiddenSceneNodes = new Set();
+    this.sceneRevision += 1;
     this.selectedEventId = this.engine.document.events[0]?.id ?? '';
     this.selectedCutsceneId = this.engine.document.cutscenes[0]?.id ?? '';
     this.selectedTrackId = '';
@@ -119,8 +141,6 @@ export class StudioState {
 
   setTool(tool) {
     this.tool = tool;
-    if (tool === 'object' || tool === 'transform') this.workspace = 'objects';
-    if (tool.startsWith('event')) this.workspace = 'events';
   }
 
   specialElementBounds(id) {
@@ -130,43 +150,84 @@ export class StudioState {
     return null;
   }
 
-  selectAt(point) {
-    const selected = this.engine.selectAt(point);
-    if (selected) {
-      this.selection = clone(selected);
-      this.workspace = selected.kind === 'player' || selected.kind === 'cat' ? 'characters' : 'objects';
-      return selected;
-    }
-    const eventIndex = this.level.events.findIndex((event) => Math.abs(event.visual.x - (point.x + 0.5)) <= 0.75 && Math.abs(event.visual.y - (point.y + 0.5)) <= 0.75);
-    if (eventIndex >= 0) {
-      this.selection = { kind: 'event', index: eventIndex };
-      this.selectedEventId = this.level.events[eventIndex].id;
-      this.workspace = 'events';
-      return this.selection;
-    }
-    const themeIndex = (this.level.theme.elements ?? []).findIndex((element) => {
-      const bounds = this.specialElementBounds(element.id);
-      return bounds && point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height;
-    });
-    this.selection = themeIndex >= 0 ? { kind: 'theme-element', index: themeIndex } : null;
-    if (themeIndex >= 0) this.workspace = 'objects';
-    return this.selection;
+  sceneGroups() { return buildSceneGroups(this.level); }
+  sceneKey(kind, index) { return sceneSelectionKey(this.level, { kind, index }); }
+  isSceneHidden(kind, index) { return this.hiddenSceneNodes.has(this.sceneKey(kind, index)); }
+  isSelected(kind, index) { const key = this.sceneKey(kind, index); return this.selections.some((selection) => sceneSelectionKey(this.level, selection) === key); }
+
+  clearSelection() {
+    this.selection = null;
+    this.selections = [];
+    this.engine.selected = null;
   }
 
-  selectedEntity() {
-    if (!this.selection) return null;
-    if (this.selection.kind === 'player') return this.level.actors.player;
-    if (this.selection.kind === 'cat') return this.level.actors.cats[this.selection.index] ?? null;
-    if (this.selection.kind === 'decoration') return this.level.decorations[this.selection.index] ?? null;
-    if (this.selection.kind === 'theme-element') return this.level.theme.elements?.[this.selection.index] ?? null;
-    if (this.selection.kind === 'event') return this.level.events[this.selection.index] ?? null;
-    return null;
+  selectAt(point, { cycle = false, additive = false } = {}) {
+    const candidates = sceneCandidatesAt(this.level, point, { hidden: this.hiddenSceneNodes, themeBounds: (id) => this.specialElementBounds(id) });
+    const selected = chooseSceneCandidate(this.level, candidates, this.selection, cycle);
+    if (selected) this.selectEntity(selected.kind, selected.index, { additive });
+    else if (!additive) this.clearSelection();
+    return selected;
   }
 
-  selectEntity(kind, index) {
-    this.selection = { kind, index };
-    this.engine.selected = ['player', 'cat', 'decoration'].includes(kind) ? { kind, index } : null;
+  selectedEntity(selection = this.selection) { return sceneEntity(this.level, selection); }
+
+  selectEntity(kind, index, { additive = false } = {}) {
+    const next = { kind, index };
+    if (!this.selectedEntity(next)) return;
+    const key = sceneSelectionKey(this.level, next);
+    if (additive) {
+      const existing = this.selections.findIndex((selection) => sceneSelectionKey(this.level, selection) === key);
+      const selections = existing >= 0 ? this.selections.filter((_, selectionIndex) => selectionIndex !== existing) : [...this.selections, next];
+      this.selections = selections.map(clone);
+      this.selection = clone(selections.at(-1) ?? null);
+    } else {
+      this.selection = next;
+      this.selections = [clone(next)];
+    }
+    this.engine.selected = this.selection && ['player', 'cat', 'decoration'].includes(this.selection.kind) ? clone(this.selection) : null;
     if (kind === 'event') this.selectedEventId = this.level.events[index]?.id ?? '';
+  }
+
+  openSelectionWorkspace() {
+    if (!this.selection) return;
+    this.workspace = workspaceForSelection(this.selection);
+  }
+
+  selectionLabel() {
+    if (!this.selection) return '';
+    const entity = this.selectedEntity();
+    if (this.selection.kind === 'player') return 'Franz & Lola';
+    if (this.selection.kind === 'cat') return `Katze ${this.selection.index + 1}`;
+    if (this.selection.kind === 'event') return entity?.name?.standard ?? 'Ereignis';
+    if (this.selection.kind === 'theme-element') return entity?.id === 'stage-note' ? 'Zauberberg-Note' : entity?.id === 'stage-lights' ? 'Bühnenlichter' : entity?.id ?? 'Theme-Element';
+    return entity?.name || entity?.content?.standard || entity?.label || entity?.type || 'Objekt';
+  }
+
+  toggleSceneVisibility(kind, index) {
+    if (kind === 'theme-element') return;
+    const key = this.sceneKey(kind, index); const hidden = new Set(this.hiddenSceneNodes);
+    if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
+    this.hiddenSceneNodes = hidden; this.sceneRevision += 1;
+  }
+
+  setSceneLocked(kind, index, locked) {
+    if (kind !== 'decoration') return;
+    const id = this.level.decorations[index]?.id; if (!id) return;
+    this.mutate(locked ? 'Objekt sperren' : 'Objekt entsperren', (draft) => {
+      const item = draft.document.decorations.find((entry) => entry.id === id); if (item) item.locked = locked;
+    }, { preserveSelection: true });
+  }
+
+  moveSceneNode(kind, index, direction) {
+    if (kind !== 'decoration') return;
+    const item = this.level.decorations[index]; const target = Math.max(0, Math.min(this.level.decorations.length - 1, index + direction));
+    if (!item || target === index) return;
+    this.mutate(direction > 0 ? 'Objekt nach vorne' : 'Objekt nach hinten', (draft) => {
+      const current = draft.document.decorations.findIndex((entry) => entry.id === item.id);
+      const [moved] = draft.document.decorations.splice(current, 1); draft.document.decorations.splice(target, 0, moved);
+    }, { preserveSelection: true });
+    const nextIndex = this.level.decorations.findIndex((entry) => entry.id === item.id);
+    this.selectEntity('decoration', nextIndex);
   }
 
   transformSelection() {
@@ -198,9 +259,9 @@ export class StudioState {
     this.cursor = null;
   }
 
-  pointerDown(point, pointerId, erase = false, precisePoint = point) {
+  pointerDown(point, pointerId, erase = false, precisePoint = point, modifiers = {}) {
     const mode = erase ? 'erase' : this.tool;
-    if (mode === 'select') { this.selectAt(point); return; }
+    if (mode === 'select') { this.selectAt(point, modifiers); return; }
     if (mode === 'transform') { this.beginTransform(precisePoint, pointerId); return; }
     if (mode === 'wall' || mode === 'erase') {
       this.engine.beginTransaction(mode === 'wall' ? 'Wände zeichnen' : 'Wände radieren');
@@ -277,12 +338,18 @@ export class StudioState {
   leaveCanvas() { if (!this.gesture) { this.cursor = null; this.cursorCopy = 'Feld —'; } }
 
   deleteSelection() {
-    if (!this.selection) return;
-    if (['cat', 'decoration'].includes(this.selection.kind)) {
-      this.engine.selected = clone(this.selection);
-      this.engine.beginTransaction('Element löschen'); this.engine.deleteSelected(); this.engine.endTransaction();
-      this.selection = null; this.sync({ preserveSelection: false });
-    }
+    const selected = this.selections.length ? this.selections : this.selection ? [this.selection] : [];
+    const cats = selected.filter((entry) => entry.kind === 'cat').map((entry) => entry.index).sort((a, b) => b - a);
+    const decorations = selected.filter((entry) => entry.kind === 'decoration').map((entry) => entry.index).sort((a, b) => b - a);
+    const events = selected.filter((entry) => entry.kind === 'event').map((entry) => entry.index).sort((a, b) => b - a);
+    if (!cats.length && !decorations.length && !events.length) return;
+    this.engine.selected = null;
+    this.mutate(selected.length > 1 ? 'Elemente löschen' : 'Element löschen', (draft) => {
+      cats.forEach((index) => draft.document.actors.cats.splice(index, 1));
+      decorations.forEach((index) => draft.document.decorations.splice(index, 1));
+      events.forEach((index) => draft.document.events.splice(index, 1));
+    }, { preserveSelection: false });
+    this.clearSelection();
   }
 
   updateSelected(path, value, label = 'Objekt bearbeiten') {

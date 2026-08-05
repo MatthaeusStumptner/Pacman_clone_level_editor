@@ -58,10 +58,15 @@
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? studio.redo() : studio.undo(); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); studio.redo(); return; }
     if (editing || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === 'Escape') { event.preventDefault(); studio.clearSelection(); return; }
     const tools = { v: 'select', m: 'transform', b: 'wall', l: 'line', r: 'rectangle', f: 'fill', e: 'erase', p: 'player', k: 'cat', g: 'power', o: 'object', i: 'event-visual' };
     const tool = tools[event.key.toLowerCase()];
-    if (tool) { event.preventDefault(); studio.setTool(tool); }
-    if (event.key === 'Delete' || event.key === 'Backspace') studio.deleteSelection();
+    if (tool) {
+      event.preventDefault(); studio.setTool(tool);
+      if (tool === 'object') studio.workspace = 'objects';
+      if (tool === 'event-visual') studio.workspace = 'events';
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); studio.deleteSelection(); }
   }
 
   onMount(() => {

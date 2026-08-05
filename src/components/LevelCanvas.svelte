@@ -12,6 +12,7 @@
   function selectionCursor() {
     const selection = studio.selection;
     if (!selection) return null;
+    if (studio.isSceneHidden(selection.kind, selection.index)) return null;
     if (selection.kind === 'player') return { x: studio.level.actors.player.x, y: studio.level.actors.player.y, color: 'rgba(245,197,77,.46)' };
     if (selection.kind === 'cat') { const cat = studio.level.actors.cats[selection.index]; return cat ? { x: cat.x, y: cat.y, color: 'rgba(245,197,77,.46)' } : null; }
     if (selection.kind === 'decoration') { const item = studio.level.decorations[selection.index]; return item && studio.tool !== 'transform' ? { x: item.x, y: item.y, width: item.width, height: item.height, color: 'rgba(245,197,77,.32)' } : null; }
@@ -22,10 +23,11 @@
 
   function draw(timestamp = performance.now()) {
     if (!renderer || !studio.level) return;
-    const level = studio.level;
+    const level = studio.editorLevel;
     const pellets = studio.showGuttis ? studio.pellets : new Set();
     const powerUps = new Set(level.collectibles.powerUps.map((point) => tileKey(point.x, point.y)));
-    renderResult = renderer.render({ level, player: level.actors.player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, {
+    const player = studio.isSceneHidden('player', 0) ? { ...level.actors.player, x: -100, y: -100 } : level.actors.player;
+    renderResult = renderer.render({ level, player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, {
       cameraEnabled: false,
       language: studio.language,
       editor: { showGrid: studio.showGrid, showEvents: studio.showEvents, showEventZones: studio.showEvents, cursor: studio.cursor ?? selectionCursor(), transformSelection: studio.tool === 'transform' ? studio.transformSelection() : null },
@@ -53,7 +55,7 @@
     if (event.button !== 0 && event.button !== 2) return;
     event.preventDefault();
     canvas.setPointerCapture?.(event.pointerId);
-    studio.pointerDown(pointFromEvent(event), event.pointerId, event.button === 2, precisePointFromEvent(event));
+    studio.pointerDown(pointFromEvent(event), event.pointerId, event.button === 2, precisePointFromEvent(event), { cycle: event.altKey, additive: event.shiftKey });
   }
 
   function pointerMove(event) { studio.pointerMove(pointFromEvent(event), event.pointerId, precisePointFromEvent(event)); }
@@ -62,17 +64,24 @@
     if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   }
 
+  function doubleClick(event) {
+    if (studio.tool !== 'select') return;
+    event.preventDefault();
+    studio.selectAt(pointFromEvent(event));
+    studio.openSelectionWorkspace();
+  }
+
   onMount(() => {
     renderer = new PassauPixelRenderer(canvas, { zoom: 1 });
-    renderer.setLevel(studio.level);
+    renderer.setLevel(studio.editorLevel);
     animationFrame = requestAnimationFrame(animate);
     const resize = new ResizeObserver(() => draw()); resize.observe(canvas);
     return () => { cancelAnimationFrame(animationFrame); resize.disconnect(); };
   });
 
   $effect(() => {
-    studio.revision; studio.showGrid; studio.showGuttis; studio.showEvents; studio.difficulty; studio.selection; studio.cursor;
-    if (renderer && studio.level) { renderer.setLevel(studio.level); draw(); }
+    studio.revision; studio.sceneRevision; studio.showGrid; studio.showGuttis; studio.showEvents; studio.difficulty; studio.selection; studio.cursor;
+    if (renderer && studio.editorLevel) { renderer.setLevel(studio.editorLevel); draw(); }
   });
 </script>
 
@@ -88,5 +97,7 @@
     onpointercancel={pointerUp}
     onpointerleave={() => studio.leaveCanvas()}
     oncontextmenu={(event) => event.preventDefault()}
+    ondblclick={doubleClick}
+    data-selection-count={studio.selectionCount}
   ></canvas>
 </div>
