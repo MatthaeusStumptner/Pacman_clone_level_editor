@@ -14,8 +14,8 @@ function decoration(assetId, id, x, y, overrides = {}) {
   };
 }
 
-function textBlock(id, x, y, width, standard, dialect, color = '#f5e7bd') {
-  return decoration('text-block', id, x, y, { width, content: localized(standard, dialect), color, textStyle: { ...asset('text-block').textStyle, backgroundOpacity: 0, borderOpacity: 0 } });
+function textBlock(id, x, y, width, standard, dialect, color = '#f5e7bd', overrides = {}) {
+  return decoration('text-block', id, x, y, { width, content: localized(standard, dialect), color, textStyle: { ...asset('text-block').textStyle, backgroundOpacity: 0, borderOpacity: 0 }, ...overrides });
 }
 
 function eventFromAsset({ id, name, dialectName, message, dialectMessage, assetId, trigger, reward = 120, scope = 'level', x = 12.5, y = 18.5 }) {
@@ -97,7 +97,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
   const p = player;
   const stories = {
     home: {
-      decorations: [decoration('brahmahof-mailbox', 'briefkasten-30', 15, 16), textBlock('adresse-bramerhof', 7, 3, 11, 'Am Bramerhof 30', 'Am Bramerhof 30')],
+      decorations: [decoration('brahmahof-mailbox', 'briefkasten-30', 15, 16), textBlock('adresse-bramerhof', 7, 3, 11, 'Am Bramerhof 30', 'Am Bramerhof 30'), textBlock('kulisse-hundewiese', 10, 9.5, 5, 'HUNDEWIESE', 'HUNDEWIESE', '#8fcfa8', { height: 1 }), textBlock('hausname-franz-lola', 9, 6.3, 7, 'FRANZ & LOLA', 'FRANZ & LOLA', '#f5e7bd', { height: 1 })],
       event: eventFromAsset({ id: 'post-fuer-franz', name: 'Geburtstagspost', dialectName: 'Geburtstagspost', message: 'Im Briefkasten wartet Geburtstagspost für Franz.', dialectMessage: 'Im Briefkastl wart a Geburtstagspost aufn Franz.', assetId: 'brahmahof-mailbox', trigger: { type: 'zone', zones: [{ x: 14, y: 16, width: 3, height: 3 }] }, reward: 130, x: 15.5, y: 16.5 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Aufbruch am Bramerhof', 'Aufbruch am Bramerhof'), duration: 4, skippable: true, tracks: [
         camera([cam('haus', 0, 12, 8, 1.45), cam('start', 4, p.x, p.y, 1.12)]),
@@ -107,7 +107,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     hals: {
-      decorations: [decoration('river-spark', 'ilz-funkeln', 1, 10), textBlock('hals-schild', 8, 3, 9, 'Hals · an der Ilz', 'Hals · an da Ilz', '#b7eef0')],
+      decorations: [decoration('river-spark', 'ilz-funkeln', 1, 10), textBlock('hals-schild', 8, 3, 9, 'Hals · an der Ilz', 'Hals · an da Ilz', '#b7eef0'), textBlock('kulisse-hundewiese', 10, 9.5, 5, 'HUNDEWIESE', 'HUNDEWIESE', '#77a888', { height: 1 })],
       event: eventFromAsset({ id: 'ilzrauschen', name: 'Das Rauschen der Ilz', dialectName: 'S Rauschn vo da Ilz', message: 'Die Ilz erzählt heute besonders laut von Hals.', dialectMessage: 'D Ilz vazählt heid bsonders laut vom Hois.', assetId: 'river-spark', trigger: { type: 'time', seconds: 18 }, reward: 110, x: 1.5, y: 10.5 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Entlang der Ilz', 'Entlang vo da Ilz'), duration: 5.2, skippable: true, tracks: [
         camera([cam('fluss', 0, 1.5, 11, 1.6), cam('hals', 2.5, 12, 9, 1.28), cam('gassi', 5.2, p.x, p.y, 1.12)]),
@@ -117,7 +117,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     bschuett: {
-      decorations: [decoration('bench', 'bschuett-bank', 6, 15), textBlock('park-regel', 8, 4, 9, 'Skaten · Spielen · Gassi', 'Skaten · Spuin · Gassi', '#8fcfa8')],
+      decorations: [decoration('bench', 'bschuett-bank', 6, 15), textBlock('park-regel', 8, 4, 9, 'Skaten · Spielen · Gassi', 'Skaten · Spuin · Gassi', '#8fcfa8'), textBlock('kulisse-bschuett', 8, 8.7, 9, 'BSCHÜTT · SKATE & SPIEL', 'BSCHÜTT · SKATE & SPIEL', '#8fcfa8', { height: 1 })],
       event: eventFromAsset({ id: 'lolas-stockerl', name: 'Lolas Superstöckchen', dialectName: 'D Lolas Supersteckerl', message: 'Lola hat das beste Stöckchen im ganzen Bschüttpark gefunden.', dialectMessage: 'D Lola hod s beste Steckerl im ganzen Bschüttpark gfundn.', assetId: 'lola-stick', trigger: { type: 'direction-sequence', sequence: ['left', 'right', 'left', 'right', 'up'] }, reward: 140, x: 7, y: 15.5 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Runde durch den Bschüttpark', 'Rundn durch an Bschüttpark'), duration: 4.8, skippable: true, tracks: [
         camera([cam('park', 0, 12, 12, 1.38), cam('bank', 2, 7, 15, 1.42), cam('start', 4.8, p.x, p.y, 1.12)]),
@@ -127,7 +127,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     dom: {
-      decorations: [decoration('cathedral-bell', 'domglocke-objekt', 11, 3), textBlock('dom-tafel', 7, 6, 11, 'Dom St. Stephan', 'Dom St. Stephan', '#f1d05c')],
+      decorations: [decoration('cathedral-bell', 'domglocke-objekt', 11, 3), textBlock('dom-tafel', 7, 6, 11, 'Dom St. Stephan', 'Dom St. Stephan', '#f1d05c'), textBlock('kulisse-hundewiese', 10, 9.5, 5, 'HUNDEWIESE', 'HUNDEWIESE', '#77a888', { height: 1 })],
       event: eventFromAsset({ id: 'orgelakkord', name: 'Der große Orgelakkord', dialectName: 'Da große Orgelakkord', message: 'Ein tiefer Akkord rollt über den Domplatz.', dialectMessage: 'A tiafa Akkord rollt üban Domplatz.', assetId: 'cathedral-bell', trigger: { type: 'time', seconds: 12 }, reward: 180, x: 12, y: 4 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Glocken über Passau', 'Glockn über Passau'), duration: 5.6, skippable: true, tracks: [
         camera([cam('turm', 0, 12, 2, 1.72), cam('glocke', 1.8, 12, 4, 1.52), cam('platz', 3.8, 12, 14, 1.25), cam('start', 5.6, p.x, p.y, 1.12)]),
@@ -137,7 +137,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     dreifluesseeck: {
-      decorations: [decoration('river-spark', 'drei-fluesse-funkeln', 21, 10), textBlock('flussnamen', 6, 3, 13, 'Donau · Inn · Ilz', 'Donau · Inn · Ilz', '#8ce5ec')],
+      decorations: [decoration('river-spark', 'drei-fluesse-funkeln', 21, 10), textBlock('flussnamen', 6, 3, 13, 'Donau · Inn · Ilz', 'Donau · Inn · Ilz', '#8ce5ec'), textBlock('kulisse-hundewiese', 10, 9.5, 5, 'HUNDEWIESE', 'HUNDEWIESE', '#77a888', { height: 1 })],
       event: eventFromAsset({ id: 'dreiklang-der-fluesse', name: 'Dreiklang der Flüsse', dialectName: 'Dreiklang vo de Fliss', message: 'Inn, Ilz und Donau funkeln gleichzeitig.', dialectMessage: 'Inn, Ilz und Donau funkeln olle drei auf amoi.', assetId: 'river-spark', trigger: { type: 'zone', zones: [{ x: 20, y: 9, width: 3, height: 3 }] }, reward: 210, x: 21.5, y: 10.5 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Drei Flüsse, eine Runde', 'Drei Fliss, oane Rundn'), duration: 6.4, skippable: true, tracks: [
         camera([cam('donau', 0, 2, 7, 1.52), cam('inn', 1.5, 8, 22, 1.45), cam('ilz', 3, 22, 9, 1.5), cam('mitte', 4.6, 12, 12, 1.23), cam('start', 6.4, p.x, p.y, 1.12)]),
@@ -147,7 +147,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     oberhaus: {
-      decorations: [decoration('oberhaus-flag', 'oberhaus-fahne', 17, 4), textBlock('oberhaus-banner', 7, 7, 11, 'Veste Oberhaus', 'Veste Oberhaus', '#f1d05c')],
+      decorations: [decoration('oberhaus-flag', 'oberhaus-fahne', 17, 4), textBlock('oberhaus-banner', 7, 7, 11, 'Veste Oberhaus', 'Veste Oberhaus', '#f1d05c'), textBlock('kulisse-hundewiese', 10, 9.5, 5, 'HUNDEWIESE', 'HUNDEWIESE', '#77a888', { height: 1 })],
       event: eventFromAsset({ id: 'goldener-ausblick', name: 'Goldener Passau-Blick', dialectName: 'Goldana Passau-Blick', message: 'Von hier oben leuchtet ganz Passau.', dialectMessage: 'Vo do herob leucht ganz Passau.', assetId: 'oberhaus-flag', trigger: { type: 'direction-sequence', sequence: ['up', 'up', 'up', 'right', 'left'] }, reward: 190, x: 18, y: 5 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Hinauf zur Veste', 'Auffi zur Veste'), duration: 5, skippable: true, tracks: [
         camera([cam('stadt', 0, 12, 21, 1.4), cam('aufstieg', 2.2, 15, 11, 1.35), cam('fahne', 3.5, 18, 5, 1.55), cam('start', 5, p.x, p.y, 1.12)]),
@@ -157,7 +157,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     uni: {
-      decorations: [decoration('university-book', 'uni-buch', 15, 12), textBlock('campus-tafel', 7, 4, 11, 'Campus an der Innstraße', 'Campus an da Innstraßn', '#b7eef0')],
+      decorations: [decoration('university-book', 'uni-buch', 15, 12), textBlock('campus-tafel', 7, 4, 11, 'Campus an der Innstraße', 'Campus an da Innstraßn', '#b7eef0'), textBlock('kulisse-hundewiese', 10, 9.5, 5, 'HUNDEWIESE', 'HUNDEWIESE', '#77a888', { height: 1 })],
       event: eventFromAsset({ id: 'pruefungs-gutti', name: 'Das Prüfungs-Gutti', dialectName: 'S Prüfungs-Gutti', message: 'Dieses Gutti besteht jede Prüfung mit Auszeichnung.', dialectMessage: 'Des Gutti besteht a jede Prüfung mit Auszeichnung.', assetId: 'university-book', trigger: { type: 'zone', zones: [{ x: 14, y: 11, width: 3, height: 3 }] }, reward: 160, x: 16, y: 13 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Kurze Vorlesung für Lola', 'A kurze Vorlesung für d Lola'), duration: 4.3, skippable: true, tracks: [
         camera([cam('campus', 0, 12, 8, 1.32), cam('buch', 1.6, 16, 13, 1.58), cam('start', 4.3, p.x, p.y, 1.12)]),
@@ -167,7 +167,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     tabakfabrik: {
-      decorations: [decoration('factory-steam', 'fabrikdampf', 6, 3), textBlock('fabrik-tafel', 7, 8, 11, 'Kultur in der Tabakfabrik', 'Kultur in da Tabakfabrik', '#f0d0a0')],
+      decorations: [decoration('factory-steam', 'fabrikdampf', 6, 3), textBlock('fabrik-tafel', 7, 8, 11, 'Kultur in der Tabakfabrik', 'Kultur in da Tabakfabrik', '#f0d0a0'), textBlock('kulisse-tabakfabrik', 9, 6.05, 7, 'TABAKFABRIK', 'TABAKFABRIK', '#f0d0a0', { height: 1 })],
       event: eventFromAsset({ id: 'dampfzeichen', name: 'Das alte Dampfzeichen', dialectName: 'S oide Dampfzeichen', message: 'Über dem Schornstein erscheint ein kleines Dampfzeichen.', dialectMessage: 'Überm Kamin kimmt a kloans Dampfzeichen.', assetId: 'factory-steam', trigger: { type: 'time', seconds: 15 }, reward: 150, x: 7, y: 4 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Die Fabrik erwacht', 'D Fabrik wacht auf'), duration: 5.8, skippable: true, tracks: [
         camera([cam('schornstein', 0, 7, 3, 1.62), cam('fassade', 2, 12, 9, 1.36), cam('tor', 4, 12, 16, 1.28), cam('start', 5.8, p.x, p.y, 1.12)]),
@@ -178,7 +178,7 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     zauberberg: {
-      decorations: [decoration('zauberberg-note', 'zauberberg-note-frei', 11, 8), decoration('concert-speaker', 'zauberberg-box', 17, 11), textBlock('konzertplakat', 7, 3, 11, 'ROCK · PUNK · METAL', 'ROCK · PUNK · METAL', '#ffb4d0')],
+      decorations: [decoration('zauberberg-note', 'zauberberg-note-frei', 11, 8), decoration('zauberberg-note', 'zauberberg-buehnen-note', 12, 7.25, { name: 'Bühnen-Note', width: 1, height: 1.5 }), decoration('concert-speaker', 'zauberberg-box', 17, 11), textBlock('zauberberg-titel', 8, 5.15, 9, 'ZAUBERBERG', 'ZAUBERBERG', '#ff5d93', { height: 1 }), textBlock('konzertplakat', 7, 6.15, 11, 'ROCK · PUNK · METAL', 'ROCK · PUNK · METAL', '#f1e0b7', { height: 1 })],
       event: eventFromAsset({ id: 'zugabe', name: 'Zauberberg-Zugabe', dialectName: 'Zauberberg-Zuagab', message: 'Die Bühne spielt eine Zugabe nur für Franz und Lola.', dialectMessage: 'D Bühn spuit a Zuagab bloß fürn Franz und d Lola.', assetId: 'zauberberg-note', trigger: { type: 'direction-sequence', sequence: ['up', 'up', 'down', 'left', 'right'] }, reward: 260, x: 12, y: 9 }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Soundcheck am Zauberberg', 'Soundcheck am Zauberberg'), duration: 7.2, skippable: true, tracks: [
         camera([cam('dunkel', 0, 12, 15, 1.05), cam('licht-links', 1.2, 8, 8, 1.48), cam('licht-rechts', 2.4, 17, 8, 1.48), cam('note', 3.8, 12, 9, 1.7), cam('band', 5.4, 12, 13, 1.3), cam('start', 7.2, p.x, p.y, 1.12)]),

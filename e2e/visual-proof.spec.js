@@ -134,3 +134,28 @@ test('Alle neun angepassten Cutscenes spielen in steigender Komplexität @visual
   }
   await page.screenshot({ path: 'output/playwright/cutscenes-alle-level.png' });
 });
+
+test('Individuelle Wandstile und saubere Glitch-Effekte sind direkt sichtbar @visual', async ({ page }) => {
+  await openCleanEditor(page);
+  await loadTemplate(page, 'hals');
+  await page.locator('[data-workspace="level"]').click();
+  await page.locator('[data-tool="select"]').click();
+  const wall = await canvasPoint(page, 3, 3);
+  await page.mouse.click(wall.x, wall.y);
+  await page.getByLabel('Wand Muster').selectOption('brick');
+  await page.getByLabel('Themefarbe für Wand').uncheck();
+  await page.getByLabel('Wand Eigenfarbe').fill('#a14f3f');
+  await page.locator('.wall-instance-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
+  await expect(page.locator('.wall-instance-inspector [data-effect-type="glitch"]')).toHaveCount(1);
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'output/playwright/wand-instanz-glitch-sauber.png' });
+
+  await loadTemplate(page, 'zauberberg');
+  await page.locator('[data-workspace="objects"]').click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await expect(page.locator('[data-scene-key="decoration:zauberberg-note-frei"]')).toBeVisible();
+  await expect(page.locator('[data-scene-key="decoration:zauberberg-buehnen-note"]')).toBeVisible();
+  await expect(page.locator('[data-scene-key="theme-element:stage-note"]')).toHaveCount(0);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'output/playwright/zauberberg-editierbare-elemente.png' });
+});

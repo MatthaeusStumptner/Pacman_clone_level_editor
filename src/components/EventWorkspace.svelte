@@ -46,6 +46,7 @@
         <div class="field-row"><label>Farbe<input type="color" value={event.visual.color} onchange={(input) => studio.updateEvent(['visual', 'color'], input.currentTarget.value)} /></label><label>Akzent<input type="color" value={event.visual.accent} onchange={(input) => studio.updateEvent(['visual', 'accent'], input.currentTarget.value)} /></label></div>
         <label>Freies Symbol<input value={event.visual.label} maxlength="8" onchange={(input) => studio.updateEvent(['visual', 'label'], input.currentTarget.value)} /></label>
         <VisualEffectsEditor effects={event.visual.effects ?? []} title="Ereigniseffekte" onchange={(effects) => studio.updateEvent(['visual', 'effects'], effects)} />
+        {#if event.visual.type === 'none'}<button onclick={() => studio.updateEvent(['visual', 'type'], 'custom')}>Symbol wieder einblenden</button>{:else}<button class="danger subtle" onclick={() => studio.updateEvent(['visual', 'type'], 'none')}>Nur Ereignissymbol aus dem Level entfernen</button>{/if}
         <button class="danger" onclick={() => studio.deleteEvent()}>Ereignis löschen</button>
       {:else}<div class="empty-inspector"><span>!</span><strong>Ereignis auswählen</strong><p>Oder lege ein neues Ereignis an.</p></div>{/if}
     </aside>

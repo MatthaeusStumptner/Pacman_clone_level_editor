@@ -3,10 +3,13 @@
   import MobileFocusTabs from './MobileFocusTabs.svelte';
   import SceneTree from './SceneTree.svelte';
   import SelectionSummary from './SelectionSummary.svelte';
+  import VisualEffectsEditor from './VisualEffectsEditor.svelte';
 
   let { studio } = $props();
   let sidebarMode = $state('tools');
   let mobilePanel = $state('canvas');
+  let selectedWall = $derived(studio.selection?.kind === 'wall' ? studio.level.board.walls[studio.selection.index] : null);
+  let selectedWallCount = $derived(studio.selections.filter((selection) => selection.kind === 'wall').length);
   const tools = [
     ['select', '↖', 'Auswahl', 'V'], ['transform', '↔', 'Bewegen', 'M'], ['wall', '▦', 'Stift', 'B'], ['line', '╱', 'Linie', 'L'], ['rectangle', '▰', 'Rechteck', 'R'], ['fill', '◩', 'Füllen', 'F'], ['erase', '◇', 'Radierer', 'E'],
     ['player', '●', 'Start', 'P'], ['cat', '◆', 'Katze', 'K'], ['power', '✦', 'Power', 'G'],
@@ -55,6 +58,21 @@
 
     <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">
       <SelectionSummary {studio} />
+      {#if selectedWall}
+        <section class="wall-instance-inspector" aria-label="Ausgewählte Wand bearbeiten">
+          <div class="property-section"><span class="section-number">WALL</span><h3>{selectedWallCount > 1 ? selectedWallCount + ' Wände' : selectedWall.name || 'Wand ' + (studio.selection.index + 1)}</h3></div>
+          <p class="hint">Diese Werte gelten für die platzierte Instanz. Stiländerungen werden auf alle ausgewählten Wände angewendet.</p>
+          <div class="field-row"><label>ID<input value={selectedWall.id || 'wall-' + (studio.selection.index + 1)} onchange={(event) => studio.updateSelected(['id'], event.currentTarget.value)} /></label><label>Name<input value={selectedWall.name || 'Wand ' + (studio.selection.index + 1)} onchange={(event) => studio.updateSelected(['name'], event.currentTarget.value)} /></label></div>
+          <div class="field-row"><label>X<input aria-label="Wand X" type="number" min="0" max={studio.level.board.columns - 1} value={selectedWall.x} onchange={(event) => studio.updateSelected(['x'], number(event))} /></label><label>Y<input aria-label="Wand Y" type="number" min="0" max={studio.level.board.rows - 1} value={selectedWall.y} onchange={(event) => studio.updateSelected(['y'], number(event))} /></label></div>
+          <div class="field-row"><label>Breite<input aria-label="Wand Breite" type="number" min="1" max={studio.level.board.columns} value={selectedWall.width} onchange={(event) => studio.updateSelected(['width'], number(event))} /></label><label>Höhe<input aria-label="Wand Höhe" type="number" min="1" max={studio.level.board.rows} value={selectedWall.height} onchange={(event) => studio.updateSelected(['height'], number(event))} /></label></div>
+          <label class="switch"><input aria-label="Themefarbe für Wand" type="checkbox" checked={selectedWall.useThemeColor !== false} onchange={(event) => studio.updateSelectedWalls(['useThemeColor'], event.currentTarget.checked)} /><span>Farbe aus dem Level-Theme verwenden</span></label>
+          <div class="field-row"><label>Eigenfarbe<input aria-label="Wand Eigenfarbe" type="color" value={selectedWall.color || studio.level.theme.palette.walls[0]} onchange={(event) => studio.updateSelectedWalls(['color'], event.currentTarget.value)} /></label><label>Akzent<input aria-label="Wand Akzent" type="color" value={selectedWall.accent || '#48707a'} onchange={(event) => studio.updateSelectedWalls(['accent'], event.currentTarget.value)} /></label></div>
+          <label>Muster<select aria-label="Wand Muster" value={selectedWall.pattern || 'theme'} onchange={(event) => studio.updateSelectedWalls(['pattern'], event.currentTarget.value)}><option value="theme">Theme-Details</option><option value="solid">Glatt</option><option value="brick">Backstein</option><option value="metal">Metall</option><option value="windows">Fenster</option></select></label>
+          <label>Deckkraft<input aria-label="Wand Deckkraft" type="range" min="0.15" max="1" step="0.05" value={selectedWall.opacity ?? 1} oninput={(event) => studio.updateSelectedWalls(['opacity'], number(event))} /><output>{Math.round((selectedWall.opacity ?? 1) * 100)}%</output></label>
+          <VisualEffectsEditor effects={selectedWall.effects ?? []} title="Wand-Effekte" onchange={(effects) => studio.updateSelectedWalls(['effects'], effects)} />
+          <button class="danger" onclick={() => studio.deleteSelection()}>{selectedWallCount > 1 ? selectedWallCount + ' Wände löschen' : 'Wand löschen'}</button>
+        </section>
+      {/if}
       <div class="property-section"><span class="section-number">01</span><h3>Identität</h3></div>
       <label>ID<input id="level-id" value={studio.level.id} onchange={(event) => studio.update(['id'], event.currentTarget.value)} /></label>
       <label>Name<input id="level-name" value={studio.level.name.standard} onchange={(event) => studio.update(['name', 'standard'], event.currentTarget.value)} /></label>

@@ -81,17 +81,17 @@ test('URL router restores level, discipline and selection with browser history',
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="objects"]').click();
-  await page.locator('[data-scene-key="theme-element:stage-note"] .scene-node-main').click();
+  await page.locator('[data-scene-key="theme-element:stage-lights"] .scene-node-main').click();
   await expect.poll(() => new URL(page.url()).searchParams.get('workspace')).toBe('objects');
-  await expect.poll(() => new URL(page.url()).searchParams.get('selection')).toBe('theme-element:stage-note');
+  await expect.poll(() => new URL(page.url()).searchParams.get('selection')).toBe('theme-element:stage-lights');
   await page.locator('[data-workspace="characters"]').click();
   await expect.poll(() => new URL(page.url()).searchParams.get('workspace')).toBe('characters');
   await page.goBack();
   await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
+  await expect(page.locator('.object-inspector')).toContainText('Bühnenlichter');
   await page.reload();
   await expect(page.locator('.document-identity')).toHaveAttribute('data-level-id', 'zauberberg');
-  await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
+  await expect(page.locator('.object-inspector')).toContainText('Bühnenlichter');
   await expect(page).toHaveTitle(/Zauberberg.*Objekte.*Franz & Lola Studio/);
   expect(errors).toEqual([]);
 });
@@ -188,7 +188,7 @@ test('scene tree searches, filters, multi-selects, hides, locks and reorders sta
   await expect(tree.locator('.scene-node')).toHaveCount(1);
   await tree.getByLabel('Szenenbaum durchsuchen').fill('');
   await tree.getByLabel('Elementtyp filtern').selectOption('objects');
-  await expect(tree.locator('.scene-node')).toHaveCount(3);
+  await expect(tree.locator('.scene-node')).toHaveCount(5);
   await tree.getByLabel('Elementtyp filtern').selectOption('all');
 
   const note = tree.locator('[data-scene-key="decoration:zauberberg-note-frei"]');
@@ -215,6 +215,44 @@ test('scene tree searches, filters, multi-selects, hides, locks and reorders sta
   expect(errors).toEqual([]);
 });
 
+test('placed wall blocks are selectable, individually editable and route-persistent', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'hals');
+  await page.locator('[data-workspace="level"]').click();
+  await page.locator('[data-tool="select"]').click();
+  const wall = await canvasPoint(page, 3, 3);
+  await page.mouse.click(wall.x, wall.y);
+  await expect(page.locator('.selection-summary')).toContainText(/Wand 1|Wandblock/);
+  await expect(page.getByLabel('Ausgewählte Wand bearbeiten')).toBeVisible();
+  await page.getByLabel('Wand Muster').selectOption('brick');
+  await page.getByLabel('Themefarbe für Wand').uncheck();
+  await page.getByLabel('Wand Eigenfarbe').fill('#a14f3f');
+  await expect.poll(() => new URL(page.url()).searchParams.get('selection')).toMatch(/^wall:/);
+  await page.waitForTimeout(250);
+  await page.reload();
+  await expect(page.getByLabel('Ausgewählte Wand bearbeiten')).toBeVisible();
+  await expect(page.getByLabel('Wand Muster')).toHaveValue('brick');
+  await expect(page.getByLabel('Themefarbe für Wand')).not.toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('all Zauberberg notes can be removed through their owning document systems', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await page.locator('[data-workspace="objects"]').click();
+  await openSceneTree(page);
+  const tree = page.locator('.scene-tree');
+  await expect(tree.locator('[data-scene-key="decoration:zauberberg-note-frei"]')).toBeVisible();
+  await expect(tree.locator('[data-scene-key="decoration:zauberberg-buehnen-note"]')).toBeVisible();
+  await tree.locator('[data-scene-key="decoration:zauberberg-buehnen-note"] .scene-node-main').click();
+  await page.keyboard.press('Delete');
+  await expect(tree.locator('[data-scene-key="decoration:zauberberg-buehnen-note"]')).toHaveCount(0);
+  await page.locator('[data-workspace="events"]').click();
+  await page.locator('.event-browser button').filter({ hasText: 'Zauberberg-Zugabe' }).click();
+  await page.getByRole('button', { name: 'Nur Ereignissymbol aus dem Level entfernen' }).click();
+  await expect(page.locator('.property-panel').getByLabel('Symboltyp')).toHaveValue('none');
+  expect(errors).toEqual([]);
+});
 test('universal objects can be created as pixel assets and placed into any map', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await page.locator('[data-workspace="objects"]').click();

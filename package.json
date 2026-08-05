@@ -14,7 +14,7 @@
     "test:all": "npm test && npm run test:e2e && npm run build"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#09fc80f",
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#d7596ef",
     "svelte": "^5.56.8"
   },
   "devDependencies": {

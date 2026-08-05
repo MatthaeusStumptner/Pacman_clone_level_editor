@@ -13,6 +13,17 @@ const expected = [
 const expectedEvents = {
   home: ['ilzvogel', 'hundewiese', 'post-fuer-franz'], hals: ['ilzvogel', 'ilzrauschen'], oberhaus: ['kirchenglockn', 'goldener-ausblick'], dom: ['kirchenglockn', 'orgelakkord'], dreifluesseeck: ['ilzvogel', 'dreiklang-der-fluesse'], uni: ['pruefungs-gutti'], bschuett: ['ilzvogel', 'hundewiese', 'lolas-stockerl'], tabakfabrik: ['dampfzeichen'], zauberberg: ['zugabe'],
 };
+const bakedLabels = {
+  home: ['HUNDEWIESE', 'FRANZ & LOLA'],
+  hals: ['HUNDEWIESE'],
+  oberhaus: ['HUNDEWIESE'],
+  dom: ['HUNDEWIESE'],
+  dreifluesseeck: ['HUNDEWIESE'],
+  uni: ['HUNDEWIESE'],
+  bschuett: ['BSCHÜTT · SKATE & SPIEL'],
+  tabakfabrik: ['TABAKFABRIK'],
+  zauberberg: ['ZAUBERBERG', 'ROCK · PUNK · METAL'],
+};
 const expectedStories = {
   home: ['post-fuer-franz', 'Aufbruch am Bramerhof', 4, 8], hals: ['ilzrauschen', 'Entlang der Ilz', 4, 10],
   oberhaus: ['goldener-ausblick', 'Hinauf zur Veste', 4, 12], dom: ['orgelakkord', 'Glocken über Passau', 4, 12],
@@ -97,4 +108,28 @@ test('catalog lookup returns safe clones and search understands place, mission a
   assert.deepEqual(searchCatalog('tabak').map((level) => level.id), ['tabakfabrik']);
   assert.deepEqual(searchCatalog('Bschütt').map((level) => level.id), ['bschuett']);
   assert.ok(searchCatalog('gutti').length > 0);
+});
+
+test('replaces every former baked label with a movable transparent text block', () => {
+  for (const level of passauCatalog) {
+    const texts = level.decorations.filter((item) => item.type === 'text');
+    const copy = texts.map((item) => item.content.standard);
+    for (const label of bakedLabels[level.id]) assert.ok(copy.includes(label), level.id + ': ' + label);
+    for (const text of texts) {
+      assert.equal(text.locked, false, level.id + ': ' + text.id + ' movable');
+      assert.equal(text.textStyle.backgroundOpacity, 0, level.id + ': ' + text.id + ' transparent');
+      assert.equal(text.textStyle.borderOpacity, 0, level.id + ': ' + text.id + ' borderless');
+    }
+  }
+});
+
+test('models all three Zauberberg notes as removable document instances', () => {
+  const level = catalogLevel('zauberberg');
+  assert.deepEqual(level.theme.elements.map((item) => item.id), ['stage-lights']);
+  const notes = level.decorations.filter((item) => item.assetId === 'zauberberg-note');
+  assert.equal(notes.length, 2);
+  assert.ok(notes.every((item) => item.locked === false && item.id));
+  const encore = level.events.find((event) => event.id === 'zugabe');
+  assert.equal(encore.visual.type, 'custom');
+  assert.equal(encore.visual.assetId, 'zauberberg-note');
 });

@@ -18,7 +18,7 @@
   <header>
     <div><strong>Szene</strong><span>{studio.sceneGroups().reduce((sum, group) => sum + group.nodes.length, 0)} Elemente</span></div>
     <label class="scene-search"><span>⌕</span><input bind:value={search} placeholder="Element suchen" aria-label="Szenenbaum durchsuchen" /></label>
-    <label class="scene-filter"><span class="visually-hidden">Elementtyp filtern</span><select bind:value={filter} aria-label="Elementtyp filtern"><option value="all">Alle Typen</option><option value="actors">Figuren</option><option value="objects">Objekte & Texte</option><option value="events">Ereignisse</option><option value="theme">Systemkulisse</option></select></label>
+    <label class="scene-filter"><span class="visually-hidden">Elementtyp filtern</span><select bind:value={filter} aria-label="Elementtyp filtern"><option value="all">Alle Typen</option><option value="actors">Figuren</option><option value="walls">Wände</option><option value="objects">Objekte & Texte</option><option value="events">Ereignisse</option><option value="theme">Systemkulisse</option></select></label>
   </header>
 
   <div class="scene-groups">
