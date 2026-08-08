@@ -124,17 +124,21 @@ export async function listPublishedLevels(env) {
   }
 }
 
-function publicationKey(levels) {
-  if (levels.length === 1) return levels[0].id;
-  return `batch-${levels.map((level) => level.id).sort().join('-')}`.slice(0, 72).replace(/-+$/g, '');
+function publicationKey(items) {
+  if (items.length === 1) return `${items[0].type}-${items[0].id}`;
+  return `batch-${items.map((item) => `${item.type}-${item.id}`).sort().join('-')}`.slice(0, 72).replace(/-+$/g, '');
 }
 
 export async function createPublication(env, { files, login }) {
-  if (!Array.isArray(files) || !files.length) throw new Error('Für die Veröffentlichung fehlen Leveldateien.');
-  const levels = files.map((file) => file.level);
+  if (!Array.isArray(files) || !files.length) throw new Error('Für die Veröffentlichung fehlen Inhaltsdateien.');
+  const items = files.map((file) => file.item ?? {
+    type: 'level',
+    id: file.level.id,
+    name: file.level.name.standard,
+  });
   const baseBranch = env.GITHUB_BASE_BRANCH || 'main';
   const openPulls = await githubRequest(env, `${repositoryPath(env, '/pulls')}?state=open&base=${encodeURIComponent(baseBranch)}&per_page=100`);
-  const key = publicationKey(levels);
+  const key = publicationKey(items);
   const pending = openPulls.find((pull) => pull.head?.ref?.startsWith(`publisher/${key}-`));
   let branch = pending?.head?.ref;
   if (!branch) {
@@ -147,12 +151,12 @@ export async function createPublication(env, { files, login }) {
     });
   }
 
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
     const existing = await readRepositoryFile(env, file.path, branch);
     await githubRequest(env, repositoryPath(env, `/contents/${file.path.split('/').map(encodeURIComponent).join('/')}`), {
       method: 'PUT',
       body: {
-        message: `content: ${file.level.name.standard} aus der Levelwerkstatt`,
+        message: `content: ${items[index].name} aus der Levelwerkstatt`,
         content: encodeContent(`${JSON.stringify(file.content, null, 2)}\n`),
         branch,
         ...(existing ? { sha: existing.sha } : {}),
@@ -165,15 +169,15 @@ export async function createPublication(env, { files, login }) {
   const pullRequest = await githubRequest(env, repositoryPath(env, '/pulls'), {
     method: 'POST',
     body: {
-      title: levels.length === 1 ? `Level veröffentlichen: ${levels[0].name.standard}` : `${levels.length} Level aus der Levelwerkstatt veröffentlichen`,
+      title: items.length === 1 ? `${items[0].name} veröffentlichen` : `${items.length} Inhalte aus der Levelwerkstatt veröffentlichen`,
       head: branch,
       base: baseBranch,
       body: [
         `Automatisch aus der Franz-&-Lola-Levelwerkstatt veröffentlicht.`,
         ``,
         `Redaktion: @${login}`,
-        `Ausgewählte Level:`,
-        ...files.map((file) => `- \`${file.level.id}\` – ${file.level.name.standard} · Prüfhinweise: ${file.warnings.length ? file.warnings.join(' · ') : 'keine'}`),
+        `Ausgewählte Inhalte:`,
+        ...files.map((file, index) => `- \`${items[index].type}:${items[index].id}\` – ${items[index].name} · Prüfhinweise: ${file.warnings.length ? file.warnings.join(' · ') : 'keine'}`),
       ].join('\n'),
     },
   });
@@ -183,12 +187,12 @@ export async function createPublication(env, { files, login }) {
 const WORKFLOW_STEPS = {
   validation: [
     ['identity', 27, 'Auftrag und geänderte Dateien werden geprüft.', ['verify publisher', 'changed files']],
-    ['checkout', 32, 'Der vorgeschlagene Levelstand wird geladen.', ['checkout proposed']],
+    ['checkout', 32, 'Der vorgeschlagene Inhaltsstand wird geladen.', ['checkout proposed']],
     ['setup', 37, 'Die sichere Node.js-Umgebung wird vorbereitet.', ['setup node']],
     ['dependencies', 42, 'Spielabhängigkeiten werden installiert.', ['install dependencies']],
-    ['tests', 49, 'Alle automatischen Spiel- und Leveltests laufen.', ['full game test', 'npm test']],
+    ['tests', 49, 'Alle automatischen Spiel- und Inhaltstests laufen.', ['full game test', 'npm test']],
     ['build', 56, 'Das fertige GitHub-Pages-Spiel wird gebaut.', ['build game', 'npm run build']],
-    ['merge', 62, 'Die geprüften Level werden in das Spiel übernommen.', ['merge publication']],
+    ['merge', 62, 'Die geprüften Inhalte werden in das Spiel übernommen.', ['merge publication']],
     ['dispatch', 66, 'Der GitHub-Pages-Deploy wird gestartet.', ['trigger github pages']],
   ],
   deploy: [
@@ -243,7 +247,7 @@ export async function publicationStatus(env, number) {
     : run.name === 'Validate and publish editor content');
   if (!pull.merged_at) {
     if (relevant?.status === 'completed' && relevant.conclusion !== 'success') return { state: 'failed', phase: 'validation-failed', progress: 100, detail: 'Die automatischen Prüfungen sind fehlgeschlagen.', actionsUrl: relevant.html_url, checkedAt };
-    if (relevant?.status === 'completed') return { state: 'testing', phase: 'validation-merge', phaseLabel: 'Prüfung bestanden · Übernahme läuft', progress: 64, detail: 'Alle Prüfungen sind grün. GitHub übernimmt die Level jetzt in den Hauptstand.', actionsUrl: relevant.html_url, checkedAt };
+    if (relevant?.status === 'completed') return { state: 'testing', phase: 'validation-merge', phaseLabel: 'Prüfung bestanden · Übernahme läuft', progress: 64, detail: 'Alle Prüfungen sind grün. GitHub übernimmt die Inhalte jetzt in den Hauptstand.', actionsUrl: relevant.html_url, checkedAt };
     return { state: 'testing', ...(await runProgress(env, relevant, 'validation')), actionsUrl: relevant?.html_url, checkedAt };
   }
   if (!relevant || relevant.status !== 'completed') return { state: 'deploying', ...(await runProgress(env, relevant, 'deploy')), actionsUrl: relevant?.html_url, checkedAt };

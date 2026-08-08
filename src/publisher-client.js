@@ -103,12 +103,46 @@ export class PublisherClient {
     return this.#request('/api/publish', { method: 'POST', body: JSON.stringify({ drafts }) });
   }
 
+  publishContent({ drafts = [], items = [] } = {}) {
+    if (!Array.isArray(drafts) || !Array.isArray(items) || !drafts.length && !items.length) {
+      throw new Error('Bitte mindestens einen Inhalt auswählen.');
+    }
+    return this.#request('/api/publish', { method: 'POST', body: JSON.stringify({ drafts, items }) });
+  }
+
   bootstrapDrafts() {
     return this.#request('/api/drafts/bootstrap', { method: 'POST', body: '{}' });
   }
 
   listDrafts() {
     return this.#request('/api/drafts');
+  }
+
+  bootstrapContent() {
+    return this.#request('/api/content/bootstrap', { method: 'POST', body: '{}' });
+  }
+
+  listContent(type = '') {
+    const query = type ? `?type=${encodeURIComponent(type)}` : '';
+    return this.#request(`/api/content${query}`);
+  }
+
+  content(type, id) {
+    return this.#request(`/api/content/${encodeURIComponent(type)}/${encodeURIComponent(id)}`);
+  }
+
+  saveContent(content, expectedRevision = 0) {
+    return this.#request(`/api/content/${encodeURIComponent(content.type)}/${encodeURIComponent(content.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content, expectedRevision }),
+    });
+  }
+
+  deleteContent(type, id, expectedRevision) {
+    return this.#request(`/api/content/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ expectedRevision }),
+    });
   }
 
   draft(id) {

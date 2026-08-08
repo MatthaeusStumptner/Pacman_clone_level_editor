@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLevelDocument } from '@franz-lola/pixel-renderer';
-import { assertSafeObject, preparePublishedBatch, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from '../src/level-publication.js';
+import { CONTENT_TYPES, createContentDocument, createLevelDocument } from '@franz-lola/pixel-renderer';
+import { assertSafeObject, preparePublishedBatch, preparePublishedContent, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from '../src/level-publication.js';
 
 function level() {
   return createLevelDocument({
@@ -20,6 +20,12 @@ test('publication preserves protected map metadata, sprites, objects and level-b
     pixels: ['0ab0', '1ab1', '1ab1', '0ab0'],
     animations: [{ id: 'idle', duration: 1.5, loop: true, keyframes: [{ id: 'a', time: 0, pixels: ['0ab0', '1ab1', '1ab1', '0ab0'] }, { id: 'b', time: 0.75, pixels: ['0000', '1ab1', '1ab1', '0000'] }] }],
   };
+  input.actors.characters = [{
+    id: 'passauer-postler', characterId: 'postler', name: 'Passauer Postler',
+    x: 2, y: 5, state: 'left', animation: '',
+    appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels: ['0110', '1111', '0110', '1001'] },
+    behavior: { controller: 'stationary', speedMultiplier: 1 },
+  }];
   input.decorations = [{
     id: 'note', assetId: 'music-note', name: 'Musiknote', type: 'custom', x: 2, y: 2, width: 2, height: 2,
     color: '#55d9dd', label: '♪', appearance: input.actors.player.appearance, spriteAnimation: 'idle',
@@ -43,6 +49,8 @@ test('publication preserves protected map metadata, sprites, objects and level-b
   assert.equal(result.value.source.mapOrder, 1);
   assert.equal(result.value.source.catalog, 'Geburtstagsspiel');
   assert.equal(result.value.actors.player.appearance.palette.length, 12);
+  assert.equal(result.value.actors.characters[0].characterId, 'postler');
+  assert.equal(result.value.actors.characters[0].appearance.pixels[1], '1111');
   assert.equal(result.value.decorations[0].appearance.palette.length, 12);
   assert.equal(result.value.actors.player.appearance.animations[0].keyframes.length, 2);
   assert.equal(result.value.decorations[1].content.standard, 'Frei in Passau');
@@ -83,4 +91,22 @@ test('new levels cannot claim protected map presentation metadata', () => {
   assert.deepEqual(result.value.source, {
     catalog: 'Levelwerkstatt', gameLayout: 9, markerClass: '', home: false, mapOrder: 9,
   });
+});
+
+test('publishes every reusable content type to a strict static path', () => {
+  const pixels = ['0000', '0110', '0110', '0000'];
+  const samples = {
+    character: { id: 'postler', name: 'Postler', appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels } },
+    object: { id: 'briefkasten', name: 'Briefkasten', type: 'custom', appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels } },
+    tileset: { id: 'innstadt', name: 'Innstadt' },
+    block: { id: 'ziegel', name: 'Ziegel', width: 2, height: 1, pattern: 'brick' },
+    animation: { id: 'winken', name: 'Winken', width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels, keyframes: [{ time: 0, pixels }] },
+    cutscene: { id: 'servus', name: { standard: 'Servus', dialect: 'Hawedere' }, duration: 2, tracks: [] },
+  };
+  for (const type of CONTENT_TYPES.filter((entry) => entry !== 'level')) {
+    const prepared = preparePublishedContent(createContentDocument(type, samples[type]));
+    assert.match(prepared.path, new RegExp(`^src/data/library/.+/${samples[type].id}\\.${type}\\.json$`));
+    assert.equal(prepared.value.type, type);
+  }
+  assert.throws(() => preparePublishedContent(createContentDocument('level', level())), /Level-Entwürfe/);
 });

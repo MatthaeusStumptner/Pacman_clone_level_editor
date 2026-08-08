@@ -57,6 +57,19 @@ test('supports empty cat lists, decorations and custom actor pixels', () => {
   assert.deepEqual(state.toDocument().actors.player.appearance.pixels, ['0110', '1111', '1001', '0110']);
 });
 
+test('adds, selects, edits and removes custom characters independently from cats', () => {
+  const state = new EditorState(createStarterLevel());
+  const character = { id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', appearance: { width: 4, height: 4, palette: ['transparent', '#ffffff'], pixels: ['0110', '1111', '0110', '1001'] } };
+  state.mutate('Figur setzen', (draft) => draft.addCharacter({ x: 7, y: 8 }, character));
+  assert.equal(state.toDocument().actors.cats.length, 0);
+  assert.equal(state.toDocument().actors.characters[0].name, 'Passauer Postler');
+  assert.deepEqual(state.selectAt({ x: 7, y: 8 }), { kind: 'character', index: 0 });
+  state.mutate('Sprite', (draft) => draft.setSelectedAppearance({ ...character.appearance, pixels: ['1111', '1001', '1001', '1111'] }));
+  assert.deepEqual(state.toDocument().actors.characters[0].appearance.pixels[0], '1111');
+  state.mutate('Figur entfernen', (draft) => draft.deleteSelected());
+  assert.deepEqual(state.toDocument().actors.characters, []);
+});
+
 test('preserves player state-to-animation mappings through undo, redo and export', () => {
   const state = new EditorState(createStarterLevel()); state.selected = { kind: 'player', index: 0 };
   state.mutate('Spielerzustände', (draft) => draft.setSelectedAppearance({ width: 4, height: 4, palette: ['transparent', '#ffffff'], pixels: ['0110', '1111', '1001', '0110'], animations: ['idle', 'left', 'right', 'up', 'down'].map((id) => ({ id, frames: [{ pixels: ['0110', '1111', '1001', '0110'] }] })), stateAnimations: { idle: 'idle', left: 'left', right: 'right', up: 'up', down: 'down' } }));
@@ -68,10 +81,12 @@ test('preserves player state-to-animation mappings through undo, redo and export
 test('placing walls removes conflicting cats and power-ups', () => {
   const level = createStarterLevel();
   level.actors.cats = [{ x: 5, y: 5, color: '#ff6b5f', accent: '#9e302e' }];
+  level.actors.characters = [{ id: 'figur', characterId: 'figur', name: 'Figur', x: 5, y: 5 }];
   level.collectibles.powerUps = [{ x: 5, y: 5 }];
   const state = new EditorState(level);
   state.mutate('Wand', (draft) => draft.setWall(5, 5, true));
   assert.deepEqual(state.toDocument().actors.cats, []);
+  assert.deepEqual(state.toDocument().actors.characters, []);
   assert.deepEqual(state.toDocument().collectibles.powerUps, []);
 });
 

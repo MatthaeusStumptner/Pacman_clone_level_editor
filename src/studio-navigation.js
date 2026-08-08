@@ -13,7 +13,10 @@ export function routeFromStudio(studio) {
     route.assetId = studio.selectedAssetId;
     route.selection = selectionRoute(studio);
   } else if (studio.workspace === 'characters') route.selection = selectionRoute(studio);
-  else if (studio.workspace === 'events') route.eventId = studio.selectedEventId;
+  else if (studio.workspace === 'events') {
+    route.eventId = studio.selectedEventId;
+    route.selection = selectionRoute(studio);
+  }
   else if (studio.workspace === 'cutscenes') {
     route.cutsceneId = studio.selectedCutsceneId;
     route.trackId = studio.selectedTrackId;
@@ -34,6 +37,7 @@ function applySelection(studio, value) {
   const collections = {
     wall: studio.level.board.walls,
     cat: studio.level.actors.cats,
+    character: studio.level.actors.characters ?? [],
     decoration: studio.level.decorations,
     'theme-element': studio.level.theme.elements ?? [],
     event: studio.level.events,

@@ -153,22 +153,25 @@ test('one reactive document keeps drawing, history, autosave and reload synchron
   expect(errors).toEqual([]);
 });
 
-test('canvas selection stays in context, overlap cycling works and explicit opening remains editable', async ({ page }) => {
+test('canvas selection recognizes context, opens the owning details and keeps overlap cycling editable', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="level"]').click();
   await page.locator('[data-tool="select"]').click();
   const note = await canvasPoint(page, 11, 8);
   await page.mouse.click(note.x, note.y);
-  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-workspace="events"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.selection-summary')).toBeVisible();
   await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Zugabe');
+  await expect(page.locator('.selection-summary')).toContainText('Ereignis · Ereignisregie');
+  await expect(page.locator('.property-panel')).toContainText('Auslöser');
+  const under = await canvasPoint(page, 11, 8);
   await page.keyboard.down('Alt');
-  await page.mouse.click(note.x, note.y);
+  await page.mouse.click(under.x, under.y);
   await page.keyboard.up('Alt');
   await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Note');
-  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
-  await page.getByRole('button', { name: /In Objektwerkstatt öffnen/ }).click();
+  await expect(page.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
   await page.locator('.object-inspector').getByLabel('Bewegungsanimation', { exact: true }).selectOption('spin');
   await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).fill('2.5'); await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).blur();
@@ -289,7 +292,7 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.locator('.character-hero .actor-thumbnail')).toHaveAttribute('data-actor-kind', 'cat');
   expect(await canvasHasVisiblePixels(page.locator('.character-hero .actor-thumbnail'))).toBe(true);
   await page.locator('.actor-browser button').filter({ hasText: 'Franz & Lola' }).click();
-  await page.getByRole('button', { name: /Sprite-Sheet öffnen/ }).click();
+  await page.getByRole('button', { name: /Sprite-Sheet bearbeiten/ }).click();
   await expect(page.locator('.state-tabs button')).toHaveCount(5);
   const idleSignature = await canvasSignature(page.locator('.sprite-playback-stage .actor-thumbnail'));
   await page.locator('.state-tabs button').filter({ hasText: 'right' }).click();
@@ -310,6 +313,85 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.locator('.state-matrix')).toContainText('right');
   await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="characters"]').click();
   await expect(page.locator('.state-matrix')).toContainText('right');
+  expect(errors).toEqual([]);
+});
+
+test('selection context offers the inferred direct tool without hiding the selected object', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await openSceneTree(page);
+  await page.locator('[data-scene-key="decoration:zauberberg-note-frei"] .scene-node-main').click();
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
+  const context = page.locator('.selection-summary');
+  await expect(context).toHaveAttribute('data-selection-kind', 'decoration');
+  await expect(context).toHaveAttribute('data-selection-workspace', 'objects');
+  await expect(context).toContainText('Objekt · Objektwerkstatt');
+  await context.getByRole('button', { name: 'Direkt bewegen & skalieren' }).click();
+  await expect(page.locator('[data-tool="transform"]')).toHaveClass(/active/);
+  await context.getByRole('button', { name: 'Im Level zeigen' }).click();
+  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '1');
+  expect(errors).toEqual([]);
+});
+
+test('global character wizard creates a reusable non-cat figure and places a self-contained level instance', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await openProject(page);
+  await page.getByRole('button', { name: /Neues Level/ }).click();
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('#create-character')).toBeVisible();
+  await page.locator('#create-character').click();
+  await expect(page.getByRole('dialog', { name: 'Wer soll Passau bereichern?' })).toBeVisible();
+  await page.locator('#character-name').fill('Passauer Postler');
+  await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await expect(page.locator('.sprite-studio')).toBeVisible();
+  await expect(page.locator('.state-tabs button')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+
+  const globalCharacter = page.locator('[data-character-id="passauer-postler"]');
+  await expect(globalCharacter).toContainText('Global · in allen Levels');
+  await expect.poll(() => canvasHasVisiblePixels(globalCharacter.locator('.actor-thumbnail'))).toBe(true);
+  await expect(page.locator('.property-panel')).toContainText('Freie Figuren stehen im normalen Spiel');
+  await page.locator('.character-hero .place-character-button').click();
+  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.character-placement-banner')).toContainText('Passauer Postler platzieren');
+  const point = await canvasPoint(page, 5, 5);
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator('.character-placement-banner')).toHaveCount(0);
+
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('[data-level-character-id]')).toHaveCount(1);
+  await expect(page.locator('[data-level-character-id]')).toContainText('Passauer Postler');
+  await expect(page.locator('.actor-browser button').filter({ hasText: /^Katze/ })).toHaveCount(0);
+  await page.locator('[data-level-character-id]').click();
+  await expect(page.locator('.property-panel').getByLabel('Name')).toHaveValue('Passauer Postler');
+  await expect(page.locator('.property-panel')).toContainText('als Darsteller in Cutscenes');
+
+  await loadTemplate(page, 'home');
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('[data-character-id="passauer-postler"]')).toBeVisible();
+  await expect(page.locator('[data-level-character-id]')).toHaveCount(0);
+  await page.reload();
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('[data-character-id="passauer-postler"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('character creation stays usable on a phone viewport @mobile', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('#create-character')).toBeVisible();
+  await page.locator('#create-character').click();
+  const dialog = page.getByRole('dialog', { name: 'Wer soll Passau bereichern?' });
+  await expect(dialog).toBeInViewport();
+  await page.locator('#character-name').fill('Donaunixe');
+  await dialog.getByText('Leere Leinwand').click();
+  await dialog.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await expect(page.locator('.sprite-studio')).toBeVisible();
+  await page.locator('.pixel-grid').scrollIntoViewIfNeeded();
+  await expect(page.locator('.pixel-grid')).toBeInViewport();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await expect(page.locator('.character-hero')).toContainText('Donaunixe');
   expect(errors).toEqual([]);
 });
 
@@ -391,8 +473,8 @@ test('testplay runs the same intro, camera and direct controls as the game', asy
   expect(errors).toEqual([]);
 });
 
-test('authorized non-technical editors share and publish several exact draft revisions together', async ({ page }) => {
-  const errors = []; const published = []; const shared = new Map(); let checks = 0;
+test('authorized non-technical editors share and publish mixed exact content revisions together', async ({ page }) => {
+  const errors = []; const published = []; const shared = new Map(); const content = new Map(); let checks = 0;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
@@ -400,12 +482,18 @@ test('authorized non-technical editors share and publish several exact draft rev
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
     if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [...shared.values()].map(({ level, ...draft }) => draft) } });
+    if (path === '/api/content/bootstrap') return route.fulfill({ headers, json: { items: [...content.values()] } });
     if (path.startsWith('/api/drafts/') && request.method() === 'PUT') {
       const body = request.postDataJSON(); const revision = body.expectedRevision + 1;
       const draft = { id: body.level.id, name: body.level.name.standard, icon: body.level.icon, area: body.level.location.area, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', level: body.level };
       shared.set(draft.id, draft); return route.fulfill({ headers, json: draft });
     }
-    if (path === '/api/publish') { published.push(request.postDataJSON().drafts); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Level wurden sicher übertragen.' } }); }
+    if (path.startsWith('/api/content/') && request.method() === 'PUT') {
+      const body = request.postDataJSON(); const revision = body.expectedRevision + 1;
+      const item = { type: body.content.type, id: body.content.id, name: body.content.name, description: body.content.description, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', content: body.content };
+      content.set(`${item.type}:${item.id}`, item); return route.fulfill({ headers, json: item });
+    }
+    if (path === '/api/publish') { published.push(request.postDataJSON()); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Inhalte sicher übertragen', progress: 22, detail: 'Inhalte wurden sicher übertragen.' } }); }
     if (path === '/api/publications/42') { checks += 1; return route.fulfill({ headers, json: checks > 1 ? { state: 'published', phase: 'published', phaseLabel: 'GitHub Pages ist aktuell', progress: 100, detail: 'Das Level ist live.', checkedAt: '2026-08-05T18:00:00.000Z', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/' } : { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T17:59:58.000Z' } }); }
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
@@ -415,18 +503,21 @@ test('authorized non-technical editors share and publish several exact draft rev
   await page.locator('[data-workspace="publish"]').click();
   await expect(page.locator('.publisher-user')).toContainText('Franz-Lola-Redaktion');
   await expect.poll(() => page.url()).not.toContain('publisher_session');
-  await expect(page.locator('.publish-candidate')).toHaveCount(2);
+  await expect(page.locator('.publish-candidate[data-content-type="level"]')).toHaveCount(2);
   await page.getByLabel('Level Dahoam · Am Bramerhof auswählen').check();
+  await page.locator('.publish-candidate[data-content-type="tileset"] input').check();
   await page.locator('#publisher-confirm').click();
   await expect(page.getByRole('progressbar', { name: 'Veröffentlichungsfortschritt' })).toHaveAttribute('aria-valuenow', '100');
   await expect(page.locator('.publish-activity')).toContainText('GitHub Pages ist aktuell');
   await expect(page.locator('.publication-steps .done')).toHaveCount(5);
-  await expect(page.locator('.publish-state')).toContainText('Level sind live!', { timeout: 10_000 });
+  await expect(page.locator('.publish-state')).toContainText('Inhalte sind live!', { timeout: 10_000 });
   await openProject(page);
   await expect(page.locator('.shared-draft-section')).toContainText('Gemeinsame Entwürfe');
   await expect(page.locator('.shared-draft-section .draft-entry')).toHaveCount(2);
-  expect(published).toHaveLength(1); expect(published[0].map((draft) => draft.id).sort()).toEqual(['hals', 'home']);
-  expect(published[0].every((draft) => draft.revision === 1)).toBe(true); expect(errors).toEqual([]);
+  expect(published).toHaveLength(1); expect(published[0].drafts.map((draft) => draft.id).sort()).toEqual(['hals', 'home']);
+  expect(published[0].drafts.every((draft) => draft.revision === 1)).toBe(true);
+  expect(published[0].items).toEqual([{ type: 'tileset', id: 'hals-neighborhood', revision: 1 }]);
+  expect(errors).toEqual([]);
 });
 
 test('all visible controls have accessible names', async ({ page }) => {
@@ -464,6 +555,21 @@ test('@mobile studio has no page overflow and keeps project, navigation and dire
   await page.getByRole('button', { name: /Intro überspringen/ }).click();
   await expect(page.locator('.mobile-dpad')).toBeVisible();
   await page.locator('.mobile-dpad button').first().tap();
+  expect(errors).toEqual([]);
+});
+
+test('@mobile one scene selection opens the inferred specialist and its detail sheet', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  const focusTabs = page.locator('.mobile-focus-tabs:visible');
+  await focusTabs.getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.level-sidebar.mobile-active .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.level-sidebar.mobile-active [data-scene-key="decoration:zauberberg-note-frei"] .scene-node-main').click();
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
+  const inspector = page.locator('.object-inspector.mobile-active');
+  await expect(inspector).toBeVisible();
+  await expect(inspector.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
+  await expect(inspector).toContainText('Zauberberg-Note');
   expect(errors).toEqual([]);
 });
 

@@ -59,7 +59,7 @@
         {#if track}
           <div class="property-section"><span class="section-number">TRK</span><h3>{trackNames[track.type]}</h3></div>
           <label>Track-ID<input value={track.id} disabled /></label>
-          {#if track.type === 'actor'}<label>Ziel<select value={track.target} onchange={(event) => studio.updateTrack(['target'], event.currentTarget.value)}><option value="player">Franz & Lola</option>{#each studio.level.actors.cats as cat, index}<option value={`cat:${cat.id ?? index}`}>Katze {index + 1}</option>{/each}</select></label>{/if}
+          {#if track.type === 'actor'}<label>Ziel<select value={track.target} onchange={(event) => studio.updateTrack(['target'], event.currentTarget.value)}><option value="player">Franz & Lola</option>{#each studio.level.actors.cats as cat, index}<option value={`cat:${cat.id ?? index}`}>Katze {index + 1}</option>{/each}{#each studio.level.actors.characters ?? [] as character, index}<option value={`character:${character.id ?? index}`}>{character.name || `Figur ${index + 1}`}</option>{/each}</select></label>{/if}
           {#if track.type === 'object'}<label>Zielobjekt<select value={track.target} onchange={(event) => studio.updateTrack(['target'], event.currentTarget.value)}>{#each studio.level.decorations as item}<option value={item.id}>{item.name || item.id}</option>{/each}</select></label>{/if}
           <button onclick={() => studio.addKeyframe()}>＋ Keyframe</button><button class="danger-subtle" onclick={() => studio.deleteTrack()}>Track löschen</button>
         {/if}

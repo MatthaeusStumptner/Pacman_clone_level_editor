@@ -177,6 +177,16 @@ export class EditorState {
     return true;
   }
 
+  addCharacter(point, character) {
+    if (!this.isInside(point.x, point.y) || !character) return false;
+    this.setWall(point.x, point.y, false);
+    this.document.actors.characters ??= [];
+    this.document.actors.characters.push({ ...clone(character), x: point.x, y: point.y });
+    this.selected = { kind: 'character', index: this.document.actors.characters.length - 1 };
+    this.markChanged();
+    return true;
+  }
+
   togglePowerUp(point) {
     if (!this.isInside(point.x, point.y)) return false;
     const index = this.document.collectibles.powerUps.findIndex((item) => item.x === point.x && item.y === point.y);
@@ -198,8 +208,10 @@ export class EditorState {
   }
 
   selectAt(point) {
+    const characterIndex = (this.document.actors.characters ?? []).findIndex((actor) => actor.x === point.x && actor.y === point.y);
     const catIndex = this.document.actors.cats.findIndex((actor) => actor.x === point.x && actor.y === point.y);
-    if (catIndex >= 0) this.selected = { kind: 'cat', index: catIndex };
+    if (characterIndex >= 0) this.selected = { kind: 'character', index: characterIndex };
+    else if (catIndex >= 0) this.selected = { kind: 'cat', index: catIndex };
     else if (this.document.actors.player.x === point.x && this.document.actors.player.y === point.y) this.selected = { kind: 'player', index: 0 };
     else {
       const decorationIndex = this.document.decorations.findIndex((item) => point.x >= item.x && point.x < item.x + item.width && point.y >= item.y && point.y < item.y + item.height);
@@ -212,6 +224,7 @@ export class EditorState {
     if (!this.selected) return false;
     const selected = this.selected;
     if (selected.kind === 'cat') this.document.actors.cats.splice(selected.index, 1);
+    else if (selected.kind === 'character') this.document.actors.characters.splice(selected.index, 1);
     else if (selected.kind === 'decoration') this.document.decorations.splice(selected.index, 1);
     else if (selected.kind === 'wall') { this.document.board.walls.splice(selected.index, 1); this.refreshWallCells(); }
     else return false;
@@ -224,6 +237,7 @@ export class EditorState {
     if (!this.selected) return null;
     if (this.selected.kind === 'player') return this.document.actors.player;
     if (this.selected.kind === 'cat') return this.document.actors.cats[this.selected.index] ?? null;
+    if (this.selected.kind === 'character') return this.document.actors.characters?.[this.selected.index] ?? null;
     if (this.selected.kind === 'decoration') return this.document.decorations[this.selected.index] ?? null;
     if (this.selected.kind === 'wall') return this.document.board.walls[this.selected.index] ?? null;
     return null;
@@ -231,9 +245,9 @@ export class EditorState {
 
   setSelectedAppearance(appearance) {
     const object = this.selectedObject();
-    if (!object || !['player', 'cat'].includes(this.selected?.kind)) return false;
+    if (!object || !['player', 'cat', 'character'].includes(this.selected?.kind)) return false;
     object.appearance = clone(appearance);
-    object.renderer = appearance ? 'pixel-art' : (this.selected.kind === 'player' ? 'franz-lola' : 'cat');
+    object.renderer = appearance ? 'pixel-art' : (this.selected.kind === 'player' ? 'franz-lola' : this.selected.kind === 'cat' ? 'cat' : 'pixel-art');
     this.markChanged();
     return true;
   }
@@ -241,6 +255,7 @@ export class EditorState {
   removeObjectsAt(x, y) {
     this.document.collectibles.powerUps = this.document.collectibles.powerUps.filter((point) => point.x !== x || point.y !== y);
     this.document.actors.cats = this.document.actors.cats.filter((actor) => actor.x !== x || actor.y !== y);
+    this.document.actors.characters = (this.document.actors.characters ?? []).filter((actor) => actor.x !== x || actor.y !== y);
   }
 
   isInside(x, y) {
@@ -289,7 +304,7 @@ export function createStarterLevel() {
     mission: { standard: 'Alle Guttis finden', dialect: 'Olle Guttis findn' },
     board: { columns: 25, rows: 25, tileSize: 24, tunnelRows: [12], walls: [] },
     theme: { landmark: 'dog-park' },
-    actors: { player: { x: 12, y: 20 }, cats: [] },
+    actors: { player: { x: 12, y: 20 }, cats: [], characters: [] },
     decorations: [],
   });
 }

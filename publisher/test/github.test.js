@@ -20,7 +20,7 @@ test('maps active GitHub validation steps to human-readable progress', () => {
   ] }], 'validation');
   assert.equal(result.phase, 'validation-tests');
   assert.equal(result.progress, 49);
-  assert.match(result.detail, /automatischen Spiel- und Leveltests/);
+  assert.match(result.detail, /automatischen Spiel- und Inhaltstests/);
   assert.equal(result.completedSteps, 1);
 });
 

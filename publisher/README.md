@@ -1,15 +1,15 @@
 # Sicherer Ein-Klick-Publisher
 
-Dieser Cloudflare Worker verbindet die statische Levelwerkstatt mit `Geburtstagsspiel`. Cloudflare D1 hält den gemeinsamen Entwurfsstand aller Geräte, während GitHub der kanonische veröffentlichte Stand bleibt. Der Worker authentifiziert eine kleine, ausdrücklich freigegebene Redaktion, akzeptiert ausschließlich validierte `franz-lola-level`-Dokumente und legt pro Veröffentlichung einen eng begrenzten Pull Request an. GitHub testet, merged und deployed diesen automatisch.
+Dieser Cloudflare Worker verbindet die statische Levelwerkstatt mit `Geburtstagsspiel`. Cloudflare D1 hält den gemeinsamen Entwurfs- und Bibliotheksstand aller Geräte, während GitHub die statische veröffentlichte Projektion bleibt. Der Worker akzeptiert validierte `franz-lola-level`-Dokumente sowie typisierte `franz-lola-content`-Dokumente für Figuren, Tilesets, Blöcke, Animationen, Cutscenes und Objekte.
 
 ## Datenfluss
 
 1. Nach der GitHub-Anmeldung gleicht der Worker die veröffentlichten Level aus `Geburtstagsspiel` mit D1 ab.
-2. Änderungen werden lokal im Browser und verzögert als neue D1-Revision gespeichert.
+2. Änderungen an Leveln, eigenen Figuren und eigenen Objekten werden lokal im Browser und verzögert als neue D1-Revision gespeichert.
 3. Stimmt die erwartete Revision nicht mehr, liefert der Worker einen Konflikt statt fremde Änderungen zu überschreiben.
 4. Eine Veröffentlichung referenziert exakte D1-Revisionen. Erst der geprüfte GitHub-PR und der erfolgreiche Pages-Deploy markieren diese Revisionen als veröffentlicht.
 
-D1 behält pro Level höchstens 20 normale Arbeitsrevisionen; Veröffentlichungs-Snapshots bleiben nachvollziehbar. Unveränderte Dokumente erzeugen keine neue Revision und damit keine unnötigen Schreibvorgänge.
+D1 behält pro Level oder Bibliothekseintrag höchstens 20 normale Arbeitsrevisionen; Veröffentlichungs-Snapshots bleiben nachvollziehbar. Unveränderte Dokumente erzeugen keine neue Revision und damit keine unnötigen Schreibvorgänge. Abhängigkeiten werden separat indexiert, während Keyframes im jeweils besitzenden Dokument bleiben.
 
 ## Sicherheitsmodell
 
@@ -19,7 +19,7 @@ D1 behält pro Level höchstens 20 normale Arbeitsrevisionen; Veröffentlichungs
 - Der private App-Schlüssel, Client Secret und Sitzungsschlüssel liegen nur als verschlüsselte Cloudflare-Secrets vor.
 - Der Browser erhält lediglich eine signierte Sitzung für 30 Minuten. Sie steht im URL-Fragment, wird beim Laden sofort entfernt und weder in `localStorage` noch in `sessionStorage` gespeichert.
 - CORS, Rücksprung-URL und Links sind auf die echten Editor-/GitHub-/Spieladressen begrenzt.
-- Der Worker akzeptiert maximal 1 MB pro Level, nur JSON, keine gefährlichen Objektschlüssel und feste Inhaltslimits. Er kann ausschließlich `src/data/levels/<id>.level.json` ändern.
+- Der Worker akzeptiert maximal 1 MB pro Inhalt, nur JSON, keine gefährlichen Objektschlüssel und feste Inhaltslimits. Er kann ausschließlich die kanonischen Level- und Bibliotheksverzeichnisse unter `src/data/` ändern.
 - Das Spiel übernimmt nur Pull Requests des konfigurierten App-Bots und prüft Dateipfad, Tests und Build vor dem Merge.
 
 Der Betrieb ist bewusst für die kostenlosen Kontingente von GitHub Pages, GitHub Actions, Cloudflare Workers und D1 ausgelegt. Es gibt keine dauerhaft laufende Instanz und unveränderte Level verursachen keine D1-Schreibvorgänge. Die jeweiligen Anbieter können ihre Limits später ändern.
@@ -56,7 +56,7 @@ Im Repository `Pacman_clone_level_editor` folgende GitHub-Actions-Werte anlegen:
 | Secret | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
 | Variable | `PUBLISHER_DEPLOY_ENABLED` | `true` |
 
-Danach **Actions → Deploy secure level publisher → Run workflow** starten. Wrangler legt die D1-Ressource `LEVEL_DB` beim ersten Deploy automatisch an und führt anschließend alle Migrationen aus. Die Ausgabe nennt die öffentliche `workers.dev`-Adresse.
+Danach **Actions → Deploy secure level publisher → Run workflow** starten. Die D1-Ressource `franz-lola-publisher-level-db` ist über Name und ID in `wrangler.jsonc` gebunden; Wrangler führt ausstehende Migrationen vor dem Deploy aus. Die Ausgabe nennt die öffentliche `workers.dev`-Adresse.
 
 Im Cloudflare-Dashboard beim Worker unter **Settings → Variables and Secrets** diese Werte als verschlüsselte Secrets eintragen:
 
@@ -89,7 +89,7 @@ Im Repository `Geburtstagsspiel`:
 
 - Variable `PUBLISHER_BOT_LOGIN` = Bot-Login der GitHub App, normalerweise der App-Slug plus `[bot]`, zum Beispiel `franz-lola-publisher[bot]`.
 
-Nun kann ein erlaubter Account im Editor auf **Veröffentlichen** klicken, bis zu 20 spielbare Entwürfe auswählen und sie gemeinsam prüfen lassen. Der Worker akzeptiert höchstens 5 MB pro Veröffentlichung und 1 MB pro Level; alle ausgewählten Dateien landen in genau einem Pull Request. Nicht erlaubte Accounts erhalten nur eine neutrale Fehlermeldung.
+Nun kann ein erlaubter Account im Editor auf **Veröffentlichen** klicken und bis zu 20 Level oder Bibliothekseinträge typisiert auswählen. Der Worker akzeptiert höchstens 5 MB pro Veröffentlichung und 1 MB pro Inhalt; alle ausgewählten Dateien landen in genau einem Pull Request. Nicht erlaubte Accounts erhalten nur eine neutrale Fehlermeldung.
 
 Während der Veröffentlichung zeigt der Editor die tatsächlich laufenden GitHub-Schritte: sichere Übertragung, Checkout, Abhängigkeiten, Tests, Build, Merge und GitHub-Pages-Deployment. Dazu kommen Prozentanzeige, verstrichene Zeit, Zeitpunkt des letzten Checks, ein Aktivitätslog und ein manueller Status-Check. Vorübergehende Netzwerkfehler werden mehrfach erneut versucht und nicht sofort als Abbruch dargestellt.
 

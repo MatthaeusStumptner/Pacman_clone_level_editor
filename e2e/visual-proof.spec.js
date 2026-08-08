@@ -68,12 +68,17 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
     if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [] } });
+    if (path === '/api/content/bootstrap') return route.fulfill({ headers, json: { items: [] } });
     if (path.startsWith('/api/drafts/') && route.request().method() === 'PUT') {
       const body = route.request().postDataJSON(); const revision = body.expectedRevision + 1;
       const draft = { id: body.level.id, name: body.level.name.standard, icon: body.level.icon, area: body.level.location.area, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', level: body.level };
       shared.set(draft.id, draft); return route.fulfill({ headers, json: draft });
     }
-    if (path === '/api/publish') return route.fulfill({ status: 202, headers, json: { publicationId: 77, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Zwei Level wurden sicher übertragen.' } });
+    if (path.startsWith('/api/content/') && route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON();
+      return route.fulfill({ headers, json: { type: body.content.type, id: body.content.id, name: body.content.name, description: body.content.description, revision: body.expectedRevision + 1, status: 'draft', content: body.content } });
+    }
+    if (path === '/api/publish') return route.fulfill({ status: 202, headers, json: { publicationId: 77, state: 'testing', phase: 'upload-complete', phaseLabel: 'Inhalte sicher übertragen', progress: 22, detail: 'Inhalte wurden sicher übertragen.' } });
     if (path === '/api/publications/77') return route.fulfill({ headers, json: { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T18:00:00.000Z' } });
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
@@ -82,9 +87,12 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
   await loadTemplate(page, 'home'); await page.waitForTimeout(250);
   await loadTemplate(page, 'hals'); await page.waitForTimeout(250);
   await page.locator('[data-workspace="publish"]').click();
-  await expect(page.locator('.publish-candidate')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Alle spielbaren' }).click();
-  await expect(page.locator('.publish-candidate input:checked')).toHaveCount(2);
+  await expect(page.locator('.publish-candidate[data-content-type="level"]')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Alle gültigen' }).click();
+  await expect(page.locator('.publish-candidate input:checked')).toHaveCount(4);
+  await page.screenshot({ path: 'output/playwright/publisher-content-selection.png', fullPage: true });
+  await page.locator('.publish-type-heading').filter({ hasText: 'Tileset' }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'output/playwright/publisher-content-types.png', fullPage: true });
   await page.locator('#publisher-confirm').click();
   await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '89');
   await page.waitForTimeout(400);
@@ -100,7 +108,7 @@ test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
     await page.locator('.actor-browser button').filter({ hasText: name }).click();
     await page.waitForTimeout(300);
   }
-  await page.getByRole('button', { name: /Sprite-Sheet öffnen/ }).click();
+  await page.getByRole('button', { name: /Sprite-Sheet bearbeiten/ }).click();
   for (const state of ['idle', 'up', 'right', 'down', 'left']) {
     await page.locator('.state-tabs button').filter({ hasText: state }).click();
     await page.waitForTimeout(280);
@@ -114,6 +122,38 @@ test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
   await page.getByRole('button', { name: 'Farbe anwenden' }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'output/playwright/pixel-multiselect.png' });
+});
+
+test('Globale Figuren werden sichtbar erstellt und ins Level gesetzt @visual', async ({ page }) => {
+  await openCleanEditor(page);
+  await page.locator('[data-workspace="characters"]').click();
+  await page.locator('#create-character').click();
+  await page.locator('#character-name').fill('Passauer Postler');
+  await page.screenshot({ path: 'output/playwright/figuren-assistent.png' });
+  await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await page.locator('.character-hero .place-character-button').click();
+  const box = await page.locator('#level-canvas').boundingBox();
+  await page.mouse.click(box.x + box.width * .25, box.y + box.height * .25);
+  await page.locator('[data-workspace="characters"]').click();
+  await page.locator('[data-level-character-id]').click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'output/playwright/globale-figur-im-level.png' });
+});
+
+test('Der Figuren-Assistent bleibt auf kleinen Handys verständlich @visual', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCleanEditor(page);
+  await page.locator('[data-workspace="characters"]').click();
+  await page.locator('#create-character').click();
+  await page.locator('#character-name').fill('Donaunixe');
+  await page.screenshot({ path: 'output/playwright/figuren-assistent-mobile.png' });
+  await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await page.locator('.character-hero').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'output/playwright/globale-figur-mobile.png' });
 });
 
 test('Alle neun Level-Ereignisse sind im UI erreichbar @visual', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { contentPublicationPath, validateContentDocument, validateLevelDocument } from '@franz-lola/pixel-renderer';
 
 const MAX_BODY_BYTES = 5_000_000;
 const MAX_LEVEL_BYTES = 1_000_000;
@@ -50,6 +50,7 @@ export function publishLevelsFromBody(body) {
 }
 
 function enforceResourceLimits(level) {
+  if ((level.actors.characters ?? []).length > 64) throw new Error('Das Level enthält mehr als 64 eigene Figuren.');
   if (level.board.columns > 64 || level.board.rows > 64 || level.board.columns * level.board.rows > 4096) {
     throw new Error('Veröffentlichte Level dürfen höchstens 64 × 64 Felder groß sein.');
   }
@@ -91,4 +92,15 @@ export function preparePublishedBatch(inputs, { existingByPath = new Map(), next
     if (!existing) nextNewOrder += 1;
     return prepared;
   });
+}
+
+export function preparePublishedContent(input) {
+  const result = validateContentDocument(input);
+  if (!result.ok) throw new Error(result.errors.join(' '));
+  if (result.value.type === 'level') throw new Error('Level werden über gemeinsame Level-Entwürfe veröffentlicht.');
+  return {
+    value: result.value,
+    warnings: [],
+    path: contentPublicationPath(result.value.type, result.value.id),
+  };
 }

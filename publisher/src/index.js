@@ -1,5 +1,16 @@
 import { createPublication, exchangeGithubCode, listPublishedLevels, publicationStatus, readRepositoryFile } from './github.js';
-import { preparePublishedBatch, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from './level-publication.js';
+import { preparePublishedBatch, preparePublishedContent, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from './level-publication.js';
+import {
+  ContentConflictError,
+  ContentNotFoundError,
+  deleteContentItem,
+  finishContentPublication,
+  listContentItems,
+  readContentItem,
+  recordContentPublication,
+  resolveContentReferences,
+  saveContentItem,
+} from './content-store.js';
 import {
   deleteDraft,
   DraftConflictError,
@@ -137,6 +148,7 @@ async function bootstrapDrafts(env) {
 
 async function publicationDrafts(body, env, session) {
   if (Array.isArray(body?.drafts)) return resolveDraftReferences(env.LEVEL_DB, body.drafts);
+  if (Array.isArray(body?.items) && !body?.level && !body?.levels) return [];
   const levels = publishLevelsFromBody(body);
   const drafts = [];
   for (const level of levels) {
@@ -148,29 +160,54 @@ async function publicationDrafts(body, env, session) {
 async function publish(request, env, session) {
   const body = await readPublishBody(request);
   const drafts = await publicationDrafts(body, env, session);
+  const contentItems = await resolveContentReferences(env.LEVEL_DB, Array.isArray(body?.items) ? body.items : []);
+  if (!drafts.length && !contentItems.length) throw new Error('Bitte mindestens einen Inhalt auswählen.');
+  if (drafts.length + contentItems.length > 20) throw new Error('Es können höchstens 20 Inhalte auf einmal veröffentlicht werden.');
   const levels = drafts.map((draft) => draft.level);
   const publishedFiles = await listPublishedLevels(env);
   const initial = levels.map((level, index) => preparePublishedLevel(level, { existing: null, nextMapOrder: publishedFiles.length + index }));
   const existingFiles = await Promise.all(initial.map((entry) => readRepositoryFile(env, entry.path)));
   const existingByPath = new Map(initial.map((entry, index) => [entry.path, existingFiles[index]?.value ?? null]));
   const prepared = preparePublishedBatch(levels, { existingByPath, nextMapOrder: publishedFiles.length });
+  const preparedItems = contentItems.map((item) => ({ ...item, ...preparePublishedContent(item.content) }));
   const publication = await createPublication(env, {
-    files: prepared.map((entry) => ({ path: entry.path, content: entry.value, level: entry.value, warnings: entry.warnings })),
+    files: [
+      ...prepared.map((entry) => ({
+        path: entry.path,
+        content: entry.value,
+        level: entry.value,
+        item: { type: 'level', id: entry.value.id, name: entry.value.name.standard },
+        warnings: entry.warnings,
+      })),
+      ...preparedItems.map((entry) => ({
+        path: entry.path,
+        content: entry.value,
+        item: { type: entry.type, id: entry.id, name: entry.name },
+        warnings: entry.warnings,
+      })),
+    ],
     login: session.login,
   });
   await recordPublication(env.LEVEL_DB, { number: publication.number, login: session.login, drafts });
+  await recordContentPublication(env.LEVEL_DB, {
+    number: publication.number,
+    items: preparedItems.map((entry) => ({ ...entry, content: entry.value })),
+  });
   const warnings = prepared.flatMap((entry) => entry.warnings.map((warning) => `${entry.value.name.standard}: ${warning}`));
+  const count = prepared.length + preparedItems.length;
   return json({
     publicationId: publication.number,
     state: 'testing',
     phase: 'upload-complete',
-    phaseLabel: 'Level sicher übertragen',
+    phaseLabel: 'Inhalte sicher übertragen',
     progress: 22,
-    detail: `${prepared.length === 1 ? 'Das Level wurde' : `${prepared.length} Level wurden`} übertragen und werden automatisch geprüft.`,
+    detail: `${count === 1 ? 'Der Inhalt wurde' : `${count} Inhalte wurden`} übertragen und werden automatisch geprüft.`,
     prUrl: publication.url,
     warnings,
     levelIds: prepared.map((entry) => entry.value.id),
+    contentIds: preparedItems.map((entry) => `${entry.type}:${entry.id}`),
     drafts: drafts.map((draft) => ({ id: draft.id, revision: draft.revision })),
+    items: preparedItems.map((item) => ({ type: item.type, id: item.id, revision: item.revision })),
   }, { status: 202, request, env });
 }
 
@@ -184,6 +221,13 @@ async function api(request, env, path) {
     return json({ drafts: await bootstrapDrafts(env) }, { request, env });
   }
   if (path === '/api/drafts' && request.method === 'GET') return json({ drafts: await listDrafts(env.LEVEL_DB) }, { request, env });
+  if (path === '/api/content/bootstrap' && request.method === 'POST') {
+    return json({ items: await listContentItems(env.LEVEL_DB, { includeContent: true }) }, { request, env });
+  }
+  if (path === '/api/content' && request.method === 'GET') {
+    const type = new URL(request.url).searchParams.get('type') ?? '';
+    return json({ items: await listContentItems(env.LEVEL_DB, { type }) }, { request, env });
+  }
   const draftMatch = /^\/api\/drafts\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
   if (draftMatch && request.method === 'GET') return json(await readDraft(env.LEVEL_DB, draftMatch[1]), { request, env });
   if (draftMatch && request.method === 'PUT') {
@@ -201,12 +245,32 @@ async function api(request, env, path) {
       login: session.login,
     }), { request, env });
   }
+  const contentMatch = /^\/api\/content\/(character|tileset|block|animation|cutscene|object)\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
+  if (contentMatch && request.method === 'GET') return json(await readContentItem(env.LEVEL_DB, contentMatch[1], contentMatch[2]), { request, env });
+  if (contentMatch && request.method === 'PUT') {
+    const body = await readPublishBody(request);
+    if (body?.content?.type !== contentMatch[1] || body?.content?.id !== contentMatch[2]) {
+      throw new Error('Content-Typ, ID und Adresse des Bibliotheksinhalts stimmen nicht überein.');
+    }
+    return json(await saveContentItem(env.LEVEL_DB, body.content, {
+      expectedRevision: body.expectedRevision,
+      login: session.login,
+    }), { request, env });
+  }
+  if (contentMatch && request.method === 'DELETE') {
+    const body = await readPublishBody(request);
+    return json(await deleteContentItem(env.LEVEL_DB, contentMatch[1], contentMatch[2], {
+      expectedRevision: body.expectedRevision,
+      login: session.login,
+    }), { request, env });
+  }
   if (path === '/api/publish' && request.method === 'POST') return publish(request, env, session);
   const publicationMatch = /^\/api\/publications\/(\d+)$/.exec(path);
   if (publicationMatch && request.method === 'GET') {
     const publicationId = Number(publicationMatch[1]);
     const status = await publicationStatus(env, publicationId);
     await finishPublication(env.LEVEL_DB, publicationId, status);
+    await finishContentPublication(env.LEVEL_DB, publicationId, status);
     return json(status, { request, env });
   }
   return json({ error: 'API-Endpunkt nicht gefunden.' }, { status: 404, request, env });
@@ -239,11 +303,12 @@ export default {
       return response('Nicht gefunden.', { status: 404 });
     } catch (error) {
       console.error(JSON.stringify({ message: 'publisher request failed', error: error instanceof Error ? error.message : 'Unbekannter Fehler', path: url.pathname }));
-      const knownStatus = error instanceof DraftConflictError || error instanceof DraftNotFoundError ? error.status : null;
-      const expected = error instanceof SyntaxError || /Level|Entwurf|Revision|JSON|Veröffentlich|GitHub|64 × 64|mehr als|nicht erlaubt|größer|höchstens|vorkommen/.test(error?.message ?? '');
+      const knownStatus = error instanceof DraftConflictError || error instanceof DraftNotFoundError
+        || error instanceof ContentConflictError || error instanceof ContentNotFoundError ? error.status : null;
+      const expected = error instanceof SyntaxError || /Level|Entwurf|Content|Inhalt|Bibliothek|Revision|JSON|Veröffentlich|GitHub|64 × 64|mehr als|nicht erlaubt|größer|höchstens|vorkommen|auswählen/.test(error?.message ?? '');
       return json({
         error: knownStatus || expected ? error.message : 'Die Veröffentlichung konnte nicht abgeschlossen werden.',
-        ...(error instanceof DraftConflictError ? { current: error.current } : {}),
+        ...(error instanceof DraftConflictError || error instanceof ContentConflictError ? { current: error.current } : {}),
       }, {
         status: knownStatus || (expected ? 400 : 500),
         request: url.pathname.startsWith('/api/') ? request : undefined,

@@ -1,5 +1,5 @@
 <script>
-  let { studio, onselect = () => {}, onopen = () => studio.openSelectionWorkspace() } = $props();
+  let { studio, onselect = () => {} } = $props();
   let search = $state('');
   let filter = $state('all');
   let collapsed = $state([]);
@@ -9,8 +9,7 @@
   })).filter((group) => group.nodes.length));
 
   function toggleGroup(id) { collapsed = collapsed.includes(id) ? collapsed.filter((entry) => entry !== id) : [...collapsed, id]; }
-  function select(event, node) { studio.selectEntity(node.kind, node.index, { additive: event.shiftKey }); onselect(node); }
-  function open(event, node) { event.preventDefault(); studio.selectEntity(node.kind, node.index); onopen(node); }
+  function select(event, node) { studio.selectEntity(node.kind, node.index, { additive: event.shiftKey, reveal: !event.shiftKey }); onselect(node); }
   function control(event, action) { event.stopPropagation(); action(); }
 </script>
 
@@ -32,7 +31,7 @@
               {@const hidden = studio.isSceneHidden(node.kind, node.index)}
               {@const selected = studio.isSelected(node.kind, node.index)}
               <div class:selected class:hidden class:locked={Boolean(entity?.locked)} class="scene-node" data-scene-key={node.key}>
-                <button class="scene-node-main" onclick={(event) => select(event, node)} ondblclick={(event) => open(event, node)} title="Klick: auswählen · Shift: hinzufügen · Doppelklick: Fachbereich öffnen">
+                <button class="scene-node-main" onclick={(event) => select(event, node)} title="Klick: erkennen und passende Details öffnen · Shift: zur Auswahl hinzufügen">
                   <span>{node.icon}</span><span><strong>{node.label}</strong><small>{node.detail}</small></span>{#if selected}<i>✓</i>{/if}
                 </button>
                 <div class="scene-node-actions">
@@ -48,5 +47,5 @@
     {/each}
     {#if !groups.length}<p class="hint">Keine passenden Elemente gefunden.</p>{/if}
   </div>
-  <footer><span><kbd>Shift</kbd> Mehrfachauswahl</span><span><kbd>Alt</kbd> Überlappung wählen</span><span>Doppelklick öffnet den Fachbereich</span></footer>
+  <footer><span><kbd>Shift</kbd> Mehrfachauswahl</span><span><kbd>Alt</kbd> Überlappung wählen</span><span>Ein Klick öffnet automatisch die passenden Details</span></footer>
 </div>
