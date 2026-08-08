@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLevelDocument } from '@franz-lola/pixel-renderer';
-import { assertSafeObject, preparePublishedBatch, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from '../src/level-publication.js';
+import { CONTENT_TYPES, createContentDocument, createLevelDocument } from '@franz-lola/pixel-renderer';
+import { assertSafeObject, preparePublishedBatch, preparePublishedContent, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from '../src/level-publication.js';
 
 function level() {
   return createLevelDocument({
@@ -91,4 +91,22 @@ test('new levels cannot claim protected map presentation metadata', () => {
   assert.deepEqual(result.value.source, {
     catalog: 'Levelwerkstatt', gameLayout: 9, markerClass: '', home: false, mapOrder: 9,
   });
+});
+
+test('publishes every reusable content type to a strict static path', () => {
+  const pixels = ['0000', '0110', '0110', '0000'];
+  const samples = {
+    character: { id: 'postler', name: 'Postler', appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels } },
+    object: { id: 'briefkasten', name: 'Briefkasten', type: 'custom', appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels } },
+    tileset: { id: 'innstadt', name: 'Innstadt' },
+    block: { id: 'ziegel', name: 'Ziegel', width: 2, height: 1, pattern: 'brick' },
+    animation: { id: 'winken', name: 'Winken', width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels, keyframes: [{ time: 0, pixels }] },
+    cutscene: { id: 'servus', name: { standard: 'Servus', dialect: 'Hawedere' }, duration: 2, tracks: [] },
+  };
+  for (const type of CONTENT_TYPES.filter((entry) => entry !== 'level')) {
+    const prepared = preparePublishedContent(createContentDocument(type, samples[type]));
+    assert.match(prepared.path, new RegExp(`^src/data/library/.+/${samples[type].id}\\.${type}\\.json$`));
+    assert.equal(prepared.value.type, type);
+  }
+  assert.throws(() => preparePublishedContent(createContentDocument('level', level())), /Level-Entwürfe/);
 });

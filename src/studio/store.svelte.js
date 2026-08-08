@@ -1,4 +1,4 @@
-import { createLevelDocument, tileKey, validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { createContentDocument, createLevelDocument, tileKey, validateContentDocument, validateLevelDocument } from '@franz-lola/pixel-renderer';
 import { catalogLevel, passauCatalog } from '../catalog.js';
 import { DraftRepository } from '../draft-repository.js';
 import { createStarterLevel, EditorState } from '../editor-state.js';
@@ -50,6 +50,7 @@ export class StudioState {
   revision = $state(0);
   cloudStatus = $state('local');
   cloudDrafts = $state.raw([]);
+  cloudItems = $state.raw([]);
   cloudUser = $state.raw(null);
   cloudError = $state('');
 
@@ -96,6 +97,9 @@ export class StudioState {
     this.cloudRevisions = new Map();
     this.cloudHashes = new Map();
     this.cloudBlocked = new Set();
+    this.cloudContentRevisions = new Map();
+    this.cloudContentHashes = new Map();
+    this.cloudContentBlocked = new Set();
     this.cloudQueue = Promise.resolve();
     this.toastTimer = null;
     this.gesture = null;
@@ -170,8 +174,9 @@ export class StudioState {
     this.cloudStatus = 'connecting';
     this.cloudError = '';
     try {
-      const result = await publisher.bootstrapDrafts();
+      const [result, contentResult] = await Promise.all([publisher.bootstrapDrafts(), publisher.bootstrapContent()]);
       this.applyCloudDraftList(result.drafts ?? []);
+      this.applyCloudContentList(contentResult.items ?? []);
       const current = this.cloudDrafts.find((draft) => draft.id === this.level.id);
       if (current) {
         const remote = await publisher.draft(current.id);
@@ -195,6 +200,28 @@ export class StudioState {
     this.cloudUser = null;
     this.cloudStatus = 'local';
     this.cloudError = '';
+  }
+
+  applyCloudContentList(items) {
+    this.cloudItems = items;
+    items.forEach((item) => {
+      const key = `${item.type}:${item.id}`;
+      this.cloudContentRevisions.set(key, item.revision);
+      if (item.content) this.cloudContentHashes.set(key, JSON.stringify(item.content));
+      if (!['character', 'object'].includes(item.type) || !item.content?.document) return;
+      const library = item.type === 'character' ? this.characterLibrary : this.library;
+      const localEntries = item.type === 'character' ? library.list() : library.readCustom();
+      const local = localEntries.find((entry) => entry.id === item.id);
+      if (!local) library.save(item.content.document);
+      else if (JSON.stringify(createContentDocument(item.type, local)) !== JSON.stringify(item.content)) {
+        library.save({ ...local, id: `${item.id}-lokale-kopie`, name: `${local.name} · lokale Kopie` });
+        library.save(item.content.document);
+        this.notify(`${item.name}: Cloud-Stand geladen · lokale Variante als Kopie erhalten`);
+      }
+    });
+    this.assets = this.library.list();
+    this.characterAssets = this.characterLibrary.list();
+    this.revision += 1;
   }
 
   applyCloudDraftList(drafts) {
@@ -271,13 +298,57 @@ export class StudioState {
     }
   }
 
+  queueContentSave(type, asset) {
+    if (!this.cloudPublisher) return;
+    const content = createContentDocument(type, asset);
+    if (this.cloudContentBlocked.has(`${type}:${content.id}`)) return;
+    this.cloudQueue = this.cloudQueue.then(() => this.saveContentToCloud(content)).catch(() => null);
+  }
+
+  async saveContentToCloud(content) {
+    if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
+    const key = `${content.type}:${content.id}`;
+    if (this.cloudContentBlocked.has(key)) throw new Error(`Der Inhalt ${key} hat einen ungelösten Versionskonflikt.`);
+    const hash = JSON.stringify(content);
+    if (this.cloudContentHashes.get(key) === hash) return { type: content.type, id: content.id, revision: this.cloudContentRevisions.get(key) };
+    this.cloudStatus = 'syncing';
+    try {
+      const saved = await this.cloudPublisher.saveContent(content, this.cloudContentRevisions.get(key) ?? 0);
+      this.cloudContentRevisions.set(key, saved.revision);
+      this.cloudContentHashes.set(key, JSON.stringify(saved.content));
+      this.cloudItems = [saved, ...this.cloudItems.filter((item) => `${item.type}:${item.id}` !== key)];
+      this.cloudStatus = 'shared';
+      this.cloudError = '';
+      this.saveStatus = 'CLOUD GESPEICHERT';
+      this.revision += 1;
+      return { type: saved.type, id: saved.id, revision: saved.revision };
+    } catch (error) {
+      if (error.status === 409) {
+        this.cloudContentBlocked.add(key);
+        if (error.current?.revision) this.cloudContentRevisions.set(key, error.current.revision);
+        this.cloudStatus = 'conflict';
+        this.cloudError = error.message;
+        this.saveStatus = 'VERSIONSKONFLIKT';
+        this.notify(`Cloud-Konflikt bei ${content.name}`);
+      } else {
+        this.cloudStatus = 'offline';
+        this.cloudError = error.message;
+      }
+      throw error;
+    }
+  }
+
   async prepareCloudPublication(candidates) {
     if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
     clearTimeout(this.cloudSaveTimer);
     await this.cloudQueue;
-    const references = [];
-    for (const candidate of candidates) references.push(await this.saveLevelToCloud(candidate.level));
-    return references;
+    const drafts = [];
+    const items = [];
+    for (const candidate of candidates) {
+      if (candidate.type === 'level') drafts.push(await this.saveLevelToCloud(candidate.level));
+      else items.push(await this.saveContentToCloud(candidate.content));
+    }
+    return { drafts, items };
   }
 
   undo() { if (this.engine.undo()) this.sync(); }
@@ -540,12 +611,14 @@ export class StudioState {
   saveAsset(asset) {
     const saved = this.library.save(asset);
     this.assets = this.library.list(); this.selectedAssetId = saved.id;
+    this.queueContentSave('object', saved);
     this.notify('Objekt in der Bibliothek gespeichert');
   }
 
   createAsset() {
     const asset = createBlankObjectAsset(`Eigenes Objekt ${this.assets.length + 1}`);
     const saved = this.library.save(asset); this.assets = this.library.list(); this.selectedAssetId = saved.id;
+    this.queueContentSave('object', saved);
     return saved;
   }
 
@@ -557,6 +630,7 @@ export class StudioState {
     const saved = this.characterLibrary.save(asset);
     this.characterAssets = this.characterLibrary.list();
     this.selectedCharacterId = saved.id;
+    this.queueContentSave('character', saved);
     const hasInstances = (this.level.actors.characters ?? []).some((character) => character.characterId === saved.id);
     if (hasInstances) {
       this.mutate('Globale Figur aktualisieren', (draft) => {
@@ -579,6 +653,18 @@ export class StudioState {
     this.characterLibrary.remove(id);
     this.characterAssets = this.characterLibrary.list();
     if (this.selectedCharacterId === id) this.selectedCharacterId = '';
+    if (this.cloudPublisher) {
+      const key = `character:${id}`;
+      const revision = this.cloudContentRevisions.get(key);
+      if (Number.isInteger(revision)) this.cloudQueue = this.cloudQueue
+        .then(() => this.cloudPublisher.deleteContent('character', id, revision))
+        .then(() => {
+          this.cloudContentRevisions.delete(key);
+          this.cloudContentHashes.delete(key);
+          this.cloudContentBlocked.delete(key);
+          this.cloudItems = this.cloudItems.filter((item) => `${item.type}:${item.id}` !== key);
+        }).catch((error) => { this.cloudError = error.message; });
+    }
     this.notify('Figur aus der globalen Bibliothek entfernt · Levelinstanzen bleiben erhalten');
   }
 
@@ -723,10 +809,68 @@ export class StudioState {
   draftsList() { return this.drafts.list(); }
 
   publishCandidates() {
-    const entries = this.drafts.list().map((entry) => ({ ...entry, level: this.drafts.load(entry.id), current: entry.id === this.level.id }));
+    const levelEntries = this.drafts.list().map((entry) => ({ ...entry, level: this.drafts.load(entry.id), current: entry.id === this.level.id }));
     const current = { id: this.level.id, name: this.level.name.standard, savedAt: '', level: clone(this.level), current: true };
-    const candidates = [current, ...entries.filter((entry) => entry.id !== current.id)];
-    return candidates.map((entry) => ({ ...entry, validation: validateLevelDocument(entry.level) }));
+    const levels = [current, ...levelEntries.filter((entry) => entry.id !== current.id)].map((entry) => ({
+      ...entry,
+      key: `level:${entry.id}`,
+      type: 'level',
+      typeLabel: 'Level',
+      icon: entry.level.icon,
+      detail: `${entry.level.board.columns}×${entry.level.board.rows} Felder`,
+      validation: validateLevelDocument(entry.level),
+    }));
+    const contentCandidate = (type, input, metadata = {}) => {
+      const content = createContentDocument(type, input, metadata);
+      return {
+        key: `${type}:${content.id}`,
+        type,
+        id: content.id,
+        name: content.name,
+        content,
+        typeLabel: { character: 'Figur', tileset: 'Tileset', block: 'Block', animation: 'Animation', cutscene: 'Cutscene', object: 'Objekt' }[type],
+        icon: { character: 'FIG', tileset: 'SET', block: 'BLK', animation: 'ANI', cutscene: 'CUT', object: 'OBJ' }[type],
+        detail: content.description || 'Wiederverwendbarer Inhalt',
+        validation: validateContentDocument(content),
+      };
+    };
+    const objects = this.library.readCustom().map((asset) => contentCandidate('object', asset));
+    const characters = this.characterAssets.map((asset) => contentCandidate('character', asset));
+    const cutscenes = this.level.cutscenes.map((cutscene) => contentCandidate('cutscene', cutscene, {
+      id: `${this.level.id}-${cutscene.id}`,
+      name: cutscene.name?.standard || cutscene.id,
+      description: `Cutscene aus ${this.level.name.standard}`,
+    }));
+    const animations = [];
+    [...this.characterAssets, ...this.library.readCustom()].forEach((asset) => {
+      (asset.appearance?.animations ?? []).forEach((animation) => animations.push(contentCandidate('animation', {
+        id: `${asset.id}-${animation.id}`,
+        name: `${asset.name} · ${animation.id}`,
+        width: asset.appearance.width,
+        height: asset.appearance.height,
+        palette: asset.appearance.palette,
+        pixels: asset.appearance.pixels,
+        animation,
+      })));
+      if (asset.animation && asset.animation.type !== 'none') animations.push(contentCandidate('animation', {
+        id: `${asset.id}-bewegung`,
+        name: `${asset.name} · Bewegung`,
+        target: 'motion',
+        motion: asset.animation,
+      }));
+    });
+    const tileset = contentCandidate('tileset', this.level.theme, {
+      id: `${this.level.id}-${this.level.theme.id}`,
+      name: `${this.level.name.standard} · Theme`,
+      description: `Tileset aus ${this.level.name.standard}`,
+    });
+    const selectedWall = this.selection?.kind === 'wall' ? this.level.board.walls[this.selection.index] : null;
+    const blocks = selectedWall ? [contentCandidate('block', selectedWall, {
+      id: `${this.level.id}-${selectedWall.id || `wall-${this.selection.index + 1}`}`,
+      name: selectedWall.name || `Block aus ${this.level.name.standard}`,
+      description: `Ausgewählter Block aus ${this.level.name.standard}`,
+    })] : [];
+    return [...levels, ...characters, ...objects, tileset, ...blocks, ...animations, ...cutscenes];
   }
 
   deleteDraft(id) {

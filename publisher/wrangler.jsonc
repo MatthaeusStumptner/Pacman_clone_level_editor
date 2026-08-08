@@ -19,6 +19,8 @@
   "d1_databases": [
     {
       "binding": "LEVEL_DB",
+      "database_name": "franz-lola-publisher-level-db",
+      "database_id": "7b95045e-4f14-4a64-be26-000d6beecc81",
       "migrations_dir": "migrations"
     }
   ],

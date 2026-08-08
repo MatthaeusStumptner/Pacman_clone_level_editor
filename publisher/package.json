@@ -1,6 +1,6 @@
 {
   "name": "franz-lola-publisher",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#9e86985"
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#c3d2c91"
   },
   "devDependencies": {
     "wrangler": "^4.118.0"

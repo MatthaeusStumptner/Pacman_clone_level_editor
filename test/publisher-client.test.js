@@ -90,3 +90,29 @@ test('publication can reference exact shared draft revisions', async () => {
   await client.publishDrafts([{ id: 'hals', revision: 7 }]);
   assert.deepEqual(body, { drafts: [{ id: 'hals', revision: 7 }] });
 });
+
+test('content registry saves typed documents and publishes mixed exact revisions', async () => {
+  const requests = [];
+  const client = new PublisherClient({
+    baseUrl: 'https://publisher.example',
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url, options });
+      return new Response(JSON.stringify({ type: 'character', id: 'postler', revision: 2, publicationId: 9, items: [] }), {
+        status: options.method === 'POST' && url.endsWith('/api/publish') ? 202 : 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+  client.consumeSessionFromLocation({ hash: '#publisher_session=token', pathname: '/', search: '' }, { replaceState() {} });
+  const content = { kind: 'franz-lola-content', schemaVersion: 1, type: 'character', id: 'postler' };
+  await client.bootstrapContent();
+  await client.saveContent(content, 1);
+  await client.publishContent({ drafts: [{ id: 'hals', revision: 4 }], items: [{ type: 'character', id: 'postler', revision: 2 }] });
+  assert.equal(requests[0].url, 'https://publisher.example/api/content/bootstrap');
+  assert.equal(requests[1].url, 'https://publisher.example/api/content/character/postler');
+  assert.deepEqual(JSON.parse(requests[1].options.body), { content, expectedRevision: 1 });
+  assert.deepEqual(JSON.parse(requests[2].options.body), {
+    drafts: [{ id: 'hals', revision: 4 }],
+    items: [{ type: 'character', id: 'postler', revision: 2 }],
+  });
+});

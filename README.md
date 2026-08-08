@@ -33,10 +33,10 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Spielkamera, Ganzlevel-Ansicht, nativer Vollbildmodus, Pause, Touch-Buttons und direkte Wischsteuerung während der Fingerbewegung
 - Live-Prüfung auf Erreichbarkeit, Kollisionen, Gutti-Kapazität und Randüberschreitungen
 - Transaktionsbasiertes Undo/Redo: ein kompletter Zeichenstrich ist ein Schritt
-- Gemeinsame, automatisch versionierte D1-Entwürfe für mehrere Personen und Geräte; veraltete Revisionen werden sichtbar blockiert
+- Gemeinsame, automatisch versionierte D1-Entwürfe und Content-Bibliotheken für mehrere Personen und Geräte; veraltete Revisionen werden sichtbar blockiert, lokale Varianten bleiben als Kopie erhalten
 - Mehrere automatisch gespeicherte `localStorage`-Entwürfe als Offline- und Wiederherstellungsnetz
 - Import/Export einzelner Level sowie Export des vollständigen Originalkatalogs
-- Sicheres Veröffentlichen per Knopfdruck: einen oder mehrere lokale Entwürfe auswählen; Anmeldung, gemeinsamer Pull Request, Prüfung, Merge und GitHub-Pages-Deploy laufen geführt und automatisch; Prozent, aktuelle GitHub-Phase, Laufzeit, letzter Check und Aktivitätslog bleiben live sichtbar
+- Sicheres Veröffentlichen per Knopfdruck: Level, Figuren, Tilesets, Blöcke, Animationen, Cutscenes und Objekte typisiert auswählen; Anmeldung, gemeinsamer Pull Request, Prüfung, Merge und GitHub-Pages-Deploy laufen geführt und automatisch
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
 
 Die Originalvorlagen enthalten auch die ursprünglichen Geheimnisse: den Eisvogel an der Ilz, Lolas Lieblingsplatz und die Passauer Kirchenglocken – jeweils mit Originaltrigger, Belohnung und beiden Sprachfassungen. Zusätzlich besitzt jedes der neun Level eine eigene neue Ereignisidee, einen frei beweglichen Textblock und eine individuelle Intro-Cutscene mit unterschiedlicher Dauer, Trackzahl und Dramaturgie. Der Zauberberg besitzt in Editor und Testlauf seine beiden Bühnenlichtkegel, Lautsprecher, Verstärker und sowohl die generische als auch die originalgetreue Musiknote.
@@ -63,8 +63,8 @@ npm run build         # statischer GitHub-Pages-Build
 
 ## Austauschformat
 
-Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `schemaVersion: 1`. Das Renderer-Repository liefert dazu ein JSON Schema. Es enthält keine ausführbare Logik und kann deshalb sicher versioniert, geprüft und zwischen Spiel, Editor und zukünftigen Werkzeugen ausgetauscht werden. Globale Bibliothekseinträge bleiben Editor-Vorlagen; jede platzierte Figur wird mit Sprite, States, Effekten und Verhalten vollständig unter `actors.characters` in das jeweilige Level kopiert. Die statische Spielseite benötigt deshalb keinen Zugriff auf Browser-Speicher.
+Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `schemaVersion: 1`. Eigenständig veröffentlichte Bibliothekseinträge verwenden den typisierten Wrapper `franz-lola-content`. Beide Verträge besitzen ein JSON Schema und enthalten keine ausführbare Logik. Jede platzierte Figur und jedes verwendete Objekt wird weiterhin vollständig in das Level kopiert; die statische Spielseite benötigt deshalb weder D1 noch Browser-Speicher oder zusätzliche Asset-Anfragen.
 
 ## Veröffentlichen ohne Repository-Zugriff
 
-Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an und sieht danach denselben gemeinsamen Entwurfsstand auf allen Geräten. D1 schützt jede Änderung mit einer Revision; GitHub bleibt die kanonische Quelle für veröffentlichte Level und übernimmt Prüfung, Historie und Deployment. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.
+Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an und sieht danach dieselben Levelentwürfe, Figuren und Objekte auf allen Geräten. D1 schützt jeden eigenständigen Inhalt mit einer Revision; GitHub hält die statische veröffentlichte Projektion und übernimmt Prüfung, Historie und Deployment. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.

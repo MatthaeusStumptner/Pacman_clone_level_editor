@@ -452,8 +452,8 @@ test('testplay runs the same intro, camera and direct controls as the game', asy
   expect(errors).toEqual([]);
 });
 
-test('authorized non-technical editors share and publish several exact draft revisions together', async ({ page }) => {
-  const errors = []; const published = []; const shared = new Map(); let checks = 0;
+test('authorized non-technical editors share and publish mixed exact content revisions together', async ({ page }) => {
+  const errors = []; const published = []; const shared = new Map(); const content = new Map(); let checks = 0;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
@@ -461,12 +461,18 @@ test('authorized non-technical editors share and publish several exact draft rev
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
     if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [...shared.values()].map(({ level, ...draft }) => draft) } });
+    if (path === '/api/content/bootstrap') return route.fulfill({ headers, json: { items: [...content.values()] } });
     if (path.startsWith('/api/drafts/') && request.method() === 'PUT') {
       const body = request.postDataJSON(); const revision = body.expectedRevision + 1;
       const draft = { id: body.level.id, name: body.level.name.standard, icon: body.level.icon, area: body.level.location.area, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', level: body.level };
       shared.set(draft.id, draft); return route.fulfill({ headers, json: draft });
     }
-    if (path === '/api/publish') { published.push(request.postDataJSON().drafts); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Level wurden sicher übertragen.' } }); }
+    if (path.startsWith('/api/content/') && request.method() === 'PUT') {
+      const body = request.postDataJSON(); const revision = body.expectedRevision + 1;
+      const item = { type: body.content.type, id: body.content.id, name: body.content.name, description: body.content.description, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', content: body.content };
+      content.set(`${item.type}:${item.id}`, item); return route.fulfill({ headers, json: item });
+    }
+    if (path === '/api/publish') { published.push(request.postDataJSON()); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Inhalte sicher übertragen', progress: 22, detail: 'Inhalte wurden sicher übertragen.' } }); }
     if (path === '/api/publications/42') { checks += 1; return route.fulfill({ headers, json: checks > 1 ? { state: 'published', phase: 'published', phaseLabel: 'GitHub Pages ist aktuell', progress: 100, detail: 'Das Level ist live.', checkedAt: '2026-08-05T18:00:00.000Z', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/' } : { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T17:59:58.000Z' } }); }
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
@@ -476,18 +482,21 @@ test('authorized non-technical editors share and publish several exact draft rev
   await page.locator('[data-workspace="publish"]').click();
   await expect(page.locator('.publisher-user')).toContainText('Franz-Lola-Redaktion');
   await expect.poll(() => page.url()).not.toContain('publisher_session');
-  await expect(page.locator('.publish-candidate')).toHaveCount(2);
+  await expect(page.locator('.publish-candidate[data-content-type="level"]')).toHaveCount(2);
   await page.getByLabel('Level Dahoam · Am Bramerhof auswählen').check();
+  await page.locator('.publish-candidate[data-content-type="tileset"] input').check();
   await page.locator('#publisher-confirm').click();
   await expect(page.getByRole('progressbar', { name: 'Veröffentlichungsfortschritt' })).toHaveAttribute('aria-valuenow', '100');
   await expect(page.locator('.publish-activity')).toContainText('GitHub Pages ist aktuell');
   await expect(page.locator('.publication-steps .done')).toHaveCount(5);
-  await expect(page.locator('.publish-state')).toContainText('Level sind live!', { timeout: 10_000 });
+  await expect(page.locator('.publish-state')).toContainText('Inhalte sind live!', { timeout: 10_000 });
   await openProject(page);
   await expect(page.locator('.shared-draft-section')).toContainText('Gemeinsame Entwürfe');
   await expect(page.locator('.shared-draft-section .draft-entry')).toHaveCount(2);
-  expect(published).toHaveLength(1); expect(published[0].map((draft) => draft.id).sort()).toEqual(['hals', 'home']);
-  expect(published[0].every((draft) => draft.revision === 1)).toBe(true); expect(errors).toEqual([]);
+  expect(published).toHaveLength(1); expect(published[0].drafts.map((draft) => draft.id).sort()).toEqual(['hals', 'home']);
+  expect(published[0].drafts.every((draft) => draft.revision === 1)).toBe(true);
+  expect(published[0].items).toEqual([{ type: 'tileset', id: 'hals-neighborhood', revision: 1 }]);
+  expect(errors).toEqual([]);
 });
 
 test('all visible controls have accessible names', async ({ page }) => {
