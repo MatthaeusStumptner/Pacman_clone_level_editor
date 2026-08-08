@@ -17,12 +17,16 @@
   let startedAt = 0;
   let elapsed = $state(0);
   let activity = $state([]);
+  let resolvingConflict = $state('');
   let candidates = $derived.by(() => { studio.revision; return studio.publishCandidates(); });
   let selectedCandidates = $derived(candidates.filter((entry) => selectedKeys.includes(entry.key)));
   let candidateGroups = $derived(['level', 'character', 'object', 'tileset', 'block', 'animation', 'cutscene']
     .map((type) => ({ type, label: candidates.find((entry) => entry.type === type)?.typeLabel, items: candidates.filter((entry) => entry.type === type) }))
     .filter((group) => group.items.length));
-  let selectionValid = $derived(selectedCandidates.length > 0 && selectedCandidates.every((entry) => entry.validation.ok));
+  let levelConflict = $derived(studio.cloudStatus === 'conflict' && studio.hasCloudConflict());
+  let selectionValid = $derived(selectedCandidates.length > 0
+    && selectedCandidates.every((entry) => entry.validation.ok)
+    && !selectedCandidates.some((entry) => entry.type === 'level' && studio.hasCloudConflict(entry.id)));
 
   const steps = [
     ['transfer', 'Sicher übertragen'],
@@ -86,6 +90,12 @@
   function selectAllValid() { selectedKeys = candidates.filter((entry) => entry.validation.ok).map((entry) => entry.key); }
   function clearSelection() { selectedKeys = []; }
   function logout() { publisher.clearSession(); studio.disableCloudDrafts(); user = null; publication = null; publicationId = 0; state = 'login'; }
+  async function resolveConflict(strategy) {
+    resolvingConflict = strategy; error = '';
+    try { await studio.resolveCloudConflict(strategy); }
+    catch (reason) { error = reason.message; }
+    finally { resolvingConflict = ''; }
+  }
 
   onMount(() => {
     publisher.consumeSessionFromLocation();
@@ -128,6 +138,16 @@
     {:else if state === 'review'}
       <article class="publish-state review-state">
         <span class="state-symbol ok">✓</span><h3>Inhalte auswählen</h3><p>Jeder Eintrag wird eigenständig versioniert. Ein Level enthält zusätzlich vollständige Snapshots seiner verwendeten Figuren und Objekte.</p>
+        {#if levelConflict}
+          <section class="cloud-conflict-resolver" aria-labelledby="cloud-conflict-title">
+            <span>⚠</span><div><h4 id="cloud-conflict-title">Zwei Fassungen von „{studio.level.name.standard}“</h4><p>Auf diesem Gerät liegt eine andere Fassung als in der gemeinsamen Cloud. Nichts wird automatisch überschrieben.</p></div>
+            <div class="cloud-conflict-choices">
+              <button disabled={Boolean(resolvingConflict)} onclick={() => resolveConflict('remote')}><b>{resolvingConflict === 'remote' ? 'Wird geladen …' : 'Gemeinsamen Stand laden'}</b><small>Deine lokale Fassung bleibt automatisch als Sicherung erhalten.</small></button>
+              <button class="primary" disabled={Boolean(resolvingConflict)} onclick={() => resolveConflict('local')}><b>{resolvingConflict === 'local' ? 'Wird übertragen …' : 'Meine Fassung verwenden'}</b><small>Speichert diese Fassung als neue gemeinsame Revision.</small></button>
+            </div>
+            {#if error}<p class="error-copy">{error}</p>{/if}
+          </section>
+        {/if}
         <div class="publish-selection">
           <div class="publish-selection-toolbar"><strong>{selectedCandidates.length} von {candidates.length} ausgewählt</strong><div><button onclick={selectAllValid}>Alle gültigen</button><button onclick={clearSelection}>Auswahl aufheben</button></div></div>
           {#each candidateGroups as group}
@@ -143,6 +163,7 @@
           {/each}
         </div>
         {#if selectedCandidates.some((entry) => !entry.validation.ok)}<p class="error-copy">Mindestens ein ausgewählter Inhalt enthält Fehler. Entferne ihn aus der Auswahl oder korrigiere ihn zuerst.</p>{/if}
+        {#if levelConflict}<p class="error-copy">Löse zuerst den Cloud-Konflikt. Danach kann die Veröffentlichung ohne Datenverlust fortgesetzt werden.</p>{/if}
         <div class="review-facts"><span><b>{selectedCandidates.filter((entry) => entry.type === 'level').length}</b>Level</span><span><b>{selectedCandidates.filter((entry) => ['character', 'object', 'tileset', 'block'].includes(entry.type)).length}</b>Bausteine</span><span><b>{selectedCandidates.filter((entry) => ['animation', 'cutscene'].includes(entry.type)).length}</b>Abläufe</span></div>
         <button class="primary large-action" id="publisher-confirm" disabled={!selectionValid} onclick={publish}>{selectedCandidates.length === 1 ? `1 ${selectedCandidates[0]?.typeLabel ?? 'Inhalt'} veröffentlichen` : `${selectedCandidates.length} Inhalte gemeinsam veröffentlichen`}</button>
       </article>

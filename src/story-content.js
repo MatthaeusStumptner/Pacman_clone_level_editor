@@ -18,14 +18,14 @@ function textBlock(id, x, y, width, standard, dialect, color = '#f5e7bd', overri
   return decoration('text-block', id, x, y, { width, content: localized(standard, dialect), color, textStyle: { ...asset('text-block').textStyle, backgroundOpacity: 0, borderOpacity: 0 }, ...overrides });
 }
 
-function eventFromAsset({ id, name, dialectName, message, dialectMessage, assetId, trigger, reward = 120, scope = 'level', x = 12.5, y = 18.5 }) {
+function eventFromAsset({ id, name, dialectName, message, dialectMessage, assetId, trigger, reward = 120, scope = 'level', x = 12.5, y = 18.5, showVisual = true }) {
   const source = asset(assetId);
   return {
     id, kind: 'easter-egg', name: localized(name, dialectName), message: localized(message, dialectMessage), reward, scope, trigger,
-    visual: {
+    visual: showVisual ? {
       type: 'custom', x, y, color: source.color, accent: '#f5c451', label: source.label, visibility: 'after-trigger',
       assetId, appearance: source.appearance, spriteAnimation: source.appearance?.animations?.[0]?.id ?? '', animation: source.animation, effects: source.effects ?? [],
-    },
+    } : { type: 'none', x, y, color: source.color, accent: '#f5c451', label: '', visibility: 'after-trigger', animation: { type: 'none', speed: 1, amplitude: 0 }, effects: [] },
   };
 }
 
@@ -178,12 +178,11 @@ export function storyContent(levelId, player = { x: 12, y: 20 }) {
       ] },
     },
     zauberberg: {
-      decorations: [decoration('zauberberg-note', 'zauberberg-note-frei', 11, 8), decoration('zauberberg-note', 'zauberberg-buehnen-note', 12, 7.25, { name: 'Bühnen-Note', width: 1, height: 1.5 }), decoration('concert-speaker', 'zauberberg-box', 17, 11), textBlock('zauberberg-titel', 8, 5.15, 9, 'ZAUBERBERG', 'ZAUBERBERG', '#ff5d93', { height: 1 }), textBlock('konzertplakat', 7, 6.15, 11, 'ROCK · PUNK · METAL', 'ROCK · PUNK · METAL', '#f1e0b7', { height: 1 })],
-      event: eventFromAsset({ id: 'zugabe', name: 'Zauberberg-Zugabe', dialectName: 'Zauberberg-Zuagab', message: 'Die Bühne spielt eine Zugabe nur für Franz und Lola.', dialectMessage: 'D Bühn spuit a Zuagab bloß fürn Franz und d Lola.', assetId: 'zauberberg-note', trigger: { type: 'direction-sequence', sequence: ['up', 'up', 'down', 'left', 'right'] }, reward: 260, x: 12, y: 9 }),
+      decorations: [decoration('concert-speaker', 'zauberberg-box', 17, 11), textBlock('zauberberg-titel', 8, 5.15, 9, 'ZAUBERBERG', 'ZAUBERBERG', '#ff5d93', { height: 1 }), textBlock('konzertplakat', 7, 6.15, 11, 'ROCK · PUNK · METAL', 'ROCK · PUNK · METAL', '#f1e0b7', { height: 1 })],
+      event: eventFromAsset({ id: 'zugabe', name: 'Zauberberg-Zugabe', dialectName: 'Zauberberg-Zuagab', message: 'Die Bühne spielt eine Zugabe nur für Franz und Lola.', dialectMessage: 'D Bühn spuit a Zuagab bloß fürn Franz und d Lola.', assetId: 'zauberberg-note', trigger: { type: 'direction-sequence', sequence: ['up', 'up', 'down', 'left', 'right'] }, reward: 260, x: 12, y: 9, showVisual: false }),
       cutscene: { id: 'intro', kind: 'intro', name: localized('Soundcheck am Zauberberg', 'Soundcheck am Zauberberg'), duration: 7.2, skippable: true, tracks: [
-        camera([cam('dunkel', 0, 12, 15, 1.05), cam('licht-links', 1.2, 8, 8, 1.48), cam('licht-rechts', 2.4, 17, 8, 1.48), cam('note', 3.8, 12, 9, 1.7), cam('band', 5.4, 12, 13, 1.3), cam('start', 7.2, p.x, p.y, 1.12)]),
+        camera([cam('dunkel', 0, 12, 15, 1.05), cam('licht-links', 1.2, 8, 8, 1.48), cam('licht-rechts', 2.4, 17, 8, 1.48), cam('buehnenmitte', 3.8, 12, 9, 1.7), cam('band', 5.4, 12, 13, 1.3), cam('start', 7.2, p.x, p.y, 1.12)]),
         actor('franz-lola', 'player', [pose('backstage', 0, 8, 18, 'right', 'linear', false), pose('eintritt', 1.5, 8, 18, 'right', 'linear', true), pose('mitte', 5.4, 12, 18, 'up'), pose('start', 7.2, p.x, p.y)]),
-        object('note-solo', 'zauberberg-note-frei', [pose('still', 0, 11, 8, 'idle', 'linear', false), pose('einsatz', 2.8, 11, 9, 'idle', 'ease-in-out', true, 'idle'), pose('hoch', 3.8, 11, 7.5, 'idle', 'ease-in-out', true, 'idle'), pose('runter', 4.8, 11, 9, 'idle', 'ease-in-out', true, 'idle')]),
         object('bassbox', 'zauberberg-box', [pose('still', 0, 17, 11), pose('bass-1', 1.5, 16.8, 11), pose('bass-2', 2, 17.2, 11), pose('still-2', 2.5, 17, 11)]),
         actor('rock-katze', 'cat:2', [pose('buehne-links', 0, 7, 12, 'right'), pose('buehne-rechts', 5.4, 17, 12, 'right', 'ease-in-out')]),
         dialogue([line('soundcheck', 0.5, 1.5, 'Technik', 'Licht an. Boxen an.', 'Licht o. Boxn o.'), line('musik', 2.5, 1.8, 'Franz', 'Rock, Punk und Metal – Lola, das ist unsere Bühne.', 'Rock, Punk und Metal – Lola, des is unsre Bühn.'), line('katze', 5.1, 1.5, 'Franz', 'Nur die Vorband sieht verdächtig nach Katze aus.', 'Bloß d Vorband schaut verdächtig noch Katz aus.')]),

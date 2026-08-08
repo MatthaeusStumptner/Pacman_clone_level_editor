@@ -99,6 +99,39 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
   await page.screenshot({ path: 'output/playwright/publisher-live-progress.png' });
 });
 
+test('Cloud-Konflikt zeigt zwei sichere Entscheidungen @visual', async ({ page }) => {
+  await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await page.waitForTimeout(250);
+  const remote = await page.evaluate(() => {
+    const workspace = JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2'));
+    const original = structuredClone(workspace.drafts.zauberberg.level);
+    workspace.drafts.zauberberg.level.name.standard = 'Mein lokaler Zauberberg';
+    localStorage.setItem('franz-lola-level-editor-workspace-v2', JSON.stringify(workspace));
+    return original;
+  });
+  await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
+    const request = route.request(); const path = new URL(request.url()).pathname;
+    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
+    const metadata = { id: remote.id, name: remote.name.standard, icon: remote.icon, area: remote.location.area, revision: 2, status: 'published', updatedBy: 'github', updatedAt: '2026-08-08T12:00:00.000Z' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
+    if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [metadata] } });
+    if (path === '/api/content/bootstrap') return route.fulfill({ headers, json: { items: [] } });
+    if (path === '/api/drafts/zauberberg') return route.fulfill({ headers, json: { ...metadata, level: remote } });
+    return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
+  });
+  await page.goto('/#publisher_session=visual.session');
+  await page.locator('[data-workspace="publish"]').click();
+  const resolver = page.locator('.cloud-conflict-resolver');
+  await expect(resolver).toBeVisible();
+  await expect(resolver.getByRole('button')).toHaveCount(2);
+  const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: innerWidth }));
+  expect(widths.page).toBeLessThanOrEqual(widths.viewport + 1);
+  await resolver.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'output/playwright/cloud-konflikt-aufloesen.png', fullPage: true });
+});
+
 test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
   await openCleanEditor(page);
   await loadTemplate(page, 'home');
@@ -200,9 +233,9 @@ test('Individuelle Wandstile und saubere Glitch-Effekte sind direkt sichtbar @vi
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="objects"]').click();
   await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
-  await expect(page.locator('[data-scene-key="decoration:zauberberg-note-frei"]')).toBeVisible();
-  await expect(page.locator('[data-scene-key="decoration:zauberberg-buehnen-note"]')).toBeVisible();
+  await expect(page.locator('[data-scene-key*="note"]')).toHaveCount(0);
   await expect(page.locator('[data-scene-key="theme-element:stage-note"]')).toHaveCount(0);
+  await expect(page.locator('[data-scene-key="decoration:zauberberg-box"]')).toBeVisible();
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'output/playwright/zauberberg-editierbare-elemente.png' });
 });

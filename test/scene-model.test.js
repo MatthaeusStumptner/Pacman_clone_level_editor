@@ -9,7 +9,10 @@ const level = {
     { id: 'bank', name: 'Bank', type: 'bench', layer: 'scenery', x: 2, y: 2, width: 3, height: 2 },
     { id: 'text', name: 'Text', type: 'text', layer: 'foreground', x: 3, y: 3, width: 2, height: 1 },
   ],
-  events: [{ id: 'eisvogel', name: { standard: 'Eisvogel' }, trigger: { type: 'zone' }, visual: { x: 3.5, y: 3.5, label: '!' } }],
+  events: [
+    { id: 'eisvogel', name: { standard: 'Eisvogel' }, trigger: { type: 'zone' }, visual: { type: 'marker', x: 3.5, y: 3.5, label: '!' } },
+    { id: 'unsichtbar', name: { standard: 'Unsichtbar' }, trigger: { type: 'zone' }, visual: { type: 'none', x: 3.5, y: 3.5, label: '' } },
+  ],
   theme: { elements: [{ id: 'stage-note' }] },
 };
 
@@ -32,6 +35,11 @@ test('orders overlapping candidates like the renderer and keeps walls behind aut
   ]);
   assert.equal(sceneSelectionKey(level, chooseSceneCandidate(level, candidates, candidates[0], true)), 'character:postler-1');
   assert.equal(sceneSelectionKey(level, chooseSceneCandidate(level, candidates, candidates.at(-1), true)), 'player:player');
+});
+
+test('does not offer events without a visible scene representation', () => {
+  const candidates = sceneCandidatesAt(level, { x: 3, y: 3 });
+  assert.equal(candidates.some((selection) => sceneSelectionKey(level, selection) === 'event:unsichtbar'), false);
 });
 
 test('does not offer editor-hidden candidates', () => {
