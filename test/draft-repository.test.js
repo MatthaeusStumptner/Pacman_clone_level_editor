@@ -42,3 +42,16 @@ test('can save a conflict backup without replacing the active draft', () => {
   assert.equal(repository.active().id, active.id);
   assert.equal(repository.load(backup.id).id, backup.id);
 });
+
+test('treats legacy drafts as clean until a new local edit is based on cloud state', () => {
+  const storage = new MemoryStorage();
+  const level = createStarterLevel();
+  storage.setItem('test', JSON.stringify({ activeId: level.id, drafts: { [level.id]: { savedAt: '2020-01-01', level } } }));
+  const repository = new DraftRepository(storage, 'test');
+  assert.deepEqual(repository.activeEntry().sync, { baseRevision: null, dirty: false, source: 'legacy' });
+
+  repository.save(level, { sync: { baseRevision: 7, dirty: false, source: 'cloud' } });
+  assert.deepEqual(repository.entry(level.id).sync, { baseRevision: 7, dirty: false, source: 'cloud' });
+  repository.save({ ...level, description: 'bearbeitet' }, { sync: { baseRevision: 7, dirty: true, source: 'local' } });
+  assert.deepEqual(repository.entry(level.id).sync, { baseRevision: 7, dirty: true, source: 'local' });
+});

@@ -99,7 +99,7 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
   await page.screenshot({ path: 'output/playwright/publisher-live-progress.png' });
 });
 
-test('Cloud-Konflikt zeigt zwei sichere Entscheidungen @visual', async ({ page }) => {
+test('Alter Browser-Entwurf übernimmt automatisch die gemeinsame Cloud-Basis @visual', async ({ page }) => {
   await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.waitForTimeout(250);
@@ -122,14 +122,15 @@ test('Cloud-Konflikt zeigt zwei sichere Entscheidungen @visual', async ({ page }
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
   await page.goto('/#publisher_session=visual.session');
+  await expect(page.locator('.document-identity')).toContainText(remote.name.standard);
   await page.locator('[data-workspace="publish"]').click();
-  const resolver = page.locator('.cloud-conflict-resolver');
-  await expect(resolver).toBeVisible();
-  await expect(resolver.getByRole('button')).toHaveCount(2);
+  await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
+  await expect(page.locator('.topbar-status')).toContainText('GEMEINSAM');
+  const workspace = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2')));
+  expect(workspace.drafts.zauberberg.sync).toEqual({ baseRevision: 2, dirty: false, source: 'cloud' });
   const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: innerWidth }));
   expect(widths.page).toBeLessThanOrEqual(widths.viewport + 1);
-  await resolver.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: 'output/playwright/cloud-konflikt-aufloesen.png', fullPage: true });
+  await page.screenshot({ path: 'output/playwright/cloud-basis-automatisch.png', fullPage: true });
 });
 
 test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {

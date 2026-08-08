@@ -171,7 +171,7 @@
       <article class="publish-state progress-state" data-state={publication?.state || state} data-phase={publication?.phase || ''}>
         <span class:failed={state === 'failed'} class:ok={state === 'published'} class:spinning={state === 'progress'} class="state-symbol">{state === 'published' ? '✓' : state === 'failed' ? '!' : '↻'}</span>
         <h3>{state === 'published' ? `${selectedCandidates.length === 1 ? 'Inhalt ist' : 'Inhalte sind'} live!` : state === 'failed' ? 'Veröffentlichung gestoppt' : publication?.phaseLabel || 'Veröffentlichung läuft'}</h3>
-        <p>{publication?.detail || error || 'Die automatischen Schritte laufen im Hintergrund.'}</p>
+        <p>{state === 'failed' ? error || publication?.detail : publication?.detail || error || 'Die automatischen Schritte laufen im Hintergrund.'}</p>
         <div class="publish-progress" role="progressbar" aria-label="Veröffentlichungsfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow={publication?.progress ?? 0}><span style:width={`${publication?.progress ?? 0}%`}></span></div>
         <div class="publish-live-facts"><span><b>{publication?.progress ?? 0}%</b>Fortschritt</span><span><b>{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</b>vergangen</span><span><b>{publication?.checkedAt ? new Date(publication.checkedAt).toLocaleTimeString('de-DE') : 'jetzt'}</b>zuletzt geprüft</span></div>
         <div class="publication-steps">
