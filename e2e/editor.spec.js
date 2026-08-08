@@ -36,6 +36,43 @@ async function openSceneTree(page) {
   await expect(page.locator('.scene-tree:visible')).toBeVisible();
 }
 
+async function openConflictingCloudEditor(page) {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await page.waitForTimeout(250);
+  const remote = await page.evaluate(() => {
+    const workspace = JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2'));
+    const original = structuredClone(workspace.drafts.zauberberg.level);
+    workspace.drafts.zauberberg.level.name.standard = 'Mein lokaler Zauberberg';
+    workspace.drafts.zauberberg.level.mission.standard = 'Meine noch nicht gemeinsame Fassung';
+    localStorage.setItem('franz-lola-level-editor-workspace-v2', JSON.stringify(workspace));
+    return original;
+  });
+  const writes = [];
+  await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
+    const request = route.request(); const path = new URL(request.url()).pathname;
+    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
+    const metadata = { id: remote.id, name: remote.name.standard, icon: remote.icon, area: remote.location.area, revision: 2, status: 'published', updatedBy: 'github', updatedAt: '2026-08-08T12:00:00.000Z' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
+    if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [metadata] } });
+    if (path === '/api/content/bootstrap') return route.fulfill({ headers, json: { items: [] } });
+    if (path === '/api/drafts/zauberberg' && request.method() === 'GET') return route.fulfill({ headers, json: { ...metadata, level: remote } });
+    if (path === '/api/drafts/zauberberg' && request.method() === 'PUT') {
+      const body = request.postDataJSON(); writes.push(body);
+      return route.fulfill({ headers, json: { ...metadata, revision: 3, status: 'draft', updatedBy: 'freundin', level: body.level } });
+    }
+    return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
+  });
+  await page.goto('/#publisher_session=test.session-token');
+  await expect(page.locator('#level-canvas')).toBeVisible();
+  await expect(page.locator('.document-identity')).toContainText('Mein lokaler Zauberberg');
+  await page.locator('[data-workspace="publish"]').click();
+  await expect(page.locator('.cloud-conflict-resolver')).toBeVisible();
+  await expect(page.getByRole('button', { name: /CLOUD-KONFLIKT · LÖSEN/ })).toBeVisible();
+  return { errors, remote, writes };
+}
+
 async function canvasHasVisiblePixels(locator) {
   return locator.evaluate((canvas) => {
     const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
@@ -62,7 +99,7 @@ const storyCases = [
   { id: 'uni', event: 'Das Prüfungs-Gutti', eventCount: 1, cutscene: 'Kurze Vorlesung für Lola', tracks: 4, keyframes: 10, duration: 4.3 },
   { id: 'bschuett', event: 'Lolas Superstöckchen', eventCount: 3, cutscene: 'Runde durch den Bschüttpark', tracks: 4, keyframes: 10, duration: 4.8 },
   { id: 'tabakfabrik', event: 'Das alte Dampfzeichen', eventCount: 1, cutscene: 'Die Fabrik erwacht', tracks: 5, keyframes: 13, duration: 5.8 },
-  { id: 'zauberberg', event: 'Zauberberg-Zugabe', eventCount: 1, cutscene: 'Soundcheck am Zauberberg', tracks: 6, keyframes: 23, duration: 7.2 },
+  { id: 'zauberberg', event: 'Zauberberg-Zugabe', eventCount: 1, cutscene: 'Soundcheck am Zauberberg', tracks: 5, keyframes: 19, duration: 7.2, visualAsset: false },
 ];
 
 async function canvasPoint(page, x, y) {
@@ -158,21 +195,20 @@ test('canvas selection recognizes context, opens the owning details and keeps ov
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="level"]').click();
   await page.locator('[data-tool="select"]').click();
-  const note = await canvasPoint(page, 11, 8);
-  await page.mouse.click(note.x, note.y);
-  await expect(page.locator('[data-workspace="events"]')).toHaveAttribute('aria-current', 'page');
+  const overlap = await canvasPoint(page, 17, 11);
+  await page.mouse.click(overlap.x, overlap.y);
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.selection-summary')).toBeVisible();
-  await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Zugabe');
-  await expect(page.locator('.selection-summary')).toContainText('Ereignis · Ereignisregie');
-  await expect(page.locator('.property-panel')).toContainText('Auslöser');
-  const under = await canvasPoint(page, 11, 8);
+  await expect(page.locator('.selection-summary')).toContainText('Konzertbox');
+  await expect(page.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
+  const under = await canvasPoint(page, 17, 11);
   await page.keyboard.down('Alt');
   await page.mouse.click(under.x, under.y);
   await page.keyboard.up('Alt');
-  await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Note');
-  await expect(page.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
+  await expect(page.locator('.selection-summary')).toContainText('Bühnenlichter');
+  await expect(page.locator('.selection-summary')).toContainText('Systemkulisse · Objektwerkstatt');
   await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
+  await expect(page.locator('.object-inspector')).toContainText('Bühnenlichter');
   await page.locator('.object-inspector').getByLabel('Bewegungsanimation', { exact: true }).selectOption('spin');
   await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).fill('2.5'); await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).blur();
   await page.waitForTimeout(250);
@@ -191,12 +227,12 @@ test('scene tree searches, filters, multi-selects, hides, locks and reorders sta
   await expect(tree.locator('.scene-node')).toHaveCount(1);
   await tree.getByLabel('Szenenbaum durchsuchen').fill('');
   await tree.getByLabel('Elementtyp filtern').selectOption('objects');
-  await expect(tree.locator('.scene-node')).toHaveCount(5);
+  await expect(tree.locator('.scene-node')).toHaveCount(3);
   await tree.getByLabel('Elementtyp filtern').selectOption('all');
 
-  const note = tree.locator('[data-scene-key="decoration:zauberberg-note-frei"]');
+  const title = tree.locator('[data-scene-key="decoration:zauberberg-titel"]');
   const speaker = tree.locator('[data-scene-key="decoration:zauberberg-box"]');
-  await note.locator('.scene-node-main').click();
+  await title.locator('.scene-node-main').click();
   await speaker.locator('.scene-node-main').click({ modifiers: ['Shift'] });
   await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '2');
   await expect(page.locator('.selection-summary')).toContainText('2 Elemente ausgewählt');
@@ -209,7 +245,7 @@ test('scene tree searches, filters, multi-selects, hides, locks and reorders sta
   await speaker.getByRole('button', { name: 'Konzertbox entsperren' }).click();
 
   const before = await tree.locator('[data-scene-key^="decoration:"]').evaluateAll((nodes) => nodes.map((node) => node.dataset.sceneKey));
-  await note.getByRole('button', { name: 'Zauberberg-Note nach vorne' }).click();
+  await title.locator('.scene-node-actions button[title="Nach vorne"]').click();
   const after = await tree.locator('[data-scene-key^="decoration:"]').evaluateAll((nodes) => nodes.map((node) => node.dataset.sceneKey));
   expect(after).not.toEqual(before);
 
@@ -239,21 +275,20 @@ test('placed wall blocks are selectable, individually editable and route-persist
   expect(errors).toEqual([]);
 });
 
-test('all Zauberberg notes can be removed through their owning document systems', async ({ page }) => {
+test('Zauberberg contains no baked, placed, event-backed or cutscene note', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="objects"]').click();
   await openSceneTree(page);
   const tree = page.locator('.scene-tree');
-  await expect(tree.locator('[data-scene-key="decoration:zauberberg-note-frei"]')).toBeVisible();
-  await expect(tree.locator('[data-scene-key="decoration:zauberberg-buehnen-note"]')).toBeVisible();
-  await tree.locator('[data-scene-key="decoration:zauberberg-buehnen-note"] .scene-node-main').click();
-  await page.keyboard.press('Delete');
-  await expect(tree.locator('[data-scene-key="decoration:zauberberg-buehnen-note"]')).toHaveCount(0);
+  await expect(tree.locator('[data-scene-key*="note"]')).toHaveCount(0);
+  await expect(tree.locator('[data-scene-key="theme-element:stage-note"]')).toHaveCount(0);
   await page.locator('[data-workspace="events"]').click();
   await page.locator('.event-browser button').filter({ hasText: 'Zauberberg-Zugabe' }).click();
-  await page.getByRole('button', { name: 'Nur Ereignissymbol aus dem Level entfernen' }).click();
   await expect(page.locator('.property-panel').getByLabel('Symboltyp')).toHaveValue('none');
+  await expect(page.locator('.property-panel').getByLabel('Objekt aus Bibliothek')).toHaveValue('');
+  await page.locator('[data-workspace="cutscenes"]').click();
+  await expect(page.locator('.track-browser')).not.toContainText('note-solo');
   expect(errors).toEqual([]);
 });
 test('universal objects can be created as pixel assets and placed into any map', async ({ page }) => {
@@ -320,7 +355,7 @@ test('selection context offers the inferred direct tool without hiding the selec
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await openSceneTree(page);
-  await page.locator('[data-scene-key="decoration:zauberberg-note-frei"] .scene-node-main').click();
+  await page.locator('[data-scene-key="decoration:zauberberg-box"] .scene-node-main').click();
   await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
   const context = page.locator('.selection-summary');
   await expect(context).toHaveAttribute('data-selection-kind', 'decoration');
@@ -409,7 +444,8 @@ test('every level exposes its own event and differently authored cutscene throug
     await expect(page.locator('.event-message-preview')).toContainText(story.event);
     await expect(page.locator('.property-panel').getByLabel('Meldung', { exact: true })).not.toHaveValue('');
     await expect(page.locator('.property-panel').getByLabel('Meldung im Dialekt')).not.toHaveValue('');
-    await expect(page.locator('.property-panel').getByLabel('Objekt aus Bibliothek')).not.toHaveValue('');
+    if (story.visualAsset === false) await expect(page.locator('.property-panel').getByLabel('Objekt aus Bibliothek')).toHaveValue('');
+    else await expect(page.locator('.property-panel').getByLabel('Objekt aus Bibliothek')).not.toHaveValue('');
 
     await page.locator('[data-workspace="cutscenes"]').click();
     await expect(page.locator('.cutscene-selector')).toContainText(story.cutscene);
@@ -427,14 +463,14 @@ test('level-bound cutscenes combine camera, actors, objects, dialogue and timeli
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="cutscenes"]').click();
-  await expect(page.locator('.timeline-row')).toHaveCount(6);
-  await expect(page.locator('.track-browser')).toContainText('note-solo');
+  await expect(page.locator('.timeline-row')).toHaveCount(5);
+  await expect(page.locator('.track-browser')).not.toContainText('note-solo');
   await expect(page.locator('.track-browser')).toContainText('rock-katze');
   await page.locator('.cutscene-transport input').evaluate((input) => { input.value = '3'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   await expect(page.locator('.dialogue-card')).toContainText('Rock, Punk und Metal');
   await page.locator('.cutscene-transport button').click();
   await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="cutscenes"]').click();
-  await expect(page.locator('.timeline-row')).toHaveCount(6);
+  await expect(page.locator('.timeline-row')).toHaveCount(5);
   expect(errors).toEqual([]);
 });
 
@@ -520,6 +556,32 @@ test('authorized non-technical editors share and publish mixed exact content rev
   expect(errors).toEqual([]);
 });
 
+test('a cloud conflict can promote the local level as the next shared revision', async ({ page }) => {
+  const { errors, writes } = await openConflictingCloudEditor(page);
+  await page.getByRole('button', { name: /Meine Fassung verwenden/ }).click();
+  await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
+  await expect(page.locator('.topbar-status')).toContainText('GEMEINSAM');
+  await expect(page.locator('#publisher-confirm')).toBeEnabled();
+  expect(writes).toHaveLength(1);
+  expect(writes[0].expectedRevision).toBe(2);
+  expect(writes[0].level.name.standard).toBe('Mein lokaler Zauberberg');
+  expect(errors).toEqual([]);
+});
+
+test('a cloud conflict can load the shared level while preserving the local one as a backup', async ({ page }) => {
+  const { errors, remote, writes } = await openConflictingCloudEditor(page);
+  await page.getByRole('button', { name: /Gemeinsamen Stand laden/ }).click();
+  await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
+  await expect(page.locator('.document-identity')).toContainText(remote.name.standard);
+  await page.waitForTimeout(250);
+  const workspace = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2')));
+  expect(workspace.activeId).toBe('zauberberg');
+  expect(workspace.drafts['zauberberg-lokale-sicherung'].level.name.standard).toContain('Mein lokaler Zauberberg');
+  expect(workspace.drafts['zauberberg-lokale-sicherung'].level.name.standard).toContain('lokale Sicherung');
+  expect(writes).toHaveLength(0);
+  expect(errors).toEqual([]);
+});
+
 test('all visible controls have accessible names', async ({ page }) => {
   const errors = await openCleanEditor(page);
   const unnamed = await page.locator('button:visible, input:visible, select:visible, textarea:visible').evaluateAll((elements) => elements
@@ -564,12 +626,12 @@ test('@mobile one scene selection opens the inferred specialist and its detail s
   const focusTabs = page.locator('.mobile-focus-tabs:visible');
   await focusTabs.getByRole('button', { name: /Szene/ }).click();
   await page.locator('.level-sidebar.mobile-active .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
-  await page.locator('.level-sidebar.mobile-active [data-scene-key="decoration:zauberberg-note-frei"] .scene-node-main').click();
+  await page.locator('.level-sidebar.mobile-active [data-scene-key="decoration:zauberberg-box"] .scene-node-main').click();
   await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
   const inspector = page.locator('.object-inspector.mobile-active');
   await expect(inspector).toBeVisible();
   await expect(inspector.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
-  await expect(inspector).toContainText('Zauberberg-Note');
+  await expect(inspector).toContainText('Konzertbox');
   expect(errors).toEqual([]);
 });
 

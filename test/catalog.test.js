@@ -29,7 +29,7 @@ const expectedStories = {
   oberhaus: ['goldener-ausblick', 'Hinauf zur Veste', 4, 12], dom: ['orgelakkord', 'Glocken über Passau', 4, 12],
   dreifluesseeck: ['dreiklang-der-fluesse', 'Drei Flüsse, eine Runde', 4, 15], uni: ['pruefungs-gutti', 'Kurze Vorlesung für Lola', 4, 10],
   bschuett: ['lolas-stockerl', 'Runde durch den Bschüttpark', 4, 10], tabakfabrik: ['dampfzeichen', 'Die Fabrik erwacht', 5, 13],
-  zauberberg: ['zugabe', 'Soundcheck am Zauberberg', 6, 23],
+  zauberberg: ['zugabe', 'Soundcheck am Zauberberg', 5, 19],
 };
 
 test('catalog is pinned to the reviewed Geburtstagsspiel source snapshot', () => {
@@ -78,7 +78,8 @@ test('every level has a distinct authored cutscene and at least one new event', 
     const [eventId, cutsceneName, tracks, keyframes] = expectedStories[level.id];
     const event = level.events.find((entry) => entry.id === eventId);
     const cutscene = level.cutscenes[0];
-    assert.ok(event?.visual.assetId, `${level.id} level-specific reusable object event`);
+    assert.ok(event, `${level.id} authored event`);
+    if (event.visual.type !== 'none') assert.ok(event.visual.assetId, `${level.id} level-specific reusable object event`);
     assert.ok(event.message.standard && event.message.dialect, `${level.id} localized event copy`);
     assert.equal(cutscene.name.standard, cutsceneName, `${level.id} adapted cutscene`);
     assert.equal(cutscene.tracks.length, tracks, `${level.id} track complexity`);
@@ -123,13 +124,13 @@ test('replaces every former baked label with a movable transparent text block', 
   }
 });
 
-test('models all three Zauberberg notes as removable document instances', () => {
+test('ships Zauberberg without baked, placed or event-backed note objects', () => {
   const level = catalogLevel('zauberberg');
   assert.deepEqual(level.theme.elements.map((item) => item.id), ['stage-lights']);
   const notes = level.decorations.filter((item) => item.assetId === 'zauberberg-note');
-  assert.equal(notes.length, 2);
-  assert.ok(notes.every((item) => item.locked === false && item.id));
+  assert.equal(notes.length, 0);
   const encore = level.events.find((event) => event.id === 'zugabe');
-  assert.equal(encore.visual.type, 'custom');
-  assert.equal(encore.visual.assetId, 'zauberberg-note');
+  assert.equal(encore.visual.type, 'none');
+  assert.equal('assetId' in encore.visual, false);
+  assert.equal(level.cutscenes[0].tracks.some((track) => track.target?.includes('note')), false);
 });

@@ -15,9 +15,9 @@ export class DraftRepository {
     }
   }
 
-  save(level) {
+  save(level, { activate = true } = {}) {
     const workspace = this.readWorkspace();
-    workspace.activeId = level.id;
+    if (activate) workspace.activeId = level.id;
     workspace.drafts[level.id] = { savedAt: new Date().toISOString(), level: clone(level) };
     this.storage.setItem(this.key, JSON.stringify(workspace));
     return workspace.drafts[level.id];

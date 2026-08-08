@@ -186,7 +186,7 @@ export class StudioState {
         if (JSON.stringify(this.level) !== JSON.stringify(remote.level)) this.cloudBlocked.add(remote.id);
       }
       this.cloudStatus = this.cloudBlocked.has(this.level.id) ? 'conflict' : 'shared';
-      if (this.cloudBlocked.has(this.level.id)) this.cloudError = 'Für das geöffnete Level gibt es einen anderen gemeinsamen Stand. Öffne ihn im Projektmenü, bevor du ihn überschreibst.';
+      if (this.cloudBlocked.has(this.level.id)) this.cloudError = 'Für das geöffnete Level gibt es einen neueren gemeinsamen Stand. Entscheide unter „Live“, welche Fassung gelten soll.';
       return this.cloudDrafts;
     } catch (error) {
       this.cloudStatus = 'offline';
@@ -240,6 +240,58 @@ export class StudioState {
   }
 
   cloudDraftsList() { return this.cloudDrafts; }
+  hasCloudConflict(id = this.level?.id) { return Boolean(id && this.cloudBlocked.has(id)); }
+
+  saveLocalConflictBackup(level = this.level) {
+    const taken = new Set(this.drafts.list().map((entry) => entry.id));
+    const base = `${String(level.id || 'level').slice(0, 42)}-lokale-sicherung`;
+    let id = base; let suffix = 2;
+    while (taken.has(id)) { id = `${base.slice(0, 60 - String(suffix).length)}-${suffix}`; suffix += 1; }
+    const backup = clone(level);
+    const standardName = backup.name.standard;
+    const dialectName = backup.name.dialect || standardName;
+    backup.id = id;
+    backup.name.standard = `${standardName} · lokale Sicherung`;
+    backup.name.dialect = `${dialectName} · lokale Sicherung`;
+    this.drafts.save(backup, { activate: false });
+    this.revision += 1;
+    return { id, name: backup.name.standard };
+  }
+
+  async resolveCloudConflict(strategy) {
+    if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
+    const id = this.level.id;
+    if (!this.cloudBlocked.has(id)) return { resolved: false, strategy };
+    if (!['remote', 'local'].includes(strategy)) throw new Error('Unbekannte Konfliktauflösung.');
+    clearTimeout(this.cloudSaveTimer);
+    clearTimeout(this.saveTimer);
+    const local = clone(this.level);
+    const remote = await this.cloudPublisher.draft(id);
+    this.cloudRevisions.set(id, remote.revision);
+    this.cloudHashes.set(id, JSON.stringify(remote.level));
+
+    if (strategy === 'remote') {
+      const backup = this.saveLocalConflictBackup(local);
+      this.cloudBlocked.delete(id);
+      this.cloudStatus = 'shared';
+      this.cloudError = '';
+      this.load(remote.level, `Gemeinsamer Stand geladen · ${backup.name} bleibt auf diesem Gerät`);
+      return { resolved: true, strategy, revision: remote.revision, backup };
+    }
+
+    this.cloudBlocked.delete(id);
+    this.cloudStatus = 'syncing';
+    this.cloudError = '';
+    try {
+      const saved = await this.saveLevelToCloud(local);
+      this.notify(`Deine Fassung ist jetzt gemeinsamer Stand · Revision ${saved.revision}`);
+      return { resolved: true, strategy, revision: saved.revision };
+    } catch (error) {
+      if (!this.cloudBlocked.has(id)) this.cloudBlocked.add(id);
+      this.cloudStatus = 'conflict';
+      throw error;
+    }
+  }
 
   async loadCloudDraft(id) {
     if (!this.cloudPublisher) return false;
@@ -268,7 +320,7 @@ export class StudioState {
 
   async saveLevelToCloud(level) {
     if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
-    if (this.cloudBlocked.has(level.id)) throw new Error('Dieser Entwurf hat einen ungelösten Versionskonflikt. Öffne zuerst den gemeinsamen Stand.');
+    if (this.cloudBlocked.has(level.id)) throw new Error('Dieser Entwurf hat einen ungelösten Versionskonflikt. Entscheide unter „Live“, welche Fassung gelten soll.');
     const hash = JSON.stringify(level);
     if (this.cloudHashes.get(level.id) === hash) return { id: level.id, revision: this.cloudRevisions.get(level.id) };
     this.cloudStatus = 'syncing';

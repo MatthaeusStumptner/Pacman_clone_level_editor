@@ -6422,180 +6422,6 @@
       },
       "decorations": [
         {
-          "id": "zauberberg-note-frei",
-          "assetId": "zauberberg-note",
-          "name": "Zauberberg-Note",
-          "type": "custom",
-          "x": 11,
-          "y": 8,
-          "width": 2,
-          "height": 3,
-          "color": "#63d9d4",
-          "label": "♪",
-          "layer": "scenery",
-          "locked": false,
-          "appearance": {
-            "width": 8,
-            "height": 12,
-            "palette": [
-              "transparent",
-              "#63d9d4"
-            ],
-            "pixels": [
-              "00011000",
-              "00011110",
-              "00011010",
-              "00011010",
-              "00011000",
-              "00011000",
-              "00011000",
-              "00011000",
-              "00111000",
-              "01111000",
-              "01110000",
-              "00000000"
-            ],
-            "animations": [
-              {
-                "id": "idle",
-                "fps": 4,
-                "duration": 0.25,
-                "loop": true,
-                "keyframes": [
-                  {
-                    "id": "keyframe-1",
-                    "time": 0,
-                    "easing": "step",
-                    "pixels": [
-                      "00011000",
-                      "00011110",
-                      "00011010",
-                      "00011010",
-                      "00011000",
-                      "00011000",
-                      "00011000",
-                      "00011000",
-                      "00111000",
-                      "01111000",
-                      "01110000",
-                      "00000000"
-                    ]
-                  }
-                ]
-              }
-            ],
-            "stateAnimations": {
-              "idle": "idle",
-              "up": "idle",
-              "right": "idle",
-              "down": "idle",
-              "left": "idle"
-            }
-          },
-          "spriteAnimation": "idle",
-          "animation": {
-            "type": "bob",
-            "speed": 1.1,
-            "amplitude": 0.125
-          },
-          "effects": [
-            {
-              "id": "buehnen-neon",
-              "type": "neon",
-              "intensity": 0.65,
-              "speed": 1.2,
-              "color": "#63d9d4"
-            }
-          ]
-        },
-        {
-          "id": "zauberberg-buehnen-note",
-          "assetId": "zauberberg-note",
-          "name": "Bühnen-Note",
-          "type": "custom",
-          "x": 12,
-          "y": 7.25,
-          "width": 1,
-          "height": 1.5,
-          "color": "#63d9d4",
-          "label": "♪",
-          "layer": "scenery",
-          "locked": false,
-          "appearance": {
-            "width": 8,
-            "height": 12,
-            "palette": [
-              "transparent",
-              "#63d9d4"
-            ],
-            "pixels": [
-              "00011000",
-              "00011110",
-              "00011010",
-              "00011010",
-              "00011000",
-              "00011000",
-              "00011000",
-              "00011000",
-              "00111000",
-              "01111000",
-              "01110000",
-              "00000000"
-            ],
-            "animations": [
-              {
-                "id": "idle",
-                "fps": 4,
-                "duration": 0.25,
-                "loop": true,
-                "keyframes": [
-                  {
-                    "id": "keyframe-1",
-                    "time": 0,
-                    "easing": "step",
-                    "pixels": [
-                      "00011000",
-                      "00011110",
-                      "00011010",
-                      "00011010",
-                      "00011000",
-                      "00011000",
-                      "00011000",
-                      "00011000",
-                      "00111000",
-                      "01111000",
-                      "01110000",
-                      "00000000"
-                    ]
-                  }
-                ]
-              }
-            ],
-            "stateAnimations": {
-              "idle": "idle",
-              "up": "idle",
-              "right": "idle",
-              "down": "idle",
-              "left": "idle"
-            }
-          },
-          "spriteAnimation": "idle",
-          "animation": {
-            "type": "bob",
-            "speed": 1.1,
-            "amplitude": 0.125
-          },
-          "effects": [
-            {
-              "id": "buehnen-neon",
-              "type": "neon",
-              "intensity": 0.65,
-              "speed": 1.2,
-              "color": "#63d9d4"
-            }
-          ]
-        },
-        {
           "id": "zauberberg-box",
           "assetId": "concert-speaker",
           "name": "Konzertbox",
@@ -6775,87 +6601,19 @@
             ]
           },
           "visual": {
-            "type": "custom",
+            "type": "none",
             "x": 12,
             "y": 9,
             "color": "#63d9d4",
             "accent": "#f5c451",
-            "label": "♪",
+            "label": "",
             "visibility": "after-trigger",
-            "assetId": "zauberberg-note",
-            "appearance": {
-              "width": 8,
-              "height": 12,
-              "palette": [
-                "transparent",
-                "#63d9d4"
-              ],
-              "pixels": [
-                "00011000",
-                "00011110",
-                "00011010",
-                "00011010",
-                "00011000",
-                "00011000",
-                "00011000",
-                "00011000",
-                "00111000",
-                "01111000",
-                "01110000",
-                "00000000"
-              ],
-              "animations": [
-                {
-                  "id": "idle",
-                  "fps": 4,
-                  "duration": 0.25,
-                  "loop": true,
-                  "keyframes": [
-                    {
-                      "id": "keyframe-1",
-                      "time": 0,
-                      "easing": "step",
-                      "pixels": [
-                        "00011000",
-                        "00011110",
-                        "00011010",
-                        "00011010",
-                        "00011000",
-                        "00011000",
-                        "00011000",
-                        "00011000",
-                        "00111000",
-                        "01111000",
-                        "01110000",
-                        "00000000"
-                      ]
-                    }
-                  ]
-                }
-              ],
-              "stateAnimations": {
-                "idle": "idle",
-                "up": "idle",
-                "right": "idle",
-                "down": "idle",
-                "left": "idle"
-              }
-            },
-            "spriteAnimation": "idle",
             "animation": {
-              "type": "bob",
-              "speed": 1.1,
-              "amplitude": 0.125
+              "type": "none",
+              "speed": 1,
+              "amplitude": 0
             },
-            "effects": [
-              {
-                "id": "buehnen-neon",
-                "type": "neon",
-                "intensity": 0.65,
-                "speed": 1.2,
-                "color": "#63d9d4"
-              }
-            ]
+            "effects": []
           }
         }
       ],
@@ -6900,7 +6658,7 @@
                   "easing": "ease-in-out"
                 },
                 {
-                  "id": "note",
+                  "id": "buehnenmitte",
                   "time": 3.8,
                   "x": 12,
                   "y": 9,
@@ -6969,53 +6727,6 @@
                   "easing": "linear",
                   "visible": true,
                   "animation": ""
-                }
-              ]
-            },
-            {
-              "id": "note-solo",
-              "type": "object",
-              "target": "zauberberg-note-frei",
-              "keyframes": [
-                {
-                  "id": "still",
-                  "time": 0,
-                  "x": 11,
-                  "y": 8,
-                  "state": "idle",
-                  "easing": "linear",
-                  "visible": false,
-                  "animation": ""
-                },
-                {
-                  "id": "einsatz",
-                  "time": 2.8,
-                  "x": 11,
-                  "y": 9,
-                  "state": "idle",
-                  "easing": "ease-in-out",
-                  "visible": true,
-                  "animation": "idle"
-                },
-                {
-                  "id": "hoch",
-                  "time": 3.8,
-                  "x": 11,
-                  "y": 7.5,
-                  "state": "idle",
-                  "easing": "ease-in-out",
-                  "visible": true,
-                  "animation": "idle"
-                },
-                {
-                  "id": "runter",
-                  "time": 4.8,
-                  "x": 11,
-                  "y": 9,
-                  "state": "idle",
-                  "easing": "ease-in-out",
-                  "visible": true,
-                  "animation": "idle"
                 }
               ]
             },

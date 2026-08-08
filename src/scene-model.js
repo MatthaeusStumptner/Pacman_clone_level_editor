@@ -146,6 +146,7 @@ export function sceneCandidatesAt(level, point, { hidden = new Set(), themeBound
   for (let index = level.actors.cats.length - 1; index >= 0; index -= 1) if (sameTile(level.actors.cats[index], point)) add('cat', index);
   for (let index = level.events.length - 1; index >= 0; index -= 1) {
     const visual = level.events[index].visual;
+    if (!visual || visual.type === 'none') continue;
     if (Math.abs(visual.x - (point.x + 0.5)) <= 0.75 && Math.abs(visual.y - (point.y + 0.5)) <= 0.75) add('event', index);
   }
   for (let index = level.decorations.length - 1; index >= 0; index -= 1) if (contains(level.decorations[index], point)) add('decoration', index);

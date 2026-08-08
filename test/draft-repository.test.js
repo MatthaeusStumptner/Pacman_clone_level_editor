@@ -31,3 +31,14 @@ test('recovers safely from corrupt browser storage', () => {
   assert.deepEqual(repository.list(), []);
   assert.equal(repository.active(), null);
 });
+
+test('can save a conflict backup without replacing the active draft', () => {
+  const storage = new MemoryStorage();
+  const repository = new DraftRepository(storage, 'test');
+  const active = createStarterLevel();
+  const backup = { ...createStarterLevel(), id: 'mein-level-lokale-sicherung' };
+  repository.save(active);
+  repository.save(backup, { activate: false });
+  assert.equal(repository.active().id, active.id);
+  assert.equal(repository.load(backup.id).id, backup.id);
+});
