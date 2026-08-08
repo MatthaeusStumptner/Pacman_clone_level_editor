@@ -1,6 +1,7 @@
 <script>
   import LevelCanvas from './LevelCanvas.svelte';
   import MobileFocusTabs from './MobileFocusTabs.svelte';
+  import SelectionSummary from './SelectionSummary.svelte';
   import VisualEffectsEditor from './VisualEffectsEditor.svelte';
 
   let { studio } = $props();
@@ -10,6 +11,11 @@
   function number(input) { return Number(input.currentTarget.value); }
   function select(id) { studio.selectEntity('event', studio.level.events.findIndex((entry) => entry.id === id)); mobilePanel = 'inspector'; }
   function rename(value) { const id = slug(value); studio.updateEvent(['id'], id); studio.selectedEventId = id; }
+
+  $effect(() => {
+    studio.selectionRevision;
+    if (studio.workspace === 'events' && studio.selection) mobilePanel = 'inspector';
+  });
 </script>
 
 <section class="workspace event-workspace" aria-labelledby="event-workspace-title">
@@ -26,6 +32,7 @@
       {#if event}<div class="event-message-preview"><span class="eyebrow">LIVE-TEXT</span><strong>{event.name[studio.language]}</strong><p>{event.message[studio.language]}</p><button onclick={() => studio.language = studio.language === 'standard' ? 'dialect' : 'standard'}>{studio.language === 'standard' ? 'Schöne Sprache' : 'Niederbairisch*'}</button></div>{/if}
     </div>
     <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">
+      <SelectionSummary {studio} />
       {#if event}
         <div class="property-section"><span class="section-number">EVT</span><h3>{event.name.standard}</h3></div>
         <label>ID<input value={event.id} onchange={(input) => rename(input.currentTarget.value)} /></label>

@@ -20,6 +20,11 @@
 
   function number(event) { return Number(event.currentTarget.value); }
   function tunnels(event) { return event.currentTarget.value.split(',').map((value) => Number.parseInt(value.trim(), 10)).filter(Number.isFinite); }
+
+  $effect(() => {
+    studio.selectionRevision;
+    if (studio.workspace === 'level' && studio.selection) mobilePanel = 'inspector';
+  });
 </script>
 
 <section class="workspace level-workspace" aria-labelledby="level-workspace-title">
@@ -54,7 +59,7 @@
       </div>
       {#if studio.tool === 'character' && studio.selectedCharacterAsset}<div class="character-placement-banner" role="status"><span>◎</span><div><strong>{studio.selectedCharacterAsset.name} platzieren</strong><small>Klicke auf ein freies Feld. Die Figur wird nicht als Katze gezählt.</small></div><button onclick={() => studio.setTool('select')}>Abbrechen</button></div>{/if}
       <LevelCanvas {studio} />
-      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? studio.selection ? 'Ausgewählt · Doppelklick öffnet den Fachbereich · Alt wählt dahinter' : 'Element anklicken zum Auswählen' : studio.tool === 'character' ? `${studio.selectedCharacterAsset?.name ?? 'Figur'} auf ein freies Feld setzen` : studio.tool === 'transform' ? 'Objekt ziehen · Eckgriff ziehen zum Skalieren' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
+      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? studio.selection ? 'Erkannt · passende Details geöffnet · Alt wählt dahinter' : 'Element anklicken · Typ und Details werden automatisch erkannt' : studio.tool === 'character' ? `${studio.selectedCharacterAsset?.name ?? 'Figur'} auf ein freies Feld setzen` : studio.tool === 'transform' ? 'Objekt ziehen · Eckgriff ziehen zum Skalieren' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
     </div>
 
     <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">

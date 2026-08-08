@@ -6,6 +6,7 @@
   import MotionTimelineEditor from './MotionTimelineEditor.svelte';
   import ObjectThumbnail from './ObjectThumbnail.svelte';
   import SceneTree from './SceneTree.svelte';
+  import SelectionSummary from './SelectionSummary.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
 
   let { studio } = $props();
@@ -34,6 +35,11 @@
     else studio.updateSelected(['animation'], animation, 'Keyframe-Animation speichern');
     editingMotion = false;
   }
+
+  $effect(() => {
+    studio.selectionRevision;
+    if (studio.workspace === 'objects' && studio.selection) mobilePanel = 'inspector';
+  });
 </script>
 
 <section class="workspace object-workspace" aria-labelledby="object-workspace-title">
@@ -76,13 +82,14 @@
           <button class:active={studio.tool === 'transform'} data-tool="transform" onclick={() => studio.setTool('transform')}>↔ Bewegen & skalieren</button>
           <button class:active={studio.tool === 'object'} onclick={() => studio.setTool('object')}>＋ {asset?.name ?? 'Objekt'} platzieren</button>
           <button onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>◆ Asset wählen</button>
-          <span class="toolbar-help">Klick wählt · Shift ergänzt · Alt wählt darunter · Doppelklick öffnet Details.</span>
+          <span class="toolbar-help">Klick erkennt den Typ und öffnet sofort die passenden Details · Shift ergänzt · Alt wählt darunter.</span>
         </div>
         <LevelCanvas {studio} />
         <footer class="canvas-status"><span>{studio.selectionCount ? `${studio.selectionCount} ausgewählt` : 'Keine Auswahl'}</span><span>Instanzen verwaltest du im Szenenbaum</span><strong>{studio.saveStatus}</strong></footer>
       </div>
 
       <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel object-inspector" data-focus-panel="inspector">
+        <SelectionSummary {studio} />
         {#if selected && studio.selection?.kind === 'decoration'}
           <div class="property-section"><span class="section-number">OBJ</span><h3>{selected.name || selected.label || selected.type}</h3></div>
           <label>Name<input value={selected.name} onchange={(event) => studio.updateSelected(['name'], event.currentTarget.value)} /></label>

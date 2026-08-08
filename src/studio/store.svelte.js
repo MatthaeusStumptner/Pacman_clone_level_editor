@@ -6,7 +6,7 @@ import { floodFillPoints, linePoints, moveRectangle, previewGuttis, rectangleCon
 import { createFranzLolaAppearance } from '../character-template.js';
 import { CharacterLibrary, characterPlacement, createBlankCharacterAsset } from '../character-library.js';
 import { ObjectLibrary, createBlankObjectAsset, placementFromAsset } from '../object-library.js';
-import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, workspaceForSelection } from '../scene-model.js';
+import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, selectionContext as buildSelectionContext } from '../scene-model.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const slug = (value, fallback = 'eintrag') => String(value || fallback)
@@ -29,6 +29,7 @@ export class StudioState {
   selections = $state.raw([]);
   hiddenSceneNodes = $state.raw(new Set());
   sceneRevision = $state(0);
+  selectionRevision = $state(0);
   tool = $state('select');
   difficulty = $state('easy');
   showGrid = $state(true);
@@ -374,19 +375,21 @@ export class StudioState {
     this.selection = null;
     this.selections = [];
     this.engine.selected = null;
+    this.selectionRevision += 1;
   }
 
-  selectAt(point, { cycle = false, additive = false } = {}) {
+  selectAt(point, { cycle = false, additive = false, reveal = false } = {}) {
     const candidates = sceneCandidatesAt(this.level, point, { hidden: this.hiddenSceneNodes, themeBounds: (id) => this.specialElementBounds(id) });
     const selected = chooseSceneCandidate(this.level, candidates, this.selection, cycle);
-    if (selected) this.selectEntity(selected.kind, selected.index, { additive });
+    if (selected) this.selectEntity(selected.kind, selected.index, { additive, reveal });
     else if (!additive) this.clearSelection();
     return selected;
   }
 
   selectedEntity(selection = this.selection) { return sceneEntity(this.level, selection); }
+  selectionContext(selection = this.selection) { return buildSelectionContext(this.level, selection); }
 
-  selectEntity(kind, index, { additive = false } = {}) {
+  selectEntity(kind, index, { additive = false, reveal = false } = {}) {
     const next = { kind, index };
     if (!this.selectedEntity(next)) return;
     const key = sceneSelectionKey(this.level, next);
@@ -401,23 +404,34 @@ export class StudioState {
     }
     this.engine.selected = this.selection && ['player', 'cat', 'character', 'decoration', 'wall'].includes(this.selection.kind) ? clone(this.selection) : null;
     if (kind === 'event') this.selectedEventId = this.level.events[index]?.id ?? '';
+    this.selectionRevision += 1;
+    if (reveal && !additive) this.revealSelection();
   }
 
-  openSelectionWorkspace() {
+  revealSelection() {
+    const context = this.selectionContext();
+    if (!context) return null;
+    this.workspace = context.workspace;
+    return context;
+  }
+
+  openSelectionWorkspace() { return this.revealSelection(); }
+
+  showSelectionInLevel() {
     if (!this.selection) return;
-    this.workspace = workspaceForSelection(this.selection);
+    this.workspace = 'level';
+    this.tool = 'select';
+  }
+
+  activateSelectionTool() {
+    const context = this.selectionContext();
+    if (!context?.primaryTool) return;
+    this.workspace = context.workspace;
+    this.tool = context.primaryTool;
   }
 
   selectionLabel() {
-    if (!this.selection) return '';
-    const entity = this.selectedEntity();
-    if (this.selection.kind === 'player') return 'Franz & Lola';
-    if (this.selection.kind === 'cat') return `Katze ${this.selection.index + 1}`;
-    if (this.selection.kind === 'character') return entity?.name || `Figur ${this.selection.index + 1}`;
-    if (this.selection.kind === 'event') return entity?.name?.standard ?? 'Ereignis';
-    if (this.selection.kind === 'wall') return entity?.name || 'Wand ' + (this.selection.index + 1);
-    if (this.selection.kind === 'theme-element') return entity?.id === 'stage-note' ? 'Zauberberg-Note' : entity?.id === 'stage-lights' ? 'Bühnenlichter' : entity?.id ?? 'Theme-Element';
-    return entity?.name || entity?.content?.standard || entity?.label || entity?.type || 'Objekt';
+    return this.selectionContext()?.label ?? '';
   }
 
   toggleSceneVisibility(kind, index) {
@@ -478,7 +492,7 @@ export class StudioState {
 
   pointerDown(point, pointerId, erase = false, precisePoint = point, modifiers = {}) {
     const mode = erase ? 'erase' : this.tool;
-    if (mode === 'select') { this.selectAt(point, modifiers); return; }
+    if (mode === 'select') { this.selectAt(point, { ...modifiers, reveal: !modifiers.additive }); return; }
     if (mode === 'transform') { this.beginTransform(precisePoint, pointerId); return; }
     if (mode === 'wall' || mode === 'erase') {
       this.engine.beginTransaction(mode === 'wall' ? 'Wände zeichnen' : 'Wände radieren');

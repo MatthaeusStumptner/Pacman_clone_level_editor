@@ -69,13 +69,6 @@
     if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   }
 
-  function doubleClick(event) {
-    if (studio.tool !== 'select') return;
-    event.preventDefault();
-    studio.selectAt(pointFromEvent(event));
-    studio.openSelectionWorkspace();
-  }
-
   onMount(() => {
     renderer = new PassauPixelRenderer(canvas, { zoom: 1 });
     renderer.setLevel(studio.editorLevel);
@@ -103,7 +96,6 @@
     onpointercancel={pointerUp}
     onpointerleave={() => studio.leaveCanvas()}
     oncontextmenu={(event) => event.preventDefault()}
-    ondblclick={doubleClick}
     data-selection-count={studio.selectionCount}
   ></canvas>
 </div>

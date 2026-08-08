@@ -2,6 +2,7 @@
   import { createFranzLolaAppearance, PLAYER_STATES } from '../character-template.js';
   import ActorThumbnail from './ActorThumbnail.svelte';
   import MobileFocusTabs from './MobileFocusTabs.svelte';
+  import SelectionSummary from './SelectionSummary.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
   import VisualEffectsEditor from './VisualEffectsEditor.svelte';
 
@@ -53,6 +54,11 @@
     studio.selectedCharacterId = '';
     editing = true;
   }
+
+  $effect(() => {
+    studio.selectionRevision;
+    if (studio.workspace === 'characters' && studio.selection) mobilePanel = 'inspector';
+  });
 </script>
 
 <section class="workspace character-workspace" aria-labelledby="character-workspace-title">
@@ -111,6 +117,7 @@
       </div>
 
       <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">
+        <SelectionSummary {studio} />
         {#if actor && targetKind === 'definition'}
           <div class="property-section"><span class="section-number">GLOBAL</span><h3>Figurenvorlage</h3></div>
           <p class="hint">Änderungen an der Vorlage gelten sofort für passende Instanzen im geöffneten Level. Andere Level übernehmen sie beim nächsten Platzieren.</p>

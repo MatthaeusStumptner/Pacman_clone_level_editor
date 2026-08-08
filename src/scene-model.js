@@ -1,6 +1,23 @@
 const decorationLabel = (item, index) => item.name || item.content?.standard || item.label || `Objekt ${index + 1}`;
 const themeLabel = (item) => item.id === 'stage-note' ? 'Zauberberg-Note' : item.id === 'stage-lights' ? 'Bühnenlichter' : item.id;
 
+const workspaceLabels = {
+  level: 'Levelbau',
+  objects: 'Objektwerkstatt',
+  characters: 'Figurenatelier',
+  events: 'Ereignisregie',
+};
+
+const kindWorkspaces = {
+  player: 'characters',
+  cat: 'characters',
+  character: 'characters',
+  decoration: 'objects',
+  wall: 'level',
+  event: 'events',
+  'theme-element': 'objects',
+};
+
 export function sceneEntity(level, selection) {
   if (!selection || !level) return null;
   if (selection.kind === 'player') return level.actors.player;
@@ -20,38 +37,98 @@ export function sceneSelectionKey(level, selection) {
   return entity ? `${selection.kind}:${entity.id ?? selection.index}` : '';
 }
 
+export function selectionContext(level, selection) {
+  if (!selection) return null;
+  const entity = sceneEntity(level, selection);
+  if (!entity) return null;
+  const workspace = kindWorkspaces[selection.kind] ?? 'level';
+  const common = {
+    selection,
+    entity,
+    key: sceneSelectionKey(level, selection),
+    workspace,
+    workspaceLabel: workspaceLabels[workspace],
+    primaryTool: '',
+    primaryActionLabel: '',
+  };
+
+  if (selection.kind === 'player') return {
+    ...common, icon: 'FL', kindLabel: 'Spielerfigur', label: 'Franz & Lola',
+    detail: 'Steuerung, Position und Sprite',
+    hint: 'Alle Eigenschaften dieser Figur sind jetzt direkt im Figurenatelier geöffnet.',
+  };
+  if (selection.kind === 'cat') return {
+    ...common, icon: '◆', kindLabel: 'Katze', label: `Katze ${selection.index + 1}`,
+    detail: `${entity.behavior?.strategy || 'Katze'} · Verhalten und Sprite`,
+    hint: 'Verhalten, Tempo und Aussehen dieser Katze sind jetzt gemeinsam geöffnet.',
+  };
+  if (selection.kind === 'character') return {
+    ...common, icon: '◉', kindLabel: 'Eigene Figur', label: entity.name || `Figur ${selection.index + 1}`,
+    detail: 'Levelinstanz · Position und Sprite',
+    hint: 'Die platzierte Figur ist von ihrer globalen Vorlage unterschieden und direkt bearbeitbar.',
+  };
+  if (selection.kind === 'wall') return {
+    ...common, icon: '▦', kindLabel: 'Wand', label: entity.name || `Wand ${selection.index + 1}`,
+    detail: `${entity.width}×${entity.height} · Muster und Kollision`,
+    hint: 'Die Instanzwerte der Wand stehen im Levelbau ohne weiteren Werkzeugwechsel bereit.',
+  };
+  if (selection.kind === 'event') return {
+    ...common, icon: entity.visual?.label || '!', kindLabel: 'Ereignis', label: entity.name?.standard || 'Ereignis',
+    detail: `${entity.trigger?.type || 'Trigger'} · Auslöser, Text und Darstellung`,
+    hint: 'Trigger, beide Sprachvarianten und das sichtbare Symbol sind gemeinsam geöffnet.',
+    primaryTool: 'event-visual', primaryActionLabel: 'Symbol im Level versetzen',
+  };
+  if (selection.kind === 'theme-element') return {
+    ...common, icon: '◇', kindLabel: 'Systemkulisse', label: themeLabel(entity),
+    detail: 'Animation und Wiederverwendung',
+    hint: 'Das originale Kulissenelement ist erkannt; seine Animation kann direkt angepasst werden.',
+  };
+
+  const isText = entity.type === 'text';
+  return {
+    ...common, icon: isText ? 'T' : '◆', kindLabel: isText ? 'Textblock' : 'Objekt',
+    label: decorationLabel(entity, selection.index),
+    detail: isText ? 'Text, Position und Darstellung' : `${entity.layer || 'scenery'} · ${entity.type || 'Objekt'} · Position und Animation`,
+    hint: isText ? 'Text und Darstellung sind geöffnet; zum Anordnen steht das passende Transformieren-Werkzeug bereit.' : 'Instanz, Position, Animation und Effekte sind jetzt gemeinsam geöffnet.',
+    primaryTool: 'transform', primaryActionLabel: 'Direkt bewegen & skalieren',
+  };
+}
+
 export function sceneGroups(level) {
   if (!level) return [];
+  const node = (kind, index, capabilities = {}) => {
+    const context = selectionContext(level, { kind, index });
+    return {
+      kind, index, key: context.key, label: context.label, detail: context.detail, icon: context.icon,
+      canHide: false, canLock: false, canReorder: false, ...capabilities,
+    };
+  };
   return [
     {
       id: 'actors', label: 'Figuren', icon: 'FL',
       nodes: [
-        { kind: 'player', index: 0, label: 'Franz & Lola', detail: 'Spieler', icon: 'FL', canHide: true, canLock: false, canReorder: false },
-        ...level.actors.cats.map((cat, index) => ({ kind: 'cat', index, label: `Katze ${index + 1}`, detail: cat.behavior?.strategy || 'Katze', icon: '◆', canHide: true, canLock: false, canReorder: false })),
-        ...(level.actors.characters ?? []).map((character, index) => ({ kind: 'character', index, label: character.name || `Figur ${index + 1}`, detail: 'Eigene Figur · global', icon: '◉', canHide: true, canLock: false, canReorder: false })),
+        node('player', 0, { canHide: true }),
+        ...level.actors.cats.map((_, index) => node('cat', index, { canHide: true })),
+        ...(level.actors.characters ?? []).map((_, index) => node('character', index, { canHide: true })),
       ],
     },
     {
       id: 'walls', label: 'Wände', icon: '▦',
-      nodes: (level.board?.walls ?? []).map((wall, index) => ({
-        kind: 'wall', index, label: wall.name || 'Wand ' + (index + 1),
-        detail: wall.width + '×' + wall.height + ' · ' + (wall.pattern || 'Theme'),
-        icon: '▦', canHide: false, canLock: false, canReorder: false,
-      })),
+      nodes: (level.board?.walls ?? []).map((_, index) => node('wall', index)),
     },
     {
       id: 'objects', label: 'Objekte & Texte', icon: '◆',
-      nodes: level.decorations.map((item, index) => ({ kind: 'decoration', index, label: decorationLabel(item, index), detail: item.type === 'text' ? 'Textblock' : `${item.layer || 'scenery'} · ${item.type}`, icon: item.type === 'text' ? 'T' : '◆', canHide: true, canLock: true, canReorder: true })),
+      nodes: level.decorations.map((_, index) => node('decoration', index, { canHide: true, canLock: true, canReorder: true })),
     },
     {
       id: 'events', label: 'Ereignisse', icon: '!',
-      nodes: level.events.map((event, index) => ({ kind: 'event', index, label: event.name.standard, detail: event.trigger.type, icon: event.visual.label || '!', canHide: true, canLock: false, canReorder: false })),
+      nodes: level.events.map((_, index) => node('event', index, { canHide: true })),
     },
     {
       id: 'theme', label: 'Systemkulisse', icon: 'SYS',
-      nodes: (level.theme.elements ?? []).map((item, index) => ({ kind: 'theme-element', index, label: themeLabel(item), detail: 'Theme-Element', icon: '◇', canHide: false, canLock: false, canReorder: false })),
+      nodes: (level.theme.elements ?? []).map((_, index) => node('theme-element', index)),
     },
-  ].map((group) => ({ ...group, nodes: group.nodes.map((node) => ({ ...node, key: sceneSelectionKey(level, node) })) }));
+  ];
 }
 
 const sameTile = (entity, point) => entity && entity.x === point.x && entity.y === point.y;
@@ -91,9 +168,5 @@ export function chooseSceneCandidate(level, candidates, current, cycle = false) 
 }
 
 export function workspaceForSelection(selection) {
-  if (!selection) return 'level';
-  if (selection.kind === 'player' || selection.kind === 'cat' || selection.kind === 'character') return 'characters';
-  if (selection.kind === 'event') return 'events';
-  if (selection.kind === 'wall') return 'level';
-  return 'objects';
+  return selection ? kindWorkspaces[selection.kind] ?? 'level' : 'level';
 }

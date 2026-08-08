@@ -13,7 +13,10 @@ export function routeFromStudio(studio) {
     route.assetId = studio.selectedAssetId;
     route.selection = selectionRoute(studio);
   } else if (studio.workspace === 'characters') route.selection = selectionRoute(studio);
-  else if (studio.workspace === 'events') route.eventId = studio.selectedEventId;
+  else if (studio.workspace === 'events') {
+    route.eventId = studio.selectedEventId;
+    route.selection = selectionRoute(studio);
+  }
   else if (studio.workspace === 'cutscenes') {
     route.cutsceneId = studio.selectedCutsceneId;
     route.trackId = studio.selectedTrackId;

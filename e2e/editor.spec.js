@@ -153,22 +153,25 @@ test('one reactive document keeps drawing, history, autosave and reload synchron
   expect(errors).toEqual([]);
 });
 
-test('canvas selection stays in context, overlap cycling works and explicit opening remains editable', async ({ page }) => {
+test('canvas selection recognizes context, opens the owning details and keeps overlap cycling editable', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="level"]').click();
   await page.locator('[data-tool="select"]').click();
   const note = await canvasPoint(page, 11, 8);
   await page.mouse.click(note.x, note.y);
-  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-workspace="events"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.selection-summary')).toBeVisible();
   await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Zugabe');
+  await expect(page.locator('.selection-summary')).toContainText('Ereignis · Ereignisregie');
+  await expect(page.locator('.property-panel')).toContainText('Auslöser');
+  const under = await canvasPoint(page, 11, 8);
   await page.keyboard.down('Alt');
-  await page.mouse.click(note.x, note.y);
+  await page.mouse.click(under.x, under.y);
   await page.keyboard.up('Alt');
   await expect(page.locator('.selection-summary')).toContainText('Zauberberg-Note');
-  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
-  await page.getByRole('button', { name: /In Objektwerkstatt öffnen/ }).click();
+  await expect(page.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.object-inspector')).toContainText('Zauberberg-Note');
   await page.locator('.object-inspector').getByLabel('Bewegungsanimation', { exact: true }).selectOption('spin');
   await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).fill('2.5'); await page.locator('.object-inspector').getByLabel('Bewegungsanimation Tempo', { exact: true }).blur();
@@ -310,6 +313,24 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.locator('.state-matrix')).toContainText('right');
   await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="characters"]').click();
   await expect(page.locator('.state-matrix')).toContainText('right');
+  expect(errors).toEqual([]);
+});
+
+test('selection context offers the inferred direct tool without hiding the selected object', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  await openSceneTree(page);
+  await page.locator('[data-scene-key="decoration:zauberberg-note-frei"] .scene-node-main').click();
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
+  const context = page.locator('.selection-summary');
+  await expect(context).toHaveAttribute('data-selection-kind', 'decoration');
+  await expect(context).toHaveAttribute('data-selection-workspace', 'objects');
+  await expect(context).toContainText('Objekt · Objektwerkstatt');
+  await context.getByRole('button', { name: 'Direkt bewegen & skalieren' }).click();
+  await expect(page.locator('[data-tool="transform"]')).toHaveClass(/active/);
+  await context.getByRole('button', { name: 'Im Level zeigen' }).click();
+  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '1');
   expect(errors).toEqual([]);
 });
 
@@ -534,6 +555,21 @@ test('@mobile studio has no page overflow and keeps project, navigation and dire
   await page.getByRole('button', { name: /Intro überspringen/ }).click();
   await expect(page.locator('.mobile-dpad')).toBeVisible();
   await page.locator('.mobile-dpad button').first().tap();
+  expect(errors).toEqual([]);
+});
+
+test('@mobile one scene selection opens the inferred specialist and its detail sheet', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'zauberberg');
+  const focusTabs = page.locator('.mobile-focus-tabs:visible');
+  await focusTabs.getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.level-sidebar.mobile-active .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.level-sidebar.mobile-active [data-scene-key="decoration:zauberberg-note-frei"] .scene-node-main').click();
+  await expect(page.locator('[data-workspace="objects"]')).toHaveAttribute('aria-current', 'page');
+  const inspector = page.locator('.object-inspector.mobile-active');
+  await expect(inspector).toBeVisible();
+  await expect(inspector.locator('.selection-summary')).toContainText('Objekt · Objektwerkstatt');
+  await expect(inspector).toContainText('Zauberberg-Note');
   expect(errors).toEqual([]);
 });
 

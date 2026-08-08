@@ -257,9 +257,12 @@ details summary { cursor: pointer; color: var(--gold); font-size: .62rem; }
 .selection-summary strong, .selection-summary small { display: block; }
 .selection-summary strong { font-size: .72rem; }
 .selection-summary small { margin-top: .12rem; color: var(--accent); font-size: .53rem; }
-.selection-summary p { margin: .5rem 0; color: var(--muted); font-size: .58rem; line-height: 1.45; }
-.selection-summary-actions { display: grid; grid-template-columns: minmax(0, 1fr) 34px; gap: .3rem; }
+.selection-summary p { display: grid; gap: .18rem; margin: .5rem 0; color: var(--muted); font-size: .58rem; line-height: 1.45; }
+.selection-summary p b { color: #d9e7e4; font-size: .59rem; }
+.selection-summary-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
 .selection-summary-actions button { min-height: 34px; padding: .34rem .45rem; font-size: .56rem; }
+.selection-summary-actions button:not(.selection-clear) { flex: 1 1 130px; }
+.selection-summary-actions .selection-clear { flex: 0 0 34px; padding: 0; }
 .mobile-focus-tabs, .mobile-panel-scrim { display: none; }
 
 /* Objektwerkstatt */
