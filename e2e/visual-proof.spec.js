@@ -100,7 +100,7 @@ test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
     await page.locator('.actor-browser button').filter({ hasText: name }).click();
     await page.waitForTimeout(300);
   }
-  await page.getByRole('button', { name: /Sprite-Sheet öffnen/ }).click();
+  await page.getByRole('button', { name: /Sprite-Sheet bearbeiten/ }).click();
   for (const state of ['idle', 'up', 'right', 'down', 'left']) {
     await page.locator('.state-tabs button').filter({ hasText: state }).click();
     await page.waitForTimeout(280);
@@ -114,6 +114,38 @@ test('Figuren werden wie im Spiel gerendert @visual', async ({ page }) => {
   await page.getByRole('button', { name: 'Farbe anwenden' }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'output/playwright/pixel-multiselect.png' });
+});
+
+test('Globale Figuren werden sichtbar erstellt und ins Level gesetzt @visual', async ({ page }) => {
+  await openCleanEditor(page);
+  await page.locator('[data-workspace="characters"]').click();
+  await page.locator('#create-character').click();
+  await page.locator('#character-name').fill('Passauer Postler');
+  await page.screenshot({ path: 'output/playwright/figuren-assistent.png' });
+  await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await page.locator('.character-hero .place-character-button').click();
+  const box = await page.locator('#level-canvas').boundingBox();
+  await page.mouse.click(box.x + box.width * .25, box.y + box.height * .25);
+  await page.locator('[data-workspace="characters"]').click();
+  await page.locator('[data-level-character-id]').click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'output/playwright/globale-figur-im-level.png' });
+});
+
+test('Der Figuren-Assistent bleibt auf kleinen Handys verständlich @visual', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCleanEditor(page);
+  await page.locator('[data-workspace="characters"]').click();
+  await page.locator('#create-character').click();
+  await page.locator('#character-name').fill('Donaunixe');
+  await page.screenshot({ path: 'output/playwright/figuren-assistent-mobile.png' });
+  await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await page.locator('.character-hero').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'output/playwright/globale-figur-mobile.png' });
 });
 
 test('Alle neun Level-Ereignisse sind im UI erreichbar @visual', async ({ page }) => {

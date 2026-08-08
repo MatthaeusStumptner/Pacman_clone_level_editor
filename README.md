@@ -12,6 +12,9 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Frei bewegliche Standard-/Dialekt-Textblöcke mit Schriftgröße, Ausrichtung, Farbe sowie unabhängig ausblendbarem Hintergrund und Rahmen; standardmäßig erscheint nur der scharfe Text
 - Bäume, Bänke, Lampen, Blumen, Schilder, Felsen, Wasserflächen und freie Symbole
 - Eigener Franz-&-Lola-Charakterbereich mit echten Renderer-Vorschauen in Figurenliste, Detailansicht, Sprite-Playback und allen frei bearbeitbaren Zuständen für Idle, Oben, Rechts, Unten und Links
+- Sichtbarer Figuren-Assistent mit Name und den Startvorlagen Pixelwesen, leere Leinwand oder Franz-&-Lola-Kopie
+- Globale Figurenbibliothek: Eine Figur wird einmal gestaltet und kann anschließend in beliebig vielen Levels platziert werden
+- Eigene Figuren sind technisch von Katzen getrennt, werden nicht als Gegner gezählt und bleiben als selbstenthaltende `actors.characters`-Instanzen auch auf GitHub Pages vollständig renderbar
 - Eigene Pixel-Figuren mit Palette, benannten Animationen, Keyframe-Timeline, Scrubbing, Playback und Schleifenmodus
 - Rechteckige und additive Pixel-Mehrfachauswahl: gleiche Farben finden, Auswahl umfärben, löschen, verschieben oder invertieren
 - Levelgebundene Cutscenes für den Übergang von Passau-Karte zu Level
@@ -52,7 +55,7 @@ Vollständige Prüfung:
 ```bash
 npm test              # Fachtests: Modell, Katalog, Keyframes, Objekte, Speicher und Testlauf
 npm run test:e2e      # echte Chromium-Abläufe inklusive aller neun Level, Publisher und Mobile
-npm run test:visual   # fünf Videos für Text/Transformation, Publisher, Figuren, Ereignisse und Cutscenes unter output/playwright
+npm run test:visual   # visuelle Belege für Text/Transformation, Publisher, Figuren-Assistent, Ereignisse und Cutscenes unter output/playwright
 npm run build         # statischer GitHub-Pages-Build
 ```
 
@@ -60,7 +63,7 @@ npm run build         # statischer GitHub-Pages-Build
 
 ## Austauschformat
 
-Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `schemaVersion: 1`. Das Renderer-Repository liefert dazu ein JSON Schema. Es enthält keine ausführbare Logik und kann deshalb sicher versioniert, geprüft und zwischen Spiel, Editor und zukünftigen Werkzeugen ausgetauscht werden.
+Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `schemaVersion: 1`. Das Renderer-Repository liefert dazu ein JSON Schema. Es enthält keine ausführbare Logik und kann deshalb sicher versioniert, geprüft und zwischen Spiel, Editor und zukünftigen Werkzeugen ausgetauscht werden. Globale Bibliothekseinträge bleiben Editor-Vorlagen; jede platzierte Figur wird mit Sprite, States, Effekten und Verhalten vollständig unter `actors.characters` in das jeweilige Level kopiert. Die statische Spielseite benötigt deshalb keinen Zugriff auf Browser-Speicher.
 
 ## Veröffentlichen ohne Repository-Zugriff
 

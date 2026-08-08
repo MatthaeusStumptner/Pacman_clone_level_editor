@@ -52,8 +52,9 @@
         <label class="switch"><input type="checkbox" bind:checked={studio.showGuttis} /><span>Guttis</span></label>
         <label class="switch"><input type="checkbox" bind:checked={studio.showEvents} /><span>Ereignisse</span></label>
       </div>
+      {#if studio.tool === 'character' && studio.selectedCharacterAsset}<div class="character-placement-banner" role="status"><span>◎</span><div><strong>{studio.selectedCharacterAsset.name} platzieren</strong><small>Klicke auf ein freies Feld. Die Figur wird nicht als Katze gezählt.</small></div><button onclick={() => studio.setTool('select')}>Abbrechen</button></div>{/if}
       <LevelCanvas {studio} />
-      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? studio.selection ? 'Ausgewählt · Doppelklick öffnet den Fachbereich · Alt wählt dahinter' : 'Element anklicken zum Auswählen' : studio.tool === 'transform' ? 'Objekt ziehen · Eckgriff ziehen zum Skalieren' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
+      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? studio.selection ? 'Ausgewählt · Doppelklick öffnet den Fachbereich · Alt wählt dahinter' : 'Element anklicken zum Auswählen' : studio.tool === 'character' ? `${studio.selectedCharacterAsset?.name ?? 'Figur'} auf ein freies Feld setzen` : studio.tool === 'transform' ? 'Objekt ziehen · Eckgriff ziehen zum Skalieren' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
     </div>
 
     <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">

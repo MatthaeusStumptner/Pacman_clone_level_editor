@@ -289,7 +289,7 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.locator('.character-hero .actor-thumbnail')).toHaveAttribute('data-actor-kind', 'cat');
   expect(await canvasHasVisiblePixels(page.locator('.character-hero .actor-thumbnail'))).toBe(true);
   await page.locator('.actor-browser button').filter({ hasText: 'Franz & Lola' }).click();
-  await page.getByRole('button', { name: /Sprite-Sheet öffnen/ }).click();
+  await page.getByRole('button', { name: /Sprite-Sheet bearbeiten/ }).click();
   await expect(page.locator('.state-tabs button')).toHaveCount(5);
   const idleSignature = await canvasSignature(page.locator('.sprite-playback-stage .actor-thumbnail'));
   await page.locator('.state-tabs button').filter({ hasText: 'right' }).click();
@@ -310,6 +310,67 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   await expect(page.locator('.state-matrix')).toContainText('right');
   await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="characters"]').click();
   await expect(page.locator('.state-matrix')).toContainText('right');
+  expect(errors).toEqual([]);
+});
+
+test('global character wizard creates a reusable non-cat figure and places a self-contained level instance', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await openProject(page);
+  await page.getByRole('button', { name: /Neues Level/ }).click();
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('#create-character')).toBeVisible();
+  await page.locator('#create-character').click();
+  await expect(page.getByRole('dialog', { name: 'Wer soll Passau bereichern?' })).toBeVisible();
+  await page.locator('#character-name').fill('Passauer Postler');
+  await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await expect(page.locator('.sprite-studio')).toBeVisible();
+  await expect(page.locator('.state-tabs button')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+
+  const globalCharacter = page.locator('[data-character-id="passauer-postler"]');
+  await expect(globalCharacter).toContainText('Global · in allen Levels');
+  await expect.poll(() => canvasHasVisiblePixels(globalCharacter.locator('.actor-thumbnail'))).toBe(true);
+  await expect(page.locator('.property-panel')).toContainText('Freie Figuren stehen im normalen Spiel');
+  await page.locator('.character-hero .place-character-button').click();
+  await expect(page.locator('[data-workspace="level"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.character-placement-banner')).toContainText('Passauer Postler platzieren');
+  const point = await canvasPoint(page, 5, 5);
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator('.character-placement-banner')).toHaveCount(0);
+
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('[data-level-character-id]')).toHaveCount(1);
+  await expect(page.locator('[data-level-character-id]')).toContainText('Passauer Postler');
+  await expect(page.locator('.actor-browser button').filter({ hasText: /^Katze/ })).toHaveCount(0);
+  await page.locator('[data-level-character-id]').click();
+  await expect(page.locator('.property-panel').getByLabel('Name')).toHaveValue('Passauer Postler');
+  await expect(page.locator('.property-panel')).toContainText('als Darsteller in Cutscenes');
+
+  await loadTemplate(page, 'home');
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('[data-character-id="passauer-postler"]')).toBeVisible();
+  await expect(page.locator('[data-level-character-id]')).toHaveCount(0);
+  await page.reload();
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('[data-character-id="passauer-postler"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('character creation stays usable on a phone viewport @mobile', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await page.locator('[data-workspace="characters"]').click();
+  await expect(page.locator('#create-character')).toBeVisible();
+  await page.locator('#create-character').click();
+  const dialog = page.getByRole('dialog', { name: 'Wer soll Passau bereichern?' });
+  await expect(dialog).toBeInViewport();
+  await page.locator('#character-name').fill('Donaunixe');
+  await dialog.getByText('Leere Leinwand').click();
+  await dialog.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await expect(page.locator('.sprite-studio')).toBeVisible();
+  await page.locator('.pixel-grid').scrollIntoViewIfNeeded();
+  await expect(page.locator('.pixel-grid')).toBeInViewport();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await expect(page.locator('.character-hero')).toContainText('Donaunixe');
   expect(errors).toEqual([]);
 });
 

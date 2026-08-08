@@ -18,6 +18,7 @@
     renderer.render({
       player: sample.player,
       cats: sample.cats,
+      characters: sample.characters,
       decorations: sample.decorations,
       pellets: new Set(),
       powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))),

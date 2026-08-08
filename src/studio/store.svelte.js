@@ -4,6 +4,7 @@ import { DraftRepository } from '../draft-repository.js';
 import { createStarterLevel, EditorState } from '../editor-state.js';
 import { floodFillPoints, linePoints, moveRectangle, previewGuttis, rectangleContains, rectanglePoints, scaleRectangle, transformHandleAt } from '../editor-tools.js';
 import { createFranzLolaAppearance } from '../character-template.js';
+import { CharacterLibrary, characterPlacement, createBlankCharacterAsset } from '../character-library.js';
 import { ObjectLibrary, createBlankObjectAsset, placementFromAsset } from '../object-library.js';
 import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, workspaceForSelection } from '../scene-model.js';
 
@@ -39,6 +40,8 @@ export class StudioState {
   toast = $state('');
   assets = $state.raw([]);
   selectedAssetId = $state('music-note');
+  characterAssets = $state.raw([]);
+  selectedCharacterId = $state('');
   selectedEventId = $state('');
   selectedCutsceneId = $state('');
   selectedTrackId = $state('');
@@ -55,6 +58,7 @@ export class StudioState {
   canUndo = $derived(this.revision >= 0 && Boolean(this.engine?.history.length));
   canRedo = $derived(this.revision >= 0 && Boolean(this.engine?.future.length));
   selectedAsset = $derived.by(() => this.assets.find((asset) => asset.id === this.selectedAssetId) ?? this.assets[0] ?? null);
+  selectedCharacterAsset = $derived.by(() => this.characterAssets.find((asset) => asset.id === this.selectedCharacterId) ?? null);
   selectedEvent = $derived.by(() => this.level?.events.find((event) => event.id === this.selectedEventId) ?? null);
   selectedCutscene = $derived.by(() => this.level?.cutscenes.find((cutscene) => cutscene.id === this.selectedCutsceneId) ?? null);
   selectionCount = $derived.by(() => this.selections.length);
@@ -64,7 +68,11 @@ export class StudioState {
     const visible = (kind, item, index) => !this.hiddenSceneNodes.has(sceneSelectionKey(this.level, { kind, index }));
     return {
       ...this.level,
-      actors: { ...this.level.actors, cats: this.level.actors.cats.filter((item, index) => visible('cat', item, index)) },
+      actors: {
+        ...this.level.actors,
+        cats: this.level.actors.cats.filter((item, index) => visible('cat', item, index)),
+        characters: (this.level.actors.characters ?? []).filter((item, index) => visible('character', item, index)),
+      },
       decorations: this.level.decorations.filter((item, index) => visible('decoration', item, index)),
       events: this.level.events.filter((item, index) => visible('event', item, index)),
     };
@@ -76,6 +84,8 @@ export class StudioState {
     this.drafts = new DraftRepository(storage);
     this.library = new ObjectLibrary(storage);
     this.assets = this.library.list();
+    this.characterLibrary = new CharacterLibrary(storage);
+    this.characterAssets = this.characterLibrary.list();
     this.engine = new EditorState(this.drafts.active() ?? createStarterLevel());
     this.level = this.engine.toDocument();
     this.selectedEventId = this.level.events[0]?.id ?? '';
@@ -318,7 +328,7 @@ export class StudioState {
       this.selection = next;
       this.selections = [clone(next)];
     }
-    this.engine.selected = this.selection && ['player', 'cat', 'decoration', 'wall'].includes(this.selection.kind) ? clone(this.selection) : null;
+    this.engine.selected = this.selection && ['player', 'cat', 'character', 'decoration', 'wall'].includes(this.selection.kind) ? clone(this.selection) : null;
     if (kind === 'event') this.selectedEventId = this.level.events[index]?.id ?? '';
   }
 
@@ -332,6 +342,7 @@ export class StudioState {
     const entity = this.selectedEntity();
     if (this.selection.kind === 'player') return 'Franz & Lola';
     if (this.selection.kind === 'cat') return `Katze ${this.selection.index + 1}`;
+    if (this.selection.kind === 'character') return entity?.name || `Figur ${this.selection.index + 1}`;
     if (this.selection.kind === 'event') return entity?.name?.standard ?? 'Ereignis';
     if (this.selection.kind === 'wall') return entity?.name || 'Wand ' + (this.selection.index + 1);
     if (this.selection.kind === 'theme-element') return entity?.id === 'stage-note' ? 'Zauberberg-Note' : entity?.id === 'stage-lights' ? 'Bühnenlichter' : entity?.id ?? 'Theme-Element';
@@ -412,6 +423,10 @@ export class StudioState {
       this.engine.endTransaction(); this.sync();
     } else if (mode === 'player') { this.mutate('Startpunkt setzen', (draft) => draft.setPlayer(point));
     } else if (mode === 'cat') { this.mutate('Katze setzen', (draft) => draft.addCat(point));
+    } else if (mode === 'character' && this.selectedCharacterAsset) {
+      this.mutate('Figur platzieren', (draft) => draft.addCharacter(point, characterPlacement(this.selectedCharacterAsset, point, draft.document.actors.characters?.length ?? 0)));
+      this.tool = 'select';
+      this.notify(`${this.selectedCharacterAsset.name} wurde als eigenständige Figur platziert`);
     } else if (mode === 'power') { this.mutate('Power-Up setzen', (draft) => draft.togglePowerUp(point));
     } else if (mode === 'object' && this.selectedAsset) {
       this.mutate('Objekt platzieren', (draft) => draft.addDecoration(point, placementFromAsset(this.selectedAsset, point, draft.document.decorations.length)));
@@ -475,13 +490,15 @@ export class StudioState {
   deleteSelection() {
     const selected = this.selections.length ? this.selections : this.selection ? [this.selection] : [];
     const cats = selected.filter((entry) => entry.kind === 'cat').map((entry) => entry.index).sort((a, b) => b - a);
+    const characters = selected.filter((entry) => entry.kind === 'character').map((entry) => entry.index).sort((a, b) => b - a);
     const decorations = selected.filter((entry) => entry.kind === 'decoration').map((entry) => entry.index).sort((a, b) => b - a);
     const events = selected.filter((entry) => entry.kind === 'event').map((entry) => entry.index).sort((a, b) => b - a);
     const walls = selected.filter((entry) => entry.kind === 'wall').map((entry) => entry.index).sort((a, b) => b - a);
-    if (!cats.length && !decorations.length && !events.length && !walls.length) return;
+    if (!cats.length && !characters.length && !decorations.length && !events.length && !walls.length) return;
     this.engine.selected = null;
     this.mutate(selected.length > 1 ? 'Elemente löschen' : 'Element löschen', (draft) => {
       cats.forEach((index) => draft.document.actors.cats.splice(index, 1));
+      characters.forEach((index) => draft.document.actors.characters.splice(index, 1));
       decorations.forEach((index) => draft.document.decorations.splice(index, 1));
       events.forEach((index) => draft.document.events.splice(index, 1));
       walls.forEach((index) => draft.document.board.walls.splice(index, 1));
@@ -497,6 +514,7 @@ export class StudioState {
       let target = null;
       if (selection.kind === 'player') target = draft.document.actors.player;
       if (selection.kind === 'cat') target = draft.document.actors.cats[selection.index];
+      if (selection.kind === 'character') target = draft.document.actors.characters[selection.index];
       if (selection.kind === 'decoration') target = draft.document.decorations[selection.index];
       if (selection.kind === 'theme-element') target = draft.document.theme.elements?.[selection.index];
       if (selection.kind === 'wall') target = draft.document.board.walls[selection.index];
@@ -531,9 +549,53 @@ export class StudioState {
     return saved;
   }
 
+  createCharacterDraft(name, template = 'pixel') {
+    return createBlankCharacterAsset(name, template);
+  }
+
+  saveCharacterDefinition(asset) {
+    const saved = this.characterLibrary.save(asset);
+    this.characterAssets = this.characterLibrary.list();
+    this.selectedCharacterId = saved.id;
+    const hasInstances = (this.level.actors.characters ?? []).some((character) => character.characterId === saved.id);
+    if (hasInstances) {
+      this.mutate('Globale Figur aktualisieren', (draft) => {
+        draft.document.actors.characters.forEach((character) => {
+          if (character.characterId !== saved.id) return;
+          character.name = saved.name;
+          character.color = saved.color;
+          character.accent = saved.accent;
+          character.appearance = clone(saved.appearance);
+          character.effects = clone(saved.effects ?? []);
+          character.behavior = clone(saved.behavior ?? { controller: 'stationary', speedMultiplier: 1 });
+        });
+      }, { preserveSelection: true });
+    }
+    this.notify(hasInstances ? 'Globale Figur und ihre Levelinstanzen aktualisiert' : 'Figur global gespeichert');
+    return saved;
+  }
+
+  removeCharacterDefinition(id) {
+    this.characterLibrary.remove(id);
+    this.characterAssets = this.characterLibrary.list();
+    if (this.selectedCharacterId === id) this.selectedCharacterId = '';
+    this.notify('Figur aus der globalen Bibliothek entfernt · Levelinstanzen bleiben erhalten');
+  }
+
+  placeCharacter(id) {
+    const asset = this.characterAssets.find((entry) => entry.id === id);
+    if (!asset) return false;
+    this.selectedCharacterId = id;
+    this.tool = 'character';
+    this.workspace = 'level';
+    this.clearSelection();
+    this.notify(`${asset.name}: jetzt ein freies Feld im Level anklicken`);
+    return true;
+  }
+
   setActorAppearance(kind, index, appearance) {
     this.mutate('Sprite-Sheet speichern', (draft) => {
-      const actor = kind === 'player' ? draft.document.actors.player : draft.document.actors.cats[index];
+      const actor = kind === 'player' ? draft.document.actors.player : kind === 'cat' ? draft.document.actors.cats[index] : draft.document.actors.characters[index];
       actor.appearance = clone(appearance); actor.renderer = 'pixel-art'; actor.animation = '';
     }, { preserveSelection: true });
     this.notify('Sprite-Sheet übernommen');

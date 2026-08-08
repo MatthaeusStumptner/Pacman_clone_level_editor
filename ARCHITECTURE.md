@@ -10,7 +10,7 @@ Die Oberfläche trennt die benötigten Disziplinen bewusst:
 
 1. **Level** – Raster, Wände, Startpunkte, Regeln und Theme
 2. **Objekte** – universelle Assetbibliothek, Platzierung und Animation
-3. **Figuren** – Sprite-Sheets, Player States und Verhalten
+3. **Figuren** – globale Figurenbibliothek, Erstellassistent, Sprite-Sheets, Player States und Verhalten
 4. **Cutscenes** – levelgebundene Tracks, Keyframes, Kamera und Dialoge
 5. **Ereignisse** – Trigger, Visuals und beide Sprachfassungen
 6. **Testspiel** – dieselbe Kamera, Simulation und Cutscene-Wiedergabe wie im Spiel
@@ -25,6 +25,7 @@ Die Oberfläche trennt die benötigten Disziplinen bewusst:
 - `src/editor-tools.js`: reine Geometrie, Flood Fill, Gutti-Vorschau und Bildschirmkoordinaten
 - `src/object-library.js`: universelle, erweiterbare Sprite-Objektbibliothek in `localStorage`
 - `src/character-template.js`: ursprüngliche Franz-&-Lola-Komposition mit fünf Player States
+- `src/character-library.js`: persistente globale Figurenentwürfe und selbstenthaltende `actors.characters`-Levelinstanzen
 - `src/playtest-engine.js`: deterministische Spielsimulation
 - `src/draft-repository.js`: mehrere lokale Levelentwürfe
 - `src/publisher-client.js`: kurzlebige Publisher-Sitzung ohne Browser-Secrets
@@ -66,4 +67,4 @@ Der gemeinsame Renderer sampelt Cutscenes und zeichnet dieselben Zwischenstände
 
 ## Qualitätsgrenze
 
-Reine Fachlogik erhält Node-Tests. Sichtbare Arbeitsabläufe erhalten zusätzlich Chromium-End-to-End-Tests auf Desktop und Mobile. Die vollständige Prüfung umfasst Objektbibliothek, Originalkatalog, History, echte Renderer-Vorschauen aller Figuren, Sprite-States, direkte Elementauswahl, sämtliche neun levelgebundenen Cutscenes und Ereignisse, Testspiel, Publisher, Accessibility und Produktions-Build. Ein separater visueller Playwright-Lauf zeichnet kurze Videos der Figuren-, Ereignis- und Cutscene-Flows unter `output/playwright` auf.
+Reine Fachlogik erhält Node-Tests. Sichtbare Arbeitsabläufe erhalten zusätzlich Chromium-End-to-End-Tests auf Desktop und Mobile. Die vollständige Prüfung umfasst Objektbibliothek, globale Figurenbibliothek, Figuren-Assistent, Platziermodus, Katzen-Abgrenzung, Originalkatalog, History, echte Renderer-Vorschauen aller Figuren, Sprite-States, direkte Elementauswahl, sämtliche neun levelgebundenen Cutscenes und Ereignisse, Testspiel, Publisher, Accessibility und Produktions-Build. Ein separater visueller Playwright-Lauf zeichnet Belege der Figuren-, Ereignis- und Cutscene-Flows unter `output/playwright` auf.

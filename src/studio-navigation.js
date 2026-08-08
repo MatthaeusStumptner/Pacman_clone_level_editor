@@ -34,6 +34,7 @@ function applySelection(studio, value) {
   const collections = {
     wall: studio.level.board.walls,
     cat: studio.level.actors.cats,
+    character: studio.level.actors.characters ?? [],
     decoration: studio.level.decorations,
     'theme-element': studio.level.theme.elements ?? [],
     event: studio.level.events,

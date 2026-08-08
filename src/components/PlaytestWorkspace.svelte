@@ -35,7 +35,7 @@
   function renderCutscene() {
     const sample = sampleCutscene(studio.level, intro, cutsceneTime, studio.language); const tile = studio.level.board.tileSize;
     dialogue = sample.dialogue;
-    renderer.render({ player: sample.player, cats: sample.cats, decorations: sample.decorations, pellets: new Set(), powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))), elapsed: cutsceneTime }, {
+    renderer.render({ player: sample.player, cats: sample.cats, characters: sample.characters, decorations: sample.decorations, pellets: new Set(), powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))), elapsed: cutsceneTime }, {
       cameraEnabled: true,
       cameraTarget: sample.camera ? { x: sample.camera.x * tile + tile / 2, y: sample.camera.y * tile + tile / 2 } : undefined,
       zoom: sample.camera?.zoom ?? 1.12,

@@ -5,6 +5,7 @@ export function sceneEntity(level, selection) {
   if (!selection || !level) return null;
   if (selection.kind === 'player') return level.actors.player;
   if (selection.kind === 'cat') return level.actors.cats[selection.index] ?? null;
+  if (selection.kind === 'character') return level.actors.characters?.[selection.index] ?? null;
   if (selection.kind === 'decoration') return level.decorations[selection.index] ?? null;
   if (selection.kind === 'wall') return level.board?.walls?.[selection.index] ?? null;
   if (selection.kind === 'event') return level.events[selection.index] ?? null;
@@ -27,6 +28,7 @@ export function sceneGroups(level) {
       nodes: [
         { kind: 'player', index: 0, label: 'Franz & Lola', detail: 'Spieler', icon: 'FL', canHide: true, canLock: false, canReorder: false },
         ...level.actors.cats.map((cat, index) => ({ kind: 'cat', index, label: `Katze ${index + 1}`, detail: cat.behavior?.strategy || 'Katze', icon: '◆', canHide: true, canLock: false, canReorder: false })),
+        ...(level.actors.characters ?? []).map((character, index) => ({ kind: 'character', index, label: character.name || `Figur ${index + 1}`, detail: 'Eigene Figur · global', icon: '◉', canHide: true, canLock: false, canReorder: false })),
       ],
     },
     {
@@ -63,6 +65,7 @@ export function sceneCandidatesAt(level, point, { hidden = new Set(), themeBound
   };
 
   if (sameTile(level.actors.player, point)) add('player', 0);
+  for (let index = (level.actors.characters?.length ?? 0) - 1; index >= 0; index -= 1) if (sameTile(level.actors.characters[index], point)) add('character', index);
   for (let index = level.actors.cats.length - 1; index >= 0; index -= 1) if (sameTile(level.actors.cats[index], point)) add('cat', index);
   for (let index = level.events.length - 1; index >= 0; index -= 1) {
     const visual = level.events[index].visual;
@@ -89,7 +92,7 @@ export function chooseSceneCandidate(level, candidates, current, cycle = false) 
 
 export function workspaceForSelection(selection) {
   if (!selection) return 'level';
-  if (selection.kind === 'player' || selection.kind === 'cat') return 'characters';
+  if (selection.kind === 'player' || selection.kind === 'cat' || selection.kind === 'character') return 'characters';
   if (selection.kind === 'event') return 'events';
   if (selection.kind === 'wall') return 'level';
   return 'objects';

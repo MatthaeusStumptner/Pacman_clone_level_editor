@@ -1,6 +1,6 @@
 <script>
   let { studio } = $props();
-  let workspaceLabel = $derived(studio.selection?.kind === 'wall' ? 'Levelbau' : studio.selection?.kind === 'player' || studio.selection?.kind === 'cat' ? 'Figurenatelier' : studio.selection?.kind === 'event' ? 'Ereignisregie' : 'Objektwerkstatt');
+  let workspaceLabel = $derived(studio.selection?.kind === 'wall' ? 'Levelbau' : ['player', 'cat', 'character'].includes(studio.selection?.kind) ? 'Figurenatelier' : studio.selection?.kind === 'event' ? 'Ereignisregie' : 'Objektwerkstatt');
 </script>
 
 {#if studio.selection}

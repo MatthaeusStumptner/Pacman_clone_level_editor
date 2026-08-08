@@ -17,6 +17,7 @@
     if (studio.isSceneHidden(selection.kind, selection.index)) return null;
     if (selection.kind === 'player') return { x: studio.level.actors.player.x, y: studio.level.actors.player.y, color: 'rgba(245,197,77,.46)' };
     if (selection.kind === 'cat') { const cat = studio.level.actors.cats[selection.index]; return cat ? { x: cat.x, y: cat.y, color: 'rgba(245,197,77,.46)' } : null; }
+    if (selection.kind === 'character') { const character = studio.level.actors.characters?.[selection.index]; return character ? { x: character.x, y: character.y, color: 'rgba(85,217,221,.5)' } : null; }
     if (selection.kind === 'decoration') { const item = studio.level.decorations[selection.index]; return item && studio.tool !== 'transform' ? { x: item.x, y: item.y, width: item.width, height: item.height, color: 'rgba(245,197,77,.32)' } : null; }
     if (selection.kind === 'wall') { const wall = studio.level.board.walls[selection.index]; return wall ? { x: wall.x, y: wall.y, width: wall.width, height: wall.height, color: 'rgba(245,197,77,.38)' } : null; }
     if (selection.kind === 'theme-element') return studio.specialElementBounds(studio.level.theme.elements?.[selection.index]?.id);

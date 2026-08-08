@@ -4,12 +4,17 @@ import { createLevelDocument } from '@franz-lola/pixel-renderer';
 import { deleteDraft, DraftConflictError, readDraft, resolveDraftReferences, saveDraft } from '../src/draft-store.js';
 
 function level(name = 'Hals') {
-  return createLevelDocument({
+  const document = createLevelDocument({
     kind: 'franz-lola-level', schemaVersion: 1, id: 'hals', name: { standard: name, dialect: name },
     board: { columns: 9, rows: 9, tileSize: 24, tunnelRows: [4], walls: [] },
     actors: { player: { x: 4, y: 6 }, cats: [] },
     collectibles: { powerUps: [{ x: 1, y: 1 }] },
   });
+  document.actors.characters = [{
+    id: 'passauer-postler', characterId: 'postler', name: 'Passauer Postler',
+    x: 2, y: 5, appearance: { width: 2, height: 2, palette: ['transparent', '#55d9dd'], pixels: ['11', '11'] },
+  }];
+  return document;
 }
 
 class Statement {
@@ -72,6 +77,7 @@ test('shared drafts save idempotently and reject stale revisions', async () => {
   const first = await saveDraft(db, level(), { login: 'redaktion', expectedRevision: 0 });
   assert.equal(first.revision, 1);
   assert.equal(first.unchanged, false);
+  assert.equal(first.level.actors.characters[0].characterId, 'postler');
   const repeated = await saveDraft(db, level(), { login: 'redaktion', expectedRevision: 1 });
   assert.equal(repeated.revision, 1);
   assert.equal(repeated.unchanged, true);
@@ -87,6 +93,7 @@ test('publishing resolves an exact revision and deleted drafts disappear', async
   await saveDraft(db, level(), { login: 'redaktion', expectedRevision: 0 });
   const [resolved] = await resolveDraftReferences(db, [{ id: 'hals', revision: 1 }]);
   assert.equal(resolved.level.id, 'hals');
+  assert.equal(resolved.level.actors.characters[0].name, 'Passauer Postler');
   await assert.rejects(resolveDraftReferences(db, [{ id: 'hals', revision: 2 }]), DraftConflictError);
   const deleted = await deleteDraft(db, 'hals', { expectedRevision: 1, login: 'redaktion' });
   assert.equal(deleted.revision, 2);

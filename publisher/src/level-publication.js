@@ -50,6 +50,7 @@ export function publishLevelsFromBody(body) {
 }
 
 function enforceResourceLimits(level) {
+  if ((level.actors.characters ?? []).length > 64) throw new Error('Das Level enthält mehr als 64 eigene Figuren.');
   if (level.board.columns > 64 || level.board.rows > 64 || level.board.columns * level.board.rows > 4096) {
     throw new Error('Veröffentlichte Level dürfen höchstens 64 × 64 Felder groß sein.');
   }

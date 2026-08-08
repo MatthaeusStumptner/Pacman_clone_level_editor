@@ -4,7 +4,7 @@ import { chooseSceneCandidate, sceneCandidatesAt, sceneGroups, sceneSelectionKey
 
 const level = {
   board: { walls: [{ id: 'wall-center', name: 'Mauerblock', x: 3, y: 3, width: 1, height: 1 }] },
-  actors: { player: { id: 'player', x: 3, y: 3 }, cats: [{ id: 'rock-katze', x: 3, y: 3, behavior: { strategy: 'guard' } }] },
+  actors: { player: { id: 'player', x: 3, y: 3 }, cats: [{ id: 'rock-katze', x: 3, y: 3, behavior: { strategy: 'guard' } }], characters: [{ id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', x: 3, y: 3 }] },
   decorations: [
     { id: 'bank', name: 'Bank', type: 'bench', layer: 'scenery', x: 2, y: 2, width: 3, height: 2 },
     { id: 'text', name: 'Text', type: 'text', layer: 'foreground', x: 3, y: 3, width: 2, height: 1 },
@@ -17,6 +17,8 @@ test('builds a grouped scene tree with stable document identities', () => {
   const groups = sceneGroups(level);
   assert.deepEqual(groups.map((group) => group.id), ['actors', 'walls', 'objects', 'events', 'theme']);
   assert.equal(groups[0].nodes[1].key, 'cat:rock-katze');
+  assert.equal(groups[0].nodes[2].key, 'character:postler-1');
+  assert.equal(groups[0].nodes[2].label, 'Passauer Postler');
   assert.equal(groups[1].nodes[0].key, 'wall:wall-center');
   assert.equal(groups[2].nodes[1].detail, 'Textblock');
   assert.equal(groups[3].nodes[0].key, 'event:eisvogel');
@@ -26,9 +28,9 @@ test('builds a grouped scene tree with stable document identities', () => {
 test('orders overlapping candidates like the renderer and keeps walls behind authored objects', () => {
   const candidates = sceneCandidatesAt(level, { x: 3, y: 3 }, { themeBounds: () => ({ x: 3, y: 3, width: 1, height: 1 }) });
   assert.deepEqual(candidates.map((selection) => sceneSelectionKey(level, selection)), [
-    'player:player', 'cat:rock-katze', 'event:eisvogel', 'decoration:text', 'decoration:bank', 'theme-element:stage-note', 'wall:wall-center',
+    'player:player', 'character:postler-1', 'cat:rock-katze', 'event:eisvogel', 'decoration:text', 'decoration:bank', 'theme-element:stage-note', 'wall:wall-center',
   ]);
-  assert.equal(sceneSelectionKey(level, chooseSceneCandidate(level, candidates, candidates[0], true)), 'cat:rock-katze');
+  assert.equal(sceneSelectionKey(level, chooseSceneCandidate(level, candidates, candidates[0], true)), 'character:postler-1');
   assert.equal(sceneSelectionKey(level, chooseSceneCandidate(level, candidates, candidates.at(-1), true)), 'player:player');
 });
 
@@ -42,6 +44,7 @@ test('does not offer editor-hidden candidates', () => {
 test('routes an explicit open action to the corresponding specialist workspace', () => {
   assert.equal(workspaceForSelection({ kind: 'wall' }), 'level');
   assert.equal(workspaceForSelection({ kind: 'player' }), 'characters');
+  assert.equal(workspaceForSelection({ kind: 'character' }), 'characters');
   assert.equal(workspaceForSelection({ kind: 'event' }), 'events');
   assert.equal(workspaceForSelection({ kind: 'decoration' }), 'objects');
 });

@@ -20,6 +20,12 @@ test('publication preserves protected map metadata, sprites, objects and level-b
     pixels: ['0ab0', '1ab1', '1ab1', '0ab0'],
     animations: [{ id: 'idle', duration: 1.5, loop: true, keyframes: [{ id: 'a', time: 0, pixels: ['0ab0', '1ab1', '1ab1', '0ab0'] }, { id: 'b', time: 0.75, pixels: ['0000', '1ab1', '1ab1', '0000'] }] }],
   };
+  input.actors.characters = [{
+    id: 'passauer-postler', characterId: 'postler', name: 'Passauer Postler',
+    x: 2, y: 5, state: 'left', animation: '',
+    appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels: ['0110', '1111', '0110', '1001'] },
+    behavior: { controller: 'stationary', speedMultiplier: 1 },
+  }];
   input.decorations = [{
     id: 'note', assetId: 'music-note', name: 'Musiknote', type: 'custom', x: 2, y: 2, width: 2, height: 2,
     color: '#55d9dd', label: '♪', appearance: input.actors.player.appearance, spriteAnimation: 'idle',
@@ -43,6 +49,8 @@ test('publication preserves protected map metadata, sprites, objects and level-b
   assert.equal(result.value.source.mapOrder, 1);
   assert.equal(result.value.source.catalog, 'Geburtstagsspiel');
   assert.equal(result.value.actors.player.appearance.palette.length, 12);
+  assert.equal(result.value.actors.characters[0].characterId, 'postler');
+  assert.equal(result.value.actors.characters[0].appearance.pixels[1], '1111');
   assert.equal(result.value.decorations[0].appearance.palette.length, 12);
   assert.equal(result.value.actors.player.appearance.animations[0].keyframes.length, 2);
   assert.equal(result.value.decorations[1].content.standard, 'Frei in Passau');
