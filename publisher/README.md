@@ -1,6 +1,15 @@
 # Sicherer Ein-Klick-Publisher
 
-Dieser Cloudflare Worker verbindet die statische Levelwerkstatt mit `Geburtstagsspiel`. Er authentifiziert eine kleine, ausdrücklich freigegebene Redaktion, akzeptiert ausschließlich validierte `franz-lola-level`-Dokumente und legt pro Veröffentlichung einen eng begrenzten Pull Request an. GitHub testet, merged und deployed diesen automatisch.
+Dieser Cloudflare Worker verbindet die statische Levelwerkstatt mit `Geburtstagsspiel`. Cloudflare D1 hält den gemeinsamen Entwurfsstand aller Geräte, während GitHub der kanonische veröffentlichte Stand bleibt. Der Worker authentifiziert eine kleine, ausdrücklich freigegebene Redaktion, akzeptiert ausschließlich validierte `franz-lola-level`-Dokumente und legt pro Veröffentlichung einen eng begrenzten Pull Request an. GitHub testet, merged und deployed diesen automatisch.
+
+## Datenfluss
+
+1. Nach der GitHub-Anmeldung gleicht der Worker die veröffentlichten Level aus `Geburtstagsspiel` mit D1 ab.
+2. Änderungen werden lokal im Browser und verzögert als neue D1-Revision gespeichert.
+3. Stimmt die erwartete Revision nicht mehr, liefert der Worker einen Konflikt statt fremde Änderungen zu überschreiben.
+4. Eine Veröffentlichung referenziert exakte D1-Revisionen. Erst der geprüfte GitHub-PR und der erfolgreiche Pages-Deploy markieren diese Revisionen als veröffentlicht.
+
+D1 behält pro Level höchstens 20 normale Arbeitsrevisionen; Veröffentlichungs-Snapshots bleiben nachvollziehbar. Unveränderte Dokumente erzeugen keine neue Revision und damit keine unnötigen Schreibvorgänge.
 
 ## Sicherheitsmodell
 
@@ -10,10 +19,10 @@ Dieser Cloudflare Worker verbindet die statische Levelwerkstatt mit `Geburtstags
 - Der private App-Schlüssel, Client Secret und Sitzungsschlüssel liegen nur als verschlüsselte Cloudflare-Secrets vor.
 - Der Browser erhält lediglich eine signierte Sitzung für 30 Minuten. Sie steht im URL-Fragment, wird beim Laden sofort entfernt und weder in `localStorage` noch in `sessionStorage` gespeichert.
 - CORS, Rücksprung-URL und Links sind auf die echten Editor-/GitHub-/Spieladressen begrenzt.
-- Der Worker akzeptiert maximal 1 MB, nur JSON, keine gefährlichen Objektschlüssel und feste Inhaltslimits. Er kann ausschließlich `src/data/levels/<id>.level.json` ändern.
+- Der Worker akzeptiert maximal 1 MB pro Level, nur JSON, keine gefährlichen Objektschlüssel und feste Inhaltslimits. Er kann ausschließlich `src/data/levels/<id>.level.json` ändern.
 - Das Spiel übernimmt nur Pull Requests des konfigurierten App-Bots und prüft Dateipfad, Tests und Build vor dem Merge.
 
-Der Betrieb passt bei normaler privater Nutzung in die kostenlosen Kontingente von GitHub Pages, GitHub Actions und Cloudflare Workers. Die jeweiligen Anbieter können ihre Limits später ändern.
+Der Betrieb ist bewusst für die kostenlosen Kontingente von GitHub Pages, GitHub Actions, Cloudflare Workers und D1 ausgelegt. Es gibt keine dauerhaft laufende Instanz und unveränderte Level verursachen keine D1-Schreibvorgänge. Die jeweiligen Anbieter können ihre Limits später ändern.
 
 ## Einmalige Einrichtung durch den Besitzer
 
@@ -47,7 +56,7 @@ Im Repository `Pacman_clone_level_editor` folgende GitHub-Actions-Werte anlegen:
 | Secret | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
 | Variable | `PUBLISHER_DEPLOY_ENABLED` | `true` |
 
-Danach **Actions → Deploy secure level publisher → Run workflow** starten. Die Ausgabe nennt die öffentliche `workers.dev`-Adresse.
+Danach **Actions → Deploy secure level publisher → Run workflow** starten. Wrangler legt die D1-Ressource `LEVEL_DB` beim ersten Deploy automatisch an und führt anschließend alle Migrationen aus. Die Ausgabe nennt die öffentliche `workers.dev`-Adresse.
 
 Im Cloudflare-Dashboard beim Worker unter **Settings → Variables and Secrets** diese Werte als verschlüsselte Secrets eintragen:
 
@@ -92,6 +101,7 @@ Benötigt Node.js 22.3 oder neuer:
 npm ci
 npm test
 npm audit
+npm run db:migrate:local
 npm run dev
 ```
 

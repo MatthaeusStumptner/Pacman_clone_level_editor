@@ -1,6 +1,18 @@
 import { createPublication, exchangeGithubCode, listPublishedLevels, publicationStatus, readRepositoryFile } from './github.js';
 import { preparePublishedBatch, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from './level-publication.js';
 import {
+  deleteDraft,
+  DraftConflictError,
+  DraftNotFoundError,
+  finishPublication,
+  listDrafts,
+  readDraft,
+  recordPublication,
+  resolveDraftReferences,
+  saveDraft,
+  syncPublishedDraft,
+} from './draft-store.js';
+import {
   bearerToken,
   corsHeaders,
   isAllowedLogin,
@@ -10,6 +22,32 @@ import {
   signToken,
   verifyToken,
 } from './security.js';
+
+const REQUIRED_SECRET_BINDINGS = Object.freeze([
+  'GITHUB_APP_ID',
+  'GITHUB_APP_CLIENT_ID',
+  'GITHUB_APP_CLIENT_SECRET',
+  'GITHUB_INSTALLATION_ID',
+  'GITHUB_APP_PRIVATE_KEY',
+  'SESSION_SECRET',
+  'ALLOWED_GITHUB_LOGINS',
+]);
+
+function missingSecretBindings(env) {
+  return REQUIRED_SECRET_BINDINGS.filter((name) => !String(env?.[name] ?? '').trim());
+}
+
+function databaseAvailable(env) {
+  return Boolean(env?.LEVEL_DB?.prepare && env?.LEVEL_DB?.batch);
+}
+
+function configurationMessage(missing, hasDatabase) {
+  const details = [
+    ...(missing.length ? [`fehlende Secrets: ${missing.join(', ')}`] : []),
+    ...(!hasDatabase ? ['fehlende D1-Bindung: LEVEL_DB'] : []),
+  ];
+  return `Der sichere Publisher ist noch nicht vollständig eingerichtet (${details.join('; ')}).`;
+}
 
 function response(body, { status = 200, headers = {}, request, env } = {}) {
   return new Response(body, {
@@ -87,9 +125,30 @@ async function callback(request, env) {
   return redirect(destination.toString(), { 'Set-Cookie': oauthCookie('', 0) });
 }
 
+async function bootstrapDrafts(env) {
+  const publishedFiles = await listPublishedLevels(env);
+  const levelFiles = publishedFiles.filter((file) => file.type === 'file' && String(file.name).endsWith('.level.json'));
+  const levels = await Promise.all(levelFiles.map((file) => readRepositoryFile(env, file.path)));
+  for (const file of levels) {
+    if (file?.value) await syncPublishedDraft(env.LEVEL_DB, file.value, { sha: file.sha });
+  }
+  return listDrafts(env.LEVEL_DB);
+}
+
+async function publicationDrafts(body, env, session) {
+  if (Array.isArray(body?.drafts)) return resolveDraftReferences(env.LEVEL_DB, body.drafts);
+  const levels = publishLevelsFromBody(body);
+  const drafts = [];
+  for (const level of levels) {
+    drafts.push(await saveDraft(env.LEVEL_DB, level, { expectedRevision: 0, login: session.login, action: 'legacy-publish' }));
+  }
+  return drafts;
+}
+
 async function publish(request, env, session) {
   const body = await readPublishBody(request);
-  const levels = publishLevelsFromBody(body);
+  const drafts = await publicationDrafts(body, env, session);
+  const levels = drafts.map((draft) => draft.level);
   const publishedFiles = await listPublishedLevels(env);
   const initial = levels.map((level, index) => preparePublishedLevel(level, { existing: null, nextMapOrder: publishedFiles.length + index }));
   const existingFiles = await Promise.all(initial.map((entry) => readRepositoryFile(env, entry.path)));
@@ -99,6 +158,7 @@ async function publish(request, env, session) {
     files: prepared.map((entry) => ({ path: entry.path, content: entry.value, level: entry.value, warnings: entry.warnings })),
     login: session.login,
   });
+  await recordPublication(env.LEVEL_DB, { number: publication.number, login: session.login, drafts });
   const warnings = prepared.flatMap((entry) => entry.warnings.map((warning) => `${entry.value.name.standard}: ${warning}`));
   return json({
     publicationId: publication.number,
@@ -110,6 +170,7 @@ async function publish(request, env, session) {
     prUrl: publication.url,
     warnings,
     levelIds: prepared.map((entry) => entry.value.id),
+    drafts: drafts.map((draft) => ({ id: draft.id, revision: draft.revision })),
   }, { status: 202, request, env });
 }
 
@@ -119,10 +180,34 @@ async function api(request, env, path) {
   const session = await authenticatedSession(request, env);
   if (!session) return json({ error: 'Bitte erneut mit GitHub anmelden.' }, { status: 401, request, env });
   if (path === '/api/me' && request.method === 'GET') return json({ login: session.login, name: session.name, expiresAt: session.exp }, { request, env });
+  if (path === '/api/drafts/bootstrap' && request.method === 'POST') {
+    return json({ drafts: await bootstrapDrafts(env) }, { request, env });
+  }
+  if (path === '/api/drafts' && request.method === 'GET') return json({ drafts: await listDrafts(env.LEVEL_DB) }, { request, env });
+  const draftMatch = /^\/api\/drafts\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
+  if (draftMatch && request.method === 'GET') return json(await readDraft(env.LEVEL_DB, draftMatch[1]), { request, env });
+  if (draftMatch && request.method === 'PUT') {
+    const body = await readPublishBody(request);
+    if (body?.level?.id !== draftMatch[1]) throw new Error('Level-ID und Adresse des gemeinsamen Entwurfs stimmen nicht überein.');
+    return json(await saveDraft(env.LEVEL_DB, body.level, {
+      expectedRevision: body.expectedRevision,
+      login: session.login,
+    }), { request, env });
+  }
+  if (draftMatch && request.method === 'DELETE') {
+    const body = await readPublishBody(request);
+    return json(await deleteDraft(env.LEVEL_DB, draftMatch[1], {
+      expectedRevision: body.expectedRevision,
+      login: session.login,
+    }), { request, env });
+  }
   if (path === '/api/publish' && request.method === 'POST') return publish(request, env, session);
   const publicationMatch = /^\/api\/publications\/(\d+)$/.exec(path);
   if (publicationMatch && request.method === 'GET') {
-    return json(await publicationStatus(env, Number(publicationMatch[1])), { request, env });
+    const publicationId = Number(publicationMatch[1]);
+    const status = await publicationStatus(env, publicationId);
+    await finishPublication(env.LEVEL_DB, publicationId, status);
+    return json(status, { request, env });
   }
   return json({ error: 'API-Endpunkt nicht gefunden.' }, { status: 404, request, env });
 }
@@ -130,17 +215,37 @@ async function api(request, env, path) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const missing = missingSecretBindings(env);
+    const hasDatabase = databaseAvailable(env);
+    if (url.pathname === '/health') {
+      return json({
+        ok: missing.length === 0 && hasDatabase,
+        service: 'franz-lola-publisher',
+        storage: hasDatabase ? 'd1' : 'missing',
+        ...(missing.length ? { missingSecrets: missing } : {}),
+        ...(!hasDatabase ? { missingBindings: ['LEVEL_DB'] } : {}),
+      }, { status: missing.length === 0 && hasDatabase ? 200 : 503 });
+    }
+    if ((missing.length || !hasDatabase) && (url.pathname.startsWith('/auth/') || url.pathname.startsWith('/api/'))) {
+      const message = configurationMessage(missing, hasDatabase);
+      console.error(JSON.stringify({ message: 'publisher configuration incomplete', missing, hasDatabase, path: url.pathname }));
+      if (url.pathname.startsWith('/api/')) return json({ error: message }, { status: 503, request, env });
+      return response(message, { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
     try {
       if (url.pathname === '/auth/login' && request.method === 'GET') return login(request, env);
       if (url.pathname === '/auth/callback' && request.method === 'GET') return callback(request, env);
       if (url.pathname.startsWith('/api/')) return api(request, env, url.pathname);
-      if (url.pathname === '/health') return json({ ok: true, service: 'franz-lola-publisher' });
       return response('Nicht gefunden.', { status: 404 });
     } catch (error) {
       console.error(JSON.stringify({ message: 'publisher request failed', error: error instanceof Error ? error.message : 'Unbekannter Fehler', path: url.pathname }));
-      const expected = error instanceof SyntaxError || /Level|Entwurf|JSON|Veröffentlich|GitHub|64 × 64|mehr als|nicht erlaubt|größer|höchstens|vorkommen/.test(error?.message ?? '');
-      return json({ error: expected ? error.message : 'Die Veröffentlichung konnte nicht abgeschlossen werden.' }, {
-        status: expected ? 400 : 500,
+      const knownStatus = error instanceof DraftConflictError || error instanceof DraftNotFoundError ? error.status : null;
+      const expected = error instanceof SyntaxError || /Level|Entwurf|Revision|JSON|Veröffentlich|GitHub|64 × 64|mehr als|nicht erlaubt|größer|höchstens|vorkommen/.test(error?.message ?? '');
+      return json({
+        error: knownStatus || expected ? error.message : 'Die Veröffentlichung konnte nicht abgeschlossen werden.',
+        ...(error instanceof DraftConflictError ? { current: error.current } : {}),
+      }, {
+        status: knownStatus || (expected ? 400 : 500),
         request: url.pathname.startsWith('/api/') ? request : undefined,
         env: url.pathname.startsWith('/api/') ? env : undefined,
       });

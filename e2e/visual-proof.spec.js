@@ -61,11 +61,18 @@ test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @vi
 
 test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @visual', async ({ page }) => {
   await page.addInitScript(() => localStorage.clear());
+  const shared = new Map();
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
+    if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [] } });
+    if (path.startsWith('/api/drafts/') && route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON(); const revision = body.expectedRevision + 1;
+      const draft = { id: body.level.id, name: body.level.name.standard, icon: body.level.icon, area: body.level.location.area, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', level: body.level };
+      shared.set(draft.id, draft); return route.fulfill({ headers, json: draft });
+    }
     if (path === '/api/publish') return route.fulfill({ status: 202, headers, json: { publicationId: 77, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Zwei Level wurden sicher übertragen.' } });
     if (path === '/api/publications/77') return route.fulfill({ headers, json: { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T18:00:00.000Z' } });
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });

@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const localBrowser = process.platform === 'win32' ? { channel: 'chrome' } : {};
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: './output/playwright/videos',
@@ -11,6 +13,7 @@ export default defineConfig({
   reporter: 'line',
   use: {
     ...devices['Desktop Chrome'],
+    ...localBrowser,
     baseURL: 'http://127.0.0.1:4191',
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 2,

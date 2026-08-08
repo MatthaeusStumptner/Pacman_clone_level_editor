@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const localBrowser = process.platform === 'win32' ? { channel: 'chrome' } : {};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -12,8 +14,8 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop-chromium', grepInvert: /@mobile|@visual/, use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
-    { name: 'mobile-chromium', use: { ...devices['Pixel 7'] }, grep: /@mobile/ },
+    { name: 'desktop-chromium', grepInvert: /@mobile|@visual/, use: { ...devices['Desktop Chrome'], ...localBrowser, viewport: { width: 1440, height: 900 } } },
+    { name: 'mobile-chromium', use: { ...devices['Pixel 7'], ...localBrowser }, grep: /@mobile/ },
   ],
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4187 --strictPort',

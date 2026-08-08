@@ -16,9 +16,13 @@ function normalizePublisherUrl(value) {
   }
 }
 
-async function errorMessage(response) {
-  const body = await response.json().catch(() => ({}));
-  return body.error || `Der Publisher antwortet mit Status ${response.status}.`;
+export class PublisherRequestError extends Error {
+  constructor(message, { status, current = null } = {}) {
+    super(message);
+    this.name = 'PublisherRequestError';
+    this.status = status;
+    this.current = current;
+  }
 }
 
 export class PublisherClient {
@@ -75,9 +79,13 @@ export class PublisherClient {
         ...options.headers,
       },
     });
+    const body = await response.json().catch(() => ({}));
     if (response.status === 401) this.clearSession();
-    if (!response.ok) throw new Error(await errorMessage(response));
-    return response.json();
+    if (!response.ok) throw new PublisherRequestError(body.error || `Der Publisher antwortet mit Status ${response.status}.`, {
+      status: response.status,
+      current: body.current ?? null,
+    });
+    return body;
   }
 
   me() {
@@ -90,6 +98,37 @@ export class PublisherClient {
     return this.#request('/api/publish', { method: 'POST', body: JSON.stringify({ levels: selected }) });
   }
 
+  publishDrafts(drafts) {
+    if (!Array.isArray(drafts) || !drafts.length) throw new Error('Bitte mindestens einen gemeinsamen Entwurf auswählen.');
+    return this.#request('/api/publish', { method: 'POST', body: JSON.stringify({ drafts }) });
+  }
+
+  bootstrapDrafts() {
+    return this.#request('/api/drafts/bootstrap', { method: 'POST', body: '{}' });
+  }
+
+  listDrafts() {
+    return this.#request('/api/drafts');
+  }
+
+  draft(id) {
+    return this.#request(`/api/drafts/${encodeURIComponent(id)}`);
+  }
+
+  saveDraft(level, expectedRevision = 0) {
+    return this.#request(`/api/drafts/${encodeURIComponent(level.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ level, expectedRevision }),
+    });
+  }
+
+  deleteDraft(id, expectedRevision) {
+    return this.#request(`/api/drafts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ expectedRevision }),
+    });
+  }
+
   publication(publicationId) {
     if (!Number.isInteger(publicationId) || publicationId < 1) throw new Error('Ungültige Veröffentlichungsnummer.');
     return this.#request(`/api/publications/${publicationId}`);
@@ -99,6 +138,13 @@ export class PublisherClient {
 export function createPublisherClient(options = {}) {
   const configuredUrl = options.baseUrl ?? import.meta.env?.VITE_PUBLISHER_URL ?? '';
   return new PublisherClient({ ...options, baseUrl: configuredUrl });
+}
+
+let sharedPublisherClient;
+
+export function getPublisherClient() {
+  sharedPublisherClient ??= createPublisherClient();
+  return sharedPublisherClient;
 }
 
 export { normalizePublisherUrl };

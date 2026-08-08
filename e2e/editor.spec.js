@@ -391,15 +391,21 @@ test('testplay runs the same intro, camera and direct controls as the game', asy
   expect(errors).toEqual([]);
 });
 
-test('authorized non-technical editors publish several selected drafts together and see the live result', async ({ page }) => {
-  const errors = []; const published = []; let checks = 0;
+test('authorized non-technical editors share and publish several exact draft revisions together', async ({ page }) => {
+  const errors = []; const published = []; const shared = new Map(); let checks = 0;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
-    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
-    if (path === '/api/publish') { published.push(request.postDataJSON().levels); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Level wurden sicher übertragen.' } }); }
+    if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [...shared.values()].map(({ level, ...draft }) => draft) } });
+    if (path.startsWith('/api/drafts/') && request.method() === 'PUT') {
+      const body = request.postDataJSON(); const revision = body.expectedRevision + 1;
+      const draft = { id: body.level.id, name: body.level.name.standard, icon: body.level.icon, area: body.level.location.area, revision, status: 'draft', updatedBy: 'freundin', updatedAt: '2026-08-08T12:00:00.000Z', level: body.level };
+      shared.set(draft.id, draft); return route.fulfill({ headers, json: draft });
+    }
+    if (path === '/api/publish') { published.push(request.postDataJSON().drafts); return route.fulfill({ status: 202, headers, json: { publicationId: 42, state: 'testing', phase: 'upload-complete', phaseLabel: 'Level sicher übertragen', progress: 22, detail: 'Level wurden sicher übertragen.' } }); }
     if (path === '/api/publications/42') { checks += 1; return route.fulfill({ headers, json: checks > 1 ? { state: 'published', phase: 'published', phaseLabel: 'GitHub Pages ist aktuell', progress: 100, detail: 'Das Level ist live.', checkedAt: '2026-08-05T18:00:00.000Z', gameUrl: 'https://matthaeusstumptner.github.io/Geburtstagsspiel/' } : { state: 'deploying', phase: 'deploy-build', phaseLabel: 'Spiel für GitHub Pages bauen', progress: 89, detail: 'Das optimierte Browser-Spiel wird gebaut.', checkedAt: '2026-08-05T17:59:58.000Z' } }); }
     return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
   });
@@ -416,7 +422,11 @@ test('authorized non-technical editors publish several selected drafts together 
   await expect(page.locator('.publish-activity')).toContainText('GitHub Pages ist aktuell');
   await expect(page.locator('.publication-steps .done')).toHaveCount(5);
   await expect(page.locator('.publish-state')).toContainText('Level sind live!', { timeout: 10_000 });
-  expect(published).toHaveLength(1); expect(published[0].map((level) => level.id).sort()).toEqual(['hals', 'home']); expect(errors).toEqual([]);
+  await openProject(page);
+  await expect(page.locator('.shared-draft-section')).toContainText('Gemeinsame Entwürfe');
+  await expect(page.locator('.shared-draft-section .draft-entry')).toHaveCount(2);
+  expect(published).toHaveLength(1); expect(published[0].map((draft) => draft.id).sort()).toEqual(['hals', 'home']);
+  expect(published[0].every((draft) => draft.revision === 1)).toBe(true); expect(errors).toEqual([]);
 });
 
 test('all visible controls have accessible names', async ({ page }) => {

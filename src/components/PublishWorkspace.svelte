@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import { createPublisherClient } from '../publisher-client.js';
+  import { getPublisherClient } from '../publisher-client.js';
 
   let { studio } = $props();
-  const publisher = createPublisherClient();
+  const publisher = getPublisherClient();
   let state = $state(publisher.configured ? 'login' : 'unavailable');
   let user = $state.raw(null);
   let publication = $state.raw(null);
@@ -48,7 +48,11 @@
   async function identify() {
     if (!publisher.authenticated) return;
     state = 'loading'; error = '';
-    try { user = await publisher.me(); state = 'review'; }
+    try {
+      user = await publisher.me();
+      if (studio.cloudUser?.login !== user.login || studio.cloudStatus === 'offline') await studio.enableCloudDrafts(publisher, user);
+      state = 'review';
+    }
     catch (reason) { error = reason.message; state = 'login'; }
   }
   async function poll(id) {
@@ -70,18 +74,20 @@
     try {
       await new Promise((resolve) => requestAnimationFrame(resolve));
       setPublication({ phase: 'uploading', phaseLabel: 'Entwürfe verschlüsselt übertragen', progress: 12, detail: `${selectedCandidates.length === 1 ? 'Das Level wird' : `${selectedCandidates.length} Level werden`} an den sicheren Cloudflare Publisher übertragen.` });
-      const result = await publisher.publish(selectedCandidates.map((entry) => entry.level));
+      const references = await studio.prepareCloudPublication(selectedCandidates);
+      const result = await publisher.publishDrafts(references);
       setPublication(result); publicationId = Number(result.publicationId); await poll(publicationId);
     } catch (reason) { error = reason.message; state = 'failed'; }
   }
   function toggleLevel(id, checked) { selectedIds = checked ? [...new Set([...selectedIds, id])] : selectedIds.filter((entry) => entry !== id); }
   function selectAllValid() { selectedIds = candidates.filter((entry) => entry.validation.ok).map((entry) => entry.id); }
   function clearSelection() { selectedIds = []; }
-  function logout() { publisher.clearSession(); user = null; publication = null; publicationId = 0; state = 'login'; }
+  function logout() { publisher.clearSession(); studio.disableCloudDrafts(); user = null; publication = null; publicationId = 0; state = 'login'; }
 
   onMount(() => {
     publisher.consumeSessionFromLocation();
-    if (publisher.authenticated) identify();
+    if (studio.cloudUser && publisher.authenticated) { user = studio.cloudUser; state = 'review'; }
+    else if (publisher.authenticated) identify();
     clock = setInterval(() => { if (startedAt && state === 'progress') elapsed = Math.floor((Date.now() - startedAt) / 1000); }, 1000);
     return () => { clearTimeout(polling); clearInterval(clock); };
   });
