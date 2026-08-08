@@ -35,7 +35,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm audit
-      - name: Worker und D1-Bindung veröffentlichen
-        run: npm run deploy
       - name: D1-Migrationen anwenden
         run: npm run db:migrate:remote
+      - name: Worker und D1-Bindung veröffentlichen
+        run: npm run deploy
