@@ -45,6 +45,9 @@ async function openConflictingCloudEditor(page) {
     const original = structuredClone(workspace.drafts.zauberberg.level);
     workspace.drafts.zauberberg.level.name.standard = 'Mein lokaler Zauberberg';
     workspace.drafts.zauberberg.level.mission.standard = 'Meine noch nicht gemeinsame Fassung';
+    workspace.drafts.zauberberg.level.decorations.unshift({ id: 'zauberberg-note-frei', assetId: 'zauberberg-note' });
+    workspace.drafts.zauberberg.level.events.find((event) => event.id === 'zugabe').visual = { type: 'custom', assetId: 'zauberberg-note', x: 12, y: 9, label: '♪' };
+    workspace.drafts.zauberberg.level.cutscenes[0].tracks.push({ id: 'note-solo', type: 'object', target: 'zauberberg-note-frei', keyframes: [] });
     localStorage.setItem('franz-lola-level-editor-workspace-v2', JSON.stringify(workspace));
     return original;
   });
@@ -565,6 +568,9 @@ test('a cloud conflict can promote the local level as the next shared revision',
   expect(writes).toHaveLength(1);
   expect(writes[0].expectedRevision).toBe(2);
   expect(writes[0].level.name.standard).toBe('Mein lokaler Zauberberg');
+  expect(writes[0].level.decorations.some((item) => item.id === 'zauberberg-note-frei')).toBe(false);
+  expect(writes[0].level.events.find((event) => event.id === 'zugabe').visual.type).toBe('none');
+  expect(writes[0].level.cutscenes[0].tracks.some((track) => track.id === 'note-solo')).toBe(false);
   expect(errors).toEqual([]);
 });
 
@@ -578,6 +584,7 @@ test('a cloud conflict can load the shared level while preserving the local one 
   expect(workspace.activeId).toBe('zauberberg');
   expect(workspace.drafts['zauberberg-lokale-sicherung'].level.name.standard).toContain('Mein lokaler Zauberberg');
   expect(workspace.drafts['zauberberg-lokale-sicherung'].level.name.standard).toContain('lokale Sicherung');
+  expect(workspace.drafts['zauberberg-lokale-sicherung'].level.decorations.some((item) => item.id === 'zauberberg-note-frei')).toBe(false);
   expect(writes).toHaveLength(0);
   expect(errors).toEqual([]);
 });

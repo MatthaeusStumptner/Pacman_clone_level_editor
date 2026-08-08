@@ -7,6 +7,7 @@ import { createFranzLolaAppearance } from '../character-template.js';
 import { CharacterLibrary, characterPlacement, createBlankCharacterAsset } from '../character-library.js';
 import { ObjectLibrary, createBlankObjectAsset, placementFromAsset } from '../object-library.js';
 import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, selectionContext as buildSelectionContext } from '../scene-model.js';
+import { migrateLegacyLevel } from '../level-migrations.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const slug = (value, fallback = 'eintrag') => String(value || fallback)
@@ -152,7 +153,7 @@ export class StudioState {
   value(path) { return getAt(this.level, path); }
 
   load(level, message = 'Level geladen', { cloud = false } = {}) {
-    this.engine = new EditorState(createLevelDocument(level));
+    this.engine = new EditorState(createLevelDocument(migrateLegacyLevel(level)));
     this.selection = null;
     this.selections = [];
     this.hiddenSceneNodes = new Set();

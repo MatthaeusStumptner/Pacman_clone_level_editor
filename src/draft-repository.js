@@ -1,3 +1,5 @@
+import { migrateLegacyLevel } from './level-migrations.js';
+
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export class DraftRepository {
@@ -25,7 +27,7 @@ export class DraftRepository {
 
   load(id) {
     const entry = this.readWorkspace().drafts[id];
-    return entry?.level ? clone(entry.level) : null;
+    return entry?.level ? migrateLegacyLevel(entry.level) : null;
   }
 
   active() {
