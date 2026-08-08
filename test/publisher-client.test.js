@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PublisherClient, normalizePublisherUrl } from '../src/publisher-client.js';
+import { PublisherClient, PublisherRequestError, normalizePublisherUrl } from '../src/publisher-client.js';
 
 test('publisher URLs require HTTPS except on local development', () => {
   assert.equal(normalizePublisherUrl('https://publisher.example/'), 'https://publisher.example');
@@ -55,4 +55,38 @@ test('publishing sends all selected level documents in one request', async () =>
   const result = await client.publish(selected);
   assert.deepEqual(body, { levels: selected });
   assert.equal(result.publicationId, 7);
+});
+
+test('shared drafts use revisions and expose conflicts to the editor', async () => {
+  const requests = [];
+  const client = new PublisherClient({
+    baseUrl: 'https://publisher.example',
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url, options });
+      if (options.method === 'PUT') return new Response(JSON.stringify({ error: 'Revision veraltet.', current: { id: 'hals', revision: 4 } }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ drafts: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  client.consumeSessionFromLocation({ hash: '#publisher_session=token', pathname: '/', search: '' }, { replaceState() {} });
+  await client.bootstrapDrafts();
+  await assert.rejects(
+    client.saveDraft({ id: 'hals' }, 3),
+    (error) => error instanceof PublisherRequestError && error.status === 409 && error.current.revision === 4,
+  );
+  assert.equal(requests[0].options.method, 'POST');
+  assert.deepEqual(JSON.parse(requests[1].options.body), { level: { id: 'hals' }, expectedRevision: 3 });
+});
+
+test('publication can reference exact shared draft revisions', async () => {
+  let body;
+  const client = new PublisherClient({
+    baseUrl: 'https://publisher.example',
+    fetchImpl: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return new Response(JSON.stringify({ publicationId: 8 }), { status: 202, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  client.consumeSessionFromLocation({ hash: '#publisher_session=token', pathname: '/', search: '' }, { replaceState() {} });
+  await client.publishDrafts([{ id: 'hals', revision: 7 }]);
+  assert.deepEqual(body, { drafts: [{ id: 'hals', revision: 7 }] });
 });

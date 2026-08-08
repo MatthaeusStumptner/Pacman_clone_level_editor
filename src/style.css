@@ -76,6 +76,8 @@ h2, h3, p { margin-top: 0; }
 .document-identity small { margin-top: .12rem; color: var(--muted); font-size: .61rem; }
 .topbar-status { display: flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .57rem; font-weight: 900; letter-spacing: .06em; }
 .topbar-status > span:first-child { border: 1px solid #34755f; border-radius: 99px; padding: .32rem .48rem; color: var(--good); background: #0d2a22; }
+.topbar-status .cloud-status { color: #8edfd3; }
+.topbar-status .cloud-status.cloud-warning { color: var(--bad); }
 .topbar-status button { width: 34px; min-height: 34px; padding: 0; font-size: 1rem; }
 .mobile-project-button { display: none; }
 
@@ -95,7 +97,7 @@ h2, h3, p { margin-top: 0; }
 .discipline-nav em { position: absolute; top: .38rem; right: .38rem; display: grid; min-width: 16px; height: 16px; place-items: center; border-radius: 10px; color: #102127; background: var(--gold); font-size: .52rem; font-style: normal; font-weight: 900; }
 
 .project-drawer {
-  position: fixed; z-index: 40; inset: 0 auto 0 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto auto; width: min(360px, calc(100vw - 34px));
+  position: fixed; z-index: 40; inset: 0 auto 0 0; display: flex; width: min(360px, calc(100vw - 34px)); flex-direction: column; overflow: hidden;
   transform: translateX(-105%); border-right: 1px solid var(--line-strong); padding: .9rem; background: #08171e; box-shadow: 1.5rem 0 5rem #000a; transition: transform .2s ease;
 }
 .project-open .project-drawer { transform: none; }
@@ -107,8 +109,9 @@ h2, h3, p { margin-top: 0; }
 .search-field { display: flex; align-items: center; gap: .4rem; margin-bottom: .75rem; border: 1px solid #35555c; border-radius: 6px; padding: 0 .55rem; background: #07151b; }
 .search-field input { border: 0; padding-left: 0; background: transparent; outline: none; }
 .project-section { min-height: 0; margin-bottom: .75rem; }
-.template-section { overflow: auto; }
-.draft-section { overflow: auto; max-height: min(32vh, 280px); }
+.template-section { flex: 1 1 180px; overflow: auto; }
+.draft-section, .shared-draft-section { flex: 0 1 180px; overflow: auto; }
+.shared-draft-section { border-top: 1px solid #26484f; padding-top: .65rem; }
 .panel-title { margin-bottom: .4rem; color: #d4dfdc; font-size: .68rem; }
 .panel-title span { color: var(--accent); font: 900 .62rem/1 ui-monospace, monospace; }
 .template-list, .draft-list { display: grid; gap: .35rem; }

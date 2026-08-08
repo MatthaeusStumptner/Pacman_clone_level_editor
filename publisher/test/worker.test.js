@@ -8,6 +8,11 @@ const env = {
   EDITOR_PATH_PREFIX: '/Pacman_clone_level_editor/',
   ALLOWED_GITHUB_LOGINS: 'freundin',
   GITHUB_APP_CLIENT_ID: 'client-id',
+  GITHUB_APP_CLIENT_SECRET: 'client-secret',
+  GITHUB_APP_ID: '123',
+  GITHUB_INSTALLATION_ID: '456',
+  GITHUB_APP_PRIVATE_KEY: 'test-private-key',
+  LEVEL_DB: { prepare() {}, batch() {} },
 };
 
 test('health response carries locked-down security headers', async () => {
@@ -24,6 +29,15 @@ test('API rejects foreign origins and missing editor sessions', async () => {
   const anonymous = await worker.fetch(new Request('https://publisher.example/api/me', { headers: { Origin: env.EDITOR_ORIGIN } }), env);
   assert.equal(anonymous.status, 401);
   assert.equal(anonymous.headers.get('Access-Control-Allow-Origin'), env.EDITOR_ORIGIN);
+});
+
+test('health reports missing secrets and D1 binding before accepting traffic', async () => {
+  const response = await worker.fetch(new Request('https://publisher.example/health'), {});
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.ok, false);
+  assert.deepEqual(body.missingBindings, ['LEVEL_DB']);
+  assert.ok(body.missingSecrets.includes('SESSION_SECRET'));
 });
 
 test('OAuth login accepts only the exact editor return path', async () => {

@@ -76,7 +76,7 @@ export function corsHeaders(request, env) {
   return {
     'Access-Control-Allow-Origin': env.EDITOR_ORIGIN,
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Max-Age': '600',
     Vary: 'Origin',
   };

@@ -45,6 +45,10 @@ export class StudioState {
   selectedKeyframeId = $state('');
   language = $state('standard');
   revision = $state(0);
+  cloudStatus = $state('local');
+  cloudDrafts = $state.raw([]);
+  cloudUser = $state.raw(null);
+  cloudError = $state('');
 
   validation = $derived.by(() => this.level ? validateLevelDocument(this.level) : { ok: false, errors: [], warnings: [], metrics: {} });
   pellets = $derived.by(() => this.level ? previewGuttis(this.level, this.difficulty) : new Set());
@@ -77,11 +81,17 @@ export class StudioState {
     this.selectedEventId = this.level.events[0]?.id ?? '';
     this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
     this.saveTimer = null;
+    this.cloudSaveTimer = null;
+    this.cloudPublisher = null;
+    this.cloudRevisions = new Map();
+    this.cloudHashes = new Map();
+    this.cloudBlocked = new Set();
+    this.cloudQueue = Promise.resolve();
     this.toastTimer = null;
     this.gesture = null;
   }
 
-  sync({ save = true, preserveSelection = true } = {}) {
+  sync({ save = true, preserveSelection = true, cloud = true } = {}) {
     this.level = this.engine.toDocument();
     if (!preserveSelection || this.engine.selected) {
       this.selection = clone(this.engine.selected);
@@ -90,16 +100,23 @@ export class StudioState {
     if (!this.level.events.some((event) => event.id === this.selectedEventId)) this.selectedEventId = this.level.events[0]?.id ?? '';
     if (!this.level.cutscenes.some((cutscene) => cutscene.id === this.selectedCutsceneId)) this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
     this.revision += 1;
-    if (save) this.scheduleSave();
+    if (save) this.scheduleSave({ cloud });
   }
 
-  scheduleSave() {
+  scheduleSave({ cloud = true } = {}) {
     this.saveStatus = 'SPEICHERT …';
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       this.drafts.save(this.engine.toDocument());
-      this.saveStatus = 'GESPEICHERT';
+      this.saveStatus = this.cloudPublisher ? 'LOKAL GESPEICHERT' : 'GESPEICHERT';
     }, 180);
+    if (cloud && this.cloudPublisher && !this.cloudBlocked.has(this.level.id)) {
+      clearTimeout(this.cloudSaveTimer);
+      this.cloudSaveTimer = setTimeout(() => {
+        const level = this.engine.toDocument();
+        this.cloudQueue = this.cloudQueue.then(() => this.saveLevelToCloud(level)).catch(() => null);
+      }, 900);
+    }
   }
 
   notify(message) {
@@ -119,7 +136,7 @@ export class StudioState {
 
   value(path) { return getAt(this.level, path); }
 
-  load(level, message = 'Level geladen') {
+  load(level, message = 'Level geladen', { cloud = false } = {}) {
     this.engine = new EditorState(createLevelDocument(level));
     this.selection = null;
     this.selections = [];
@@ -129,13 +146,130 @@ export class StudioState {
     this.selectedCutsceneId = this.engine.document.cutscenes[0]?.id ?? '';
     this.selectedTrackId = '';
     this.selectedKeyframeId = '';
-    this.sync();
+    this.sync({ cloud });
     this.notify(message);
   }
 
   newLevel() { this.load(createStarterLevel(), 'Neues Level angelegt'); }
   loadTemplate(id) { const level = catalogLevel(id); if (level) this.load(level, `${level.name.standard} geladen`); }
   loadDraft(id) { const level = this.drafts.load(id); if (level) this.load(level, 'Entwurf geladen'); }
+
+  async enableCloudDrafts(publisher, user = null) {
+    this.cloudPublisher = publisher;
+    this.cloudUser = user;
+    this.cloudStatus = 'connecting';
+    this.cloudError = '';
+    try {
+      const result = await publisher.bootstrapDrafts();
+      this.applyCloudDraftList(result.drafts ?? []);
+      const current = this.cloudDrafts.find((draft) => draft.id === this.level.id);
+      if (current) {
+        const remote = await publisher.draft(current.id);
+        this.cloudRevisions.set(remote.id, remote.revision);
+        this.cloudHashes.set(remote.id, JSON.stringify(remote.level));
+        if (JSON.stringify(this.level) !== JSON.stringify(remote.level)) this.cloudBlocked.add(remote.id);
+      }
+      this.cloudStatus = this.cloudBlocked.has(this.level.id) ? 'conflict' : 'shared';
+      if (this.cloudBlocked.has(this.level.id)) this.cloudError = 'Für das geöffnete Level gibt es einen anderen gemeinsamen Stand. Öffne ihn im Projektmenü, bevor du ihn überschreibst.';
+      return this.cloudDrafts;
+    } catch (error) {
+      this.cloudStatus = 'offline';
+      this.cloudError = error.message;
+      throw error;
+    }
+  }
+
+  disableCloudDrafts() {
+    clearTimeout(this.cloudSaveTimer);
+    this.cloudPublisher = null;
+    this.cloudUser = null;
+    this.cloudStatus = 'local';
+    this.cloudError = '';
+  }
+
+  applyCloudDraftList(drafts) {
+    this.cloudDrafts = drafts;
+    drafts.forEach((draft) => this.cloudRevisions.set(draft.id, draft.revision));
+    this.revision += 1;
+  }
+
+  async refreshCloudDrafts() {
+    if (!this.cloudPublisher) return [];
+    const result = await this.cloudPublisher.listDrafts();
+    this.applyCloudDraftList(result.drafts ?? []);
+    this.cloudStatus = 'shared';
+    return this.cloudDrafts;
+  }
+
+  cloudDraftsList() { return this.cloudDrafts; }
+
+  async loadCloudDraft(id) {
+    if (!this.cloudPublisher) return false;
+    const remote = await this.cloudPublisher.draft(id);
+    this.cloudRevisions.set(remote.id, remote.revision);
+    this.cloudHashes.set(remote.id, JSON.stringify(remote.level));
+    this.cloudBlocked.delete(remote.id);
+    this.cloudStatus = 'shared';
+    this.cloudError = '';
+    this.load(remote.level, `Gemeinsamer Entwurf · Revision ${remote.revision}`);
+    return true;
+  }
+
+  async deleteCloudDraft(id) {
+    if (!this.cloudPublisher) return false;
+    const revision = this.cloudRevisions.get(id);
+    if (!Number.isInteger(revision)) throw new Error('Die Revision des gemeinsamen Entwurfs ist unbekannt. Bitte aktualisieren.');
+    await this.cloudPublisher.deleteDraft(id, revision);
+    this.cloudRevisions.delete(id);
+    this.cloudHashes.delete(id);
+    this.cloudBlocked.delete(id);
+    await this.refreshCloudDrafts();
+    this.notify('Gemeinsamer Entwurf gelöscht · lokale Kopien bleiben erhalten');
+    return true;
+  }
+
+  async saveLevelToCloud(level) {
+    if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
+    if (this.cloudBlocked.has(level.id)) throw new Error('Dieser Entwurf hat einen ungelösten Versionskonflikt. Öffne zuerst den gemeinsamen Stand.');
+    const hash = JSON.stringify(level);
+    if (this.cloudHashes.get(level.id) === hash) return { id: level.id, revision: this.cloudRevisions.get(level.id) };
+    this.cloudStatus = 'syncing';
+    try {
+      const saved = await this.cloudPublisher.saveDraft(level, this.cloudRevisions.get(level.id) ?? 0);
+      this.cloudRevisions.set(saved.id, saved.revision);
+      this.cloudHashes.set(saved.id, JSON.stringify(saved.level));
+      this.cloudDrafts = [saved, ...this.cloudDrafts.filter((draft) => draft.id !== saved.id)];
+      this.cloudStatus = 'shared';
+      this.cloudError = '';
+      this.saveStatus = 'CLOUD GESPEICHERT';
+      this.revision += 1;
+      return { id: saved.id, revision: saved.revision };
+    } catch (error) {
+      if (error.status === 409) {
+        this.cloudBlocked.add(level.id);
+        if (error.current?.revision) this.cloudRevisions.set(level.id, error.current.revision);
+        this.cloudStatus = 'conflict';
+        this.cloudError = error.message;
+        this.saveStatus = 'VERSIONSKONFLIKT';
+        this.notify('Cloud-Konflikt · bitte gemeinsamen Entwurf neu öffnen');
+      } else {
+        this.cloudStatus = 'offline';
+        this.cloudError = error.message;
+        this.saveStatus = 'LOKAL GESPEICHERT';
+      }
+      throw error;
+    }
+  }
+
+  async prepareCloudPublication(candidates) {
+    if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
+    clearTimeout(this.cloudSaveTimer);
+    await this.cloudQueue;
+    const references = [];
+    for (const candidate of candidates) references.push(await this.saveLevelToCloud(candidate.level));
+    return references;
+  }
+
   undo() { if (this.engine.undo()) this.sync(); }
   redo() { if (this.engine.redo()) this.sync(); }
 

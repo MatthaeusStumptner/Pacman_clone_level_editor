@@ -1,6 +1,6 @@
 # Franz & Lola · Game Studio
 
-Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Svelte 5 hält den Dokumentzustand synchron; Level, Objekte, Figuren, Cutscenes, Ereignisse, Testspiel und Veröffentlichung besitzen klar getrennte Arbeitsbereiche. Das Studio verwendet denselben Canvas-Renderer wie das Spiel, speichert Entwürfe im Browser und läuft weiterhin ohne App-Server auf GitHub Pages.
+Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Svelte 5 hält den Dokumentzustand synchron; Level, Objekte, Figuren, Cutscenes, Ereignisse, Testspiel und Veröffentlichung besitzen klar getrennte Arbeitsbereiche. Das Studio verwendet denselben Canvas-Renderer wie das Spiel, läuft weiterhin statisch auf GitHub Pages und verbindet angemeldete Redaktionsgeräte über eine kleine Cloudflare-D1-Datenbank.
 
 ## Von der Idee zum spielbaren Level
 
@@ -30,7 +30,8 @@ Statisches No-Code-Studio für das gemeinsame `franz-lola-level`-JSON-Format. Sv
 - Spielkamera, Ganzlevel-Ansicht, nativer Vollbildmodus, Pause, Touch-Buttons und direkte Wischsteuerung während der Fingerbewegung
 - Live-Prüfung auf Erreichbarkeit, Kollisionen, Gutti-Kapazität und Randüberschreitungen
 - Transaktionsbasiertes Undo/Redo: ein kompletter Zeichenstrich ist ein Schritt
-- Mehrere automatisch gespeicherte `localStorage`-Entwürfe
+- Gemeinsame, automatisch versionierte D1-Entwürfe für mehrere Personen und Geräte; veraltete Revisionen werden sichtbar blockiert
+- Mehrere automatisch gespeicherte `localStorage`-Entwürfe als Offline- und Wiederherstellungsnetz
 - Import/Export einzelner Level sowie Export des vollständigen Originalkatalogs
 - Sicheres Veröffentlichen per Knopfdruck: einen oder mehrere lokale Entwürfe auswählen; Anmeldung, gemeinsamer Pull Request, Prüfung, Merge und GitHub-Pages-Deploy laufen geführt und automatisch; Prozent, aktuelle GitHub-Phase, Laufzeit, letzter Check und Aktivitätslog bleiben live sichtbar
 - Responsive Oberfläche für Maus, Tastatur, Stift und Touch
@@ -63,4 +64,4 @@ Ein Export ist normales, versioniertes JSON mit `kind: "franz-lola-level"` und `
 
 ## Veröffentlichen ohne Repository-Zugriff
 
-Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an, wählt einen oder mehrere spielbare Entwürfe und darf ausschließlich diese geprüften Leveldateien in einem gemeinsamen Pull Request veröffentlichen. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.
+Der Editor kann mit dem kleinen Cloudflare Worker in [`publisher/`](publisher/) verbunden werden. Die Redaktion meldet sich über GitHub an und sieht danach denselben gemeinsamen Entwurfsstand auf allen Geräten. D1 schützt jede Änderung mit einer Revision; GitHub bleibt die kanonische Quelle für veröffentlichte Level und übernimmt Prüfung, Historie und Deployment. GitHub-App-Schlüssel gelangen nie in den Browser; die kurzlebige Editorsitzung bleibt nur im Arbeitsspeicher des Tabs. Die einmalige Einrichtung für den Besitzer ist in [`publisher/README.md`](publisher/README.md) beschrieben.

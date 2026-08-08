@@ -3,4 +3,5 @@
 !.dev.vars.example
 .wrangler/
 .wrangler-dry-run/
+worker-configuration.d.ts
 node_modules/
