@@ -36,11 +36,11 @@ async function openSceneTree(page) {
   await expect(page.locator('.scene-tree:visible')).toBeVisible();
 }
 
-async function openConflictingCloudEditor(page) {
+async function openConflictingCloudEditor(page, { dirty = false } = {}) {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.waitForTimeout(250);
-  const remote = await page.evaluate(() => {
+  const remote = await page.evaluate((isDirty) => {
     const workspace = JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2'));
     const original = structuredClone(workspace.drafts.zauberberg.level);
     workspace.drafts.zauberberg.level.name.standard = 'Mein lokaler Zauberberg';
@@ -48,9 +48,10 @@ async function openConflictingCloudEditor(page) {
     workspace.drafts.zauberberg.level.decorations.unshift({ id: 'zauberberg-note-frei', assetId: 'zauberberg-note' });
     workspace.drafts.zauberberg.level.events.find((event) => event.id === 'zugabe').visual = { type: 'custom', assetId: 'zauberberg-note', x: 12, y: 9, label: '♪' };
     workspace.drafts.zauberberg.level.cutscenes[0].tracks.push({ id: 'note-solo', type: 'object', target: 'zauberberg-note-frei', keyframes: [] });
+    workspace.drafts.zauberberg.sync = isDirty ? { baseRevision: 1, dirty: true, source: 'local' } : undefined;
     localStorage.setItem('franz-lola-level-editor-workspace-v2', JSON.stringify(workspace));
     return original;
-  });
+  }, dirty);
   const writes = [];
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
@@ -69,10 +70,10 @@ async function openConflictingCloudEditor(page) {
   });
   await page.goto('/#publisher_session=test.session-token');
   await expect(page.locator('#level-canvas')).toBeVisible();
-  await expect(page.locator('.document-identity')).toContainText('Mein lokaler Zauberberg');
+  await expect(page.locator('.document-identity')).toContainText(remote.name.standard);
   await page.locator('[data-workspace="publish"]').click();
-  await expect(page.locator('.cloud-conflict-resolver')).toBeVisible();
-  await expect(page.getByRole('button', { name: /CLOUD-KONFLIKT · LÖSEN/ })).toBeVisible();
+  await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
+  await expect(page.locator('.topbar-status')).toContainText('GEMEINSAM');
   return { errors, remote, writes };
 }
 
@@ -354,6 +355,36 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   expect(errors).toEqual([]);
 });
 
+test('linked object settings, instance overrides and selection feedback update on the input event', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'hals');
+  await openObjectLibrary(page);
+  await page.locator('[data-asset-id="music-note"]').click();
+  const target = await canvasPoint(page, 2, 2); await page.mouse.click(target.x, target.y);
+
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selected-entity', /^decoration:/);
+  await openSceneTree(page);
+  await expect(page.locator('.scene-node.selected')).toContainText('Musiknote');
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
+
+  const globalColor = page.locator('[data-asset-setting="color"]');
+  const instanceColor = page.locator('[data-instance-setting="color"]');
+  await globalColor.evaluate((input) => { input.value = '#ff00aa'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await expect(instanceColor).toHaveValue('#ff00aa');
+  await expect(page.locator('.linked-instance')).toContainText('Alle Werte folgen der Vorlage');
+
+  await instanceColor.evaluate((input) => { input.value = '#2255dd'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await expect(page.locator('.linked-instance')).toContainText('1 lokale Abweichung');
+  await expect(globalColor).toHaveValue('#ff00aa');
+
+  await globalColor.evaluate((input) => { input.value = '#33cc44'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await expect(instanceColor).toHaveValue('#2255dd');
+  await page.locator('.linked-instance').getByRole('button', { name: /color/ }).click();
+  await expect(instanceColor).toHaveValue('#33cc44');
+  await expect(page.locator('.linked-instance')).toContainText('Alle Werte folgen der Vorlage');
+  expect(errors).toEqual([]);
+});
+
 test('selection context offers the inferred direct tool without hiding the selected object', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
@@ -559,26 +590,19 @@ test('authorized non-technical editors share and publish mixed exact content rev
   expect(errors).toEqual([]);
 });
 
-test('a cloud conflict can promote the local level as the next shared revision', async ({ page }) => {
+test('an old browser draft automatically adopts the shared baseline without becoming a change', async ({ page }) => {
   const { errors, writes } = await openConflictingCloudEditor(page);
-  await page.getByRole('button', { name: /Meine Fassung verwenden/ }).click();
-  await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
-  await expect(page.locator('.topbar-status')).toContainText('GEMEINSAM');
   await expect(page.locator('#publisher-confirm')).toBeEnabled();
-  expect(writes).toHaveLength(1);
-  expect(writes[0].expectedRevision).toBe(2);
-  expect(writes[0].level.name.standard).toBe('Mein lokaler Zauberberg');
-  expect(writes[0].level.decorations.some((item) => item.id === 'zauberberg-note-frei')).toBe(false);
-  expect(writes[0].level.events.find((event) => event.id === 'zugabe').visual.type).toBe('none');
-  expect(writes[0].level.cutscenes[0].tracks.some((track) => track.id === 'note-solo')).toBe(false);
+  await page.waitForTimeout(1100);
+  expect(writes).toHaveLength(0);
+  const workspace = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2')));
+  expect(workspace.drafts.zauberberg.sync).toEqual({ baseRevision: 2, dirty: false, source: 'cloud' });
+  expect(Object.keys(workspace.drafts).some((id) => id.includes('lokale-sicherung'))).toBe(false);
   expect(errors).toEqual([]);
 });
 
-test('a cloud conflict can load the shared level while preserving the local one as a backup', async ({ page }) => {
-  const { errors, remote, writes } = await openConflictingCloudEditor(page);
-  await page.getByRole('button', { name: /Gemeinsamen Stand laden/ }).click();
-  await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
-  await expect(page.locator('.document-identity')).toContainText(remote.name.standard);
+test('an explicit local edit is preserved as a backup while the shared baseline still opens automatically', async ({ page }) => {
+  const { errors, remote, writes } = await openConflictingCloudEditor(page, { dirty: true });
   await page.waitForTimeout(250);
   const workspace = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2')));
   expect(workspace.activeId).toBe('zauberberg');

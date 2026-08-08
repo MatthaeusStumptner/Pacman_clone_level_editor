@@ -5,9 +5,10 @@ import { createStarterLevel, EditorState } from '../editor-state.js';
 import { floodFillPoints, linePoints, moveRectangle, previewGuttis, rectangleContains, rectanglePoints, scaleRectangle, transformHandleAt } from '../editor-tools.js';
 import { createFranzLolaAppearance } from '../character-template.js';
 import { CharacterLibrary, characterPlacement, createBlankCharacterAsset } from '../character-library.js';
-import { ObjectLibrary, createBlankObjectAsset, placementFromAsset } from '../object-library.js';
+import { ObjectLibrary, applyAssetToPlacement, createBlankObjectAsset, overridePlacementValue, placementFromAsset, recolorAppearance } from '../object-library.js';
 import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, selectionContext as buildSelectionContext } from '../scene-model.js';
 import { migrateLegacyLevel } from '../level-migrations.js';
+import { planCloudDraftAdoption } from '../cloud-draft-policy.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const slug = (value, fallback = 'eintrag') => String(value || fallback)
@@ -55,6 +56,7 @@ export class StudioState {
   cloudItems = $state.raw([]);
   cloudUser = $state.raw(null);
   cloudError = $state('');
+  levelSync = $state.raw({ baseRevision: null, dirty: false, source: 'legacy' });
 
   validation = $derived.by(() => this.level ? validateLevelDocument(this.level) : { ok: false, errors: [], warnings: [], metrics: {} });
   pellets = $derived.by(() => this.level ? previewGuttis(this.level, this.difficulty) : new Set());
@@ -89,7 +91,9 @@ export class StudioState {
     this.assets = this.library.list();
     this.characterLibrary = new CharacterLibrary(storage);
     this.characterAssets = this.characterLibrary.list();
-    this.engine = new EditorState(this.drafts.active() ?? createStarterLevel());
+    const activeDraft = this.drafts.activeEntry();
+    this.engine = new EditorState(activeDraft?.level ?? createStarterLevel());
+    this.levelSync = activeDraft?.sync ?? { baseRevision: null, dirty: false, source: 'legacy' };
     this.level = this.engine.toDocument();
     this.selectedEventId = this.level.events[0]?.id ?? '';
     this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
@@ -102,12 +106,13 @@ export class StudioState {
     this.cloudContentRevisions = new Map();
     this.cloudContentHashes = new Map();
     this.cloudContentBlocked = new Set();
+    this.contentSaveTimers = new Map();
     this.cloudQueue = Promise.resolve();
     this.toastTimer = null;
     this.gesture = null;
   }
 
-  sync({ save = true, preserveSelection = true, cloud = true } = {}) {
+  sync({ save = true, preserveSelection = true, cloud = true, markDirty = save } = {}) {
     this.level = this.engine.toDocument();
     if (!preserveSelection || this.engine.selected) {
       this.selection = clone(this.engine.selected);
@@ -116,6 +121,7 @@ export class StudioState {
     if (!this.level.events.some((event) => event.id === this.selectedEventId)) this.selectedEventId = this.level.events[0]?.id ?? '';
     if (!this.level.cutscenes.some((cutscene) => cutscene.id === this.selectedCutsceneId)) this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
     this.revision += 1;
+    if (markDirty) this.levelSync = { ...this.levelSync, dirty: true, source: 'local' };
     if (save) this.scheduleSave({ cloud });
   }
 
@@ -123,7 +129,7 @@ export class StudioState {
     this.saveStatus = 'SPEICHERT …';
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
-      this.drafts.save(this.engine.toDocument());
+      this.drafts.save(this.engine.toDocument(), { sync: this.levelSync });
       this.saveStatus = this.cloudPublisher ? 'LOKAL GESPEICHERT' : 'GESPEICHERT';
     }, 180);
     if (cloud && this.cloudPublisher && !this.cloudBlocked.has(this.level.id)) {
@@ -147,12 +153,13 @@ export class StudioState {
   }
 
   update(path, value, label = 'Eigenschaft ändern') {
+    if (value === undefined) return;
     this.mutate(label, (draft) => setAt(draft.document, path, value), { preserveSelection: true });
   }
 
   value(path) { return getAt(this.level, path); }
 
-  load(level, message = 'Level geladen', { cloud = false } = {}) {
+  load(level, message = 'Level geladen', { cloud = false, sync = { baseRevision: null, dirty: false, source: 'local' } } = {}) {
     this.engine = new EditorState(createLevelDocument(migrateLegacyLevel(level)));
     this.selection = null;
     this.selections = [];
@@ -162,13 +169,14 @@ export class StudioState {
     this.selectedCutsceneId = this.engine.document.cutscenes[0]?.id ?? '';
     this.selectedTrackId = '';
     this.selectedKeyframeId = '';
-    this.sync({ cloud });
+    this.levelSync = sync;
+    this.sync({ cloud, markDirty: false });
     this.notify(message);
   }
 
   newLevel() { this.load(createStarterLevel(), 'Neues Level angelegt'); }
   loadTemplate(id) { const level = catalogLevel(id); if (level) this.load(level, `${level.name.standard} geladen`); }
-  loadDraft(id) { const level = this.drafts.load(id); if (level) this.load(level, 'Entwurf geladen'); }
+  loadDraft(id) { const entry = this.drafts.entry(id); if (entry) this.load(entry.level, 'Entwurf geladen', { sync: entry.sync }); }
 
   async enableCloudDrafts(publisher, user = null) {
     this.cloudPublisher = publisher;
@@ -184,10 +192,17 @@ export class StudioState {
         const remote = await publisher.draft(current.id);
         this.cloudRevisions.set(remote.id, remote.revision);
         this.cloudHashes.set(remote.id, JSON.stringify(remote.level));
-        if (JSON.stringify(this.level) !== JSON.stringify(remote.level)) this.cloudBlocked.add(remote.id);
+        const adoption = planCloudDraftAdoption(this.level, remote, this.levelSync);
+        const backup = adoption.preserveLocalBackup ? this.saveLocalConflictBackup(this.level) : null;
+        this.cloudBlocked.delete(remote.id);
+        this.load(adoption.level, backup
+          ? `Gemeinsamer Stand geladen · ${backup.name} bleibt als lokale Sicherung erhalten`
+          : `Gemeinsamer Stand automatisch übernommen · Revision ${remote.revision}`, {
+          cloud: false,
+          sync: adoption.sync,
+        });
       }
-      this.cloudStatus = this.cloudBlocked.has(this.level.id) ? 'conflict' : 'shared';
-      if (this.cloudBlocked.has(this.level.id)) this.cloudError = 'Für das geöffnete Level gibt es einen neueren gemeinsamen Stand. Entscheide unter „Live“, welche Fassung gelten soll.';
+      this.cloudStatus = 'shared';
       return this.cloudDrafts;
     } catch (error) {
       this.cloudStatus = 'offline';
@@ -198,6 +213,8 @@ export class StudioState {
 
   disableCloudDrafts() {
     clearTimeout(this.cloudSaveTimer);
+    this.contentSaveTimers.forEach((timer) => clearTimeout(timer));
+    this.contentSaveTimers.clear();
     this.cloudPublisher = null;
     this.cloudUser = null;
     this.cloudStatus = 'local';
@@ -276,7 +293,9 @@ export class StudioState {
       this.cloudBlocked.delete(id);
       this.cloudStatus = 'shared';
       this.cloudError = '';
-      this.load(remote.level, `Gemeinsamer Stand geladen · ${backup.name} bleibt auf diesem Gerät`);
+      this.load(remote.level, `Gemeinsamer Stand geladen · ${backup.name} bleibt auf diesem Gerät`, {
+        sync: { baseRevision: remote.revision, dirty: false, source: 'cloud' },
+      });
       return { resolved: true, strategy, revision: remote.revision, backup };
     }
 
@@ -302,7 +321,9 @@ export class StudioState {
     this.cloudBlocked.delete(remote.id);
     this.cloudStatus = 'shared';
     this.cloudError = '';
-    this.load(remote.level, `Gemeinsamer Entwurf · Revision ${remote.revision}`);
+    this.load(remote.level, `Gemeinsamer Entwurf · Revision ${remote.revision}`, {
+      sync: { baseRevision: remote.revision, dirty: false, source: 'cloud' },
+    });
     return true;
   }
 
@@ -323,7 +344,12 @@ export class StudioState {
     if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
     if (this.cloudBlocked.has(level.id)) throw new Error('Dieser Entwurf hat einen ungelösten Versionskonflikt. Entscheide unter „Live“, welche Fassung gelten soll.');
     const hash = JSON.stringify(level);
-    if (this.cloudHashes.get(level.id) === hash) return { id: level.id, revision: this.cloudRevisions.get(level.id) };
+    if (this.cloudHashes.get(level.id) === hash) {
+      const sync = { baseRevision: this.cloudRevisions.get(level.id) ?? null, dirty: false, source: 'cloud' };
+      if (level.id === this.level.id) this.levelSync = sync;
+      this.drafts.save(level, { activate: level.id === this.level.id, sync });
+      return { id: level.id, revision: this.cloudRevisions.get(level.id) };
+    }
     this.cloudStatus = 'syncing';
     try {
       const saved = await this.cloudPublisher.saveDraft(level, this.cloudRevisions.get(level.id) ?? 0);
@@ -333,6 +359,9 @@ export class StudioState {
       this.cloudStatus = 'shared';
       this.cloudError = '';
       this.saveStatus = 'CLOUD GESPEICHERT';
+      const sync = { baseRevision: saved.revision, dirty: false, source: 'cloud' };
+      if (saved.id === this.level.id) this.levelSync = sync;
+      this.drafts.save(saved.level, { activate: saved.id === this.level.id, sync });
       this.revision += 1;
       return { id: saved.id, revision: saved.revision };
     } catch (error) {
@@ -355,8 +384,13 @@ export class StudioState {
   queueContentSave(type, asset) {
     if (!this.cloudPublisher) return;
     const content = createContentDocument(type, asset);
-    if (this.cloudContentBlocked.has(`${type}:${content.id}`)) return;
-    this.cloudQueue = this.cloudQueue.then(() => this.saveContentToCloud(content)).catch(() => null);
+    const key = `${type}:${content.id}`;
+    if (this.cloudContentBlocked.has(key)) return;
+    clearTimeout(this.contentSaveTimers.get(key));
+    this.contentSaveTimers.set(key, setTimeout(() => {
+      this.contentSaveTimers.delete(key);
+      this.cloudQueue = this.cloudQueue.then(() => this.saveContentToCloud(content)).catch(() => null);
+    }, 650));
   }
 
   async saveContentToCloud(content) {
@@ -567,7 +601,10 @@ export class StudioState {
       this.notify(`${this.selectedCharacterAsset.name} wurde als eigenständige Figur platziert`);
     } else if (mode === 'power') { this.mutate('Power-Up setzen', (draft) => draft.togglePowerUp(point));
     } else if (mode === 'object' && this.selectedAsset) {
-      this.mutate('Objekt platzieren', (draft) => draft.addDecoration(point, placementFromAsset(this.selectedAsset, point, draft.document.decorations.length)));
+      const placement = placementFromAsset(this.selectedAsset, point, this.level.decorations.length);
+      this.mutate('Objekt platzieren', (draft) => draft.addDecoration(point, placement));
+      this.tool = 'select';
+      this.selectEntity('decoration', this.level.decorations.findIndex((entry) => entry.id === placement.id), { reveal: true });
     } else if (mode === 'event-visual' && this.selectedEvent) {
       this.mutate('Ereignissymbol setzen', (draft) => { const visual = draft.document.events.find((event) => event.id === this.selectedEventId).visual; visual.x = point.x + 0.5; visual.y = point.y + 0.5; });
     }
@@ -646,6 +683,7 @@ export class StudioState {
   }
 
   updateSelected(path, value, label = 'Objekt bearbeiten') {
+    if (value === undefined) return;
     const selection = clone(this.selection);
     if (!selection) return;
     this.mutate(label, (draft) => {
@@ -656,7 +694,8 @@ export class StudioState {
       if (selection.kind === 'decoration') target = draft.document.decorations[selection.index];
       if (selection.kind === 'theme-element') target = draft.document.theme.elements?.[selection.index];
       if (selection.kind === 'wall') target = draft.document.board.walls[selection.index];
-      if (target) setAt(target, path, value);
+      if (target && selection.kind === 'decoration') Object.assign(target, overridePlacementValue(target, path, value));
+      else if (target) setAt(target, path, value);
       if (selection.kind === 'wall') draft.refreshWallCells();
     }, { preserveSelection: true });
     this.selection = selection;
@@ -676,10 +715,43 @@ export class StudioState {
   }
 
   saveAsset(asset) {
-    const saved = this.library.save(asset);
+    const previous = this.assets.find((entry) => entry.id === asset.id);
+    const prepared = asset.color !== previous?.color && asset.appearance === previous?.appearance
+      ? { ...asset, appearance: recolorAppearance(asset.appearance, previous?.color, asset.color) }
+      : asset;
+    const saved = this.library.save(prepared);
     this.assets = this.library.list(); this.selectedAssetId = saved.id;
+    const hasInstances = this.level.decorations.some((entry) => entry.assetId === saved.id);
+    if (hasInstances) this.mutate('Globale Objektvorlage aktualisieren', (draft) => {
+      draft.document.decorations.forEach((entry, index) => {
+        if (entry.assetId === saved.id) draft.document.decorations[index] = applyAssetToPlacement(entry, saved);
+      });
+    }, { preserveSelection: true });
     this.queueContentSave('object', saved);
-    this.notify('Objekt in der Bibliothek gespeichert');
+    this.notify(hasInstances ? 'Objektvorlage und verknüpfte Instanzen sofort aktualisiert' : 'Objekt in der Bibliothek gespeichert');
+    return saved;
+  }
+
+  updateAsset(path, value) {
+    if (!this.selectedAsset || value === undefined) return null;
+    const asset = clone(this.selectedAsset);
+    const previousColor = asset.color;
+    setAt(asset, path, value);
+    if (path[0] === 'color') asset.appearance = recolorAppearance(asset.appearance, previousColor, value);
+    return this.saveAsset(asset);
+  }
+
+  resetSelectedAssetOverride(field) {
+    if (this.selection?.kind !== 'decoration') return false;
+    const selected = this.level.decorations[this.selection.index];
+    const asset = this.assets.find((entry) => entry.id === selected?.assetId);
+    if (!asset || !(selected.assetOverrides ?? []).includes(field)) return false;
+    this.mutate('Objektwert wieder mit Vorlage verknüpfen', (draft) => {
+      const target = draft.document.decorations[this.selection.index];
+      target.assetOverrides = (target.assetOverrides ?? []).filter((entry) => entry !== field);
+      draft.document.decorations[this.selection.index] = applyAssetToPlacement(target, asset);
+    }, { preserveSelection: true });
+    return true;
   }
 
   createAsset() {

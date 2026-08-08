@@ -1,5 +1,7 @@
 <script>
+  import { tick } from 'svelte';
   let { studio, onselect = () => {} } = $props();
+  let tree;
   let search = $state('');
   let filter = $state('all');
   let collapsed = $state([]);
@@ -11,9 +13,14 @@
   function toggleGroup(id) { collapsed = collapsed.includes(id) ? collapsed.filter((entry) => entry !== id) : [...collapsed, id]; }
   function select(event, node) { studio.selectEntity(node.kind, node.index, { additive: event.shiftKey, reveal: !event.shiftKey }); onselect(node); }
   function control(event, action) { event.stopPropagation(); action(); }
+
+  $effect(() => {
+    studio.selectionRevision;
+    tick().then(() => tree?.querySelector('.scene-node.selected')?.scrollIntoView({ block: 'nearest' }));
+  });
 </script>
 
-<div class="scene-tree" aria-label="Szenenbaum">
+<div class="scene-tree" aria-label="Szenenbaum" bind:this={tree}>
   <header>
     <div><strong>Szene</strong><span>{studio.sceneGroups().reduce((sum, group) => sum + group.nodes.length, 0)} Elemente</span></div>
     <label class="scene-search"><span>⌕</span><input bind:value={search} placeholder="Element suchen" aria-label="Szenenbaum durchsuchen" /></label>

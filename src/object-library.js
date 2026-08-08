@@ -1,7 +1,42 @@
-const clone = (value) => JSON.parse(JSON.stringify(value));
+const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
+export const LINKED_ASSET_FIELDS = Object.freeze(['name', 'type', 'width', 'height', 'color', 'label', 'appearance', 'spriteAnimation', 'animation', 'effects', 'content', 'textStyle']);
 const slug = (value, fallback = 'objekt') => String(value || fallback)
   .normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/ß/g, 'ss')
   .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
+
+export function recolorAppearance(appearanceValue, previousColor, nextColor) {
+  if (!appearanceValue || !previousColor || !nextColor) return clone(appearanceValue);
+  const previous = String(previousColor).toLowerCase();
+  const result = clone(appearanceValue);
+  result.palette = (result.palette ?? []).map((entry) => String(entry).toLowerCase() === previous ? nextColor : entry);
+  return result;
+}
+
+export function applyAssetToPlacement(placement, asset) {
+  const result = clone(placement);
+  const overrides = new Set(result.assetOverrides ?? []);
+  LINKED_ASSET_FIELDS.forEach((field) => {
+    if (overrides.has(field) || !(field in asset)) return;
+    if (field === 'appearance' && overrides.has('color')) {
+      result.appearance = recolorAppearance(asset.appearance, asset.color, result.color);
+    } else result[field] = clone(asset[field]);
+  });
+  result.assetId = asset.id;
+  result.assetOverrides = [...overrides].filter((field) => LINKED_ASSET_FIELDS.includes(field));
+  return result;
+}
+
+export function overridePlacementValue(placement, path, value) {
+  if (!placement || !Array.isArray(path) || !path.length || value === undefined) return placement;
+  const result = clone(placement);
+  const field = path[0];
+  const previousColor = result.color;
+  const parent = path.slice(0, -1).reduce((entry, key) => entry[key], result);
+  parent[path.at(-1)] = value;
+  if (field === 'color') result.appearance = recolorAppearance(result.appearance, previousColor, value);
+  if (LINKED_ASSET_FIELDS.includes(field)) result.assetOverrides = [...new Set([...(result.assetOverrides ?? []), field])];
+  return result;
+}
 
 function appearance(rows, palette, { animation = 'idle', fps = 4 } = {}) {
   const duration = 1 / fps;
@@ -106,7 +141,11 @@ export class ObjectLibrary {
 
   list() {
     const custom = this.readCustom();
-    return [...DEFAULT_OBJECT_ASSETS.map(clone), ...custom.map(clone).filter((asset) => !DEFAULT_OBJECT_ASSETS.some((builtIn) => builtIn.id === asset.id))];
+    const customById = new Map(custom.map((asset) => [asset.id, asset]));
+    return [
+      ...DEFAULT_OBJECT_ASSETS.map((asset) => clone(customById.get(asset.id) ?? asset)),
+      ...custom.filter((asset) => !DEFAULT_OBJECT_ASSETS.some((builtIn) => builtIn.id === asset.id)).map(clone),
+    ];
   }
 
   save(asset) {
@@ -127,6 +166,7 @@ export function placementFromAsset(asset, point, index = 0) {
   return {
     id: `${asset.id}-${Date.now()}-${index}`,
     assetId: asset.id,
+    assetOverrides: [],
     name: asset.name,
     type: asset.type,
     x: point.x,

@@ -25,6 +25,25 @@
     return null;
   }
 
+  function selectionBounds(selection) {
+    if (!selection || studio.isSceneHidden(selection.kind, selection.index)) return null;
+    if (selection.kind === 'player') return { x: studio.level.actors.player.x, y: studio.level.actors.player.y };
+    if (selection.kind === 'cat') return studio.level.actors.cats[selection.index] ?? null;
+    if (selection.kind === 'character') return studio.level.actors.characters?.[selection.index] ?? null;
+    if (selection.kind === 'decoration') return studio.level.decorations[selection.index] ?? null;
+    if (selection.kind === 'wall') return studio.level.board.walls[selection.index] ?? null;
+    if (selection.kind === 'theme-element') return studio.specialElementBounds(studio.level.theme.elements?.[selection.index]?.id);
+    if (selection.kind === 'event') { const event = studio.level.events[selection.index]; return event ? { x: event.visual.x - 0.5, y: event.visual.y - 0.5 } : null; }
+    return null;
+  }
+
+  function selectionOutlines() {
+    return studio.selections.map((selection, index) => {
+      const bounds = selectionBounds(selection);
+      return bounds ? { x: bounds.x, y: bounds.y, width: bounds.width ?? 1, height: bounds.height ?? 1, primary: index === studio.selections.length - 1 } : null;
+    }).filter(Boolean);
+  }
+
   function draw(timestamp = performance.now()) {
     if (!renderer || !studio.level) return;
     const level = studio.editorLevel;
@@ -34,7 +53,7 @@
     renderResult = renderer.render({ level, player, cats: level.actors.cats, pellets, powerUps, elapsed: timestamp / 1000 }, {
       cameraEnabled: false,
       language: studio.language,
-      editor: { showGrid: studio.showGrid, showEvents: studio.showEvents, showEventZones: studio.showEvents, cursor: studio.cursor ?? selectionCursor(), transformSelection: studio.tool === 'transform' ? studio.transformSelection() : null },
+      editor: { showGrid: studio.showGrid, showEvents: studio.showEvents, showEventZones: studio.showEvents, cursor: studio.cursor ?? selectionCursor(), selections: selectionOutlines(), transformSelection: studio.tool === 'transform' ? studio.transformSelection() : null },
     });
   }
 
@@ -97,5 +116,6 @@
     onpointerleave={() => studio.leaveCanvas()}
     oncontextmenu={(event) => event.preventDefault()}
     data-selection-count={studio.selectionCount}
+    data-selected-entity={studio.selection ? `${studio.selection.kind}:${studio.selection.index}` : ''}
   ></canvas>
 </div>
