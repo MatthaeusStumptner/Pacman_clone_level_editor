@@ -93,7 +93,9 @@
     let disposed = false;
     const resize = new ResizeObserver(() => draw()); resize.observe(canvas);
     const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) draw(); }); intersection.observe(canvas);
-    PassauPixelRenderer.create(canvas, { zoom: 1, backend: 'auto', preferWebGPU: true, quality: 'auto', powerPreference: 'low-power' }).then((instance) => {
+    // Authoring text and transform handles must retain the device pixel ratio even
+    // when CI or a low-core device would select the gameplay performance tier.
+    PassauPixelRenderer.create(canvas, { zoom: 1, backend: 'auto', preferWebGPU: true, quality: 'quality', powerPreference: 'low-power' }).then((instance) => {
       if (disposed) { instance.destroy(); return; }
       renderer = instance; renderer.setLevel(studio.editorLevel); animationFrame = requestAnimationFrame(animate);
     });
