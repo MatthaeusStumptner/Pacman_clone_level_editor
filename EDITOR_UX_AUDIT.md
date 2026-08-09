@@ -1,85 +1,51 @@
 # UX-Audit: Franz & Lola Levelwerkstatt
 
-Stand: August 2026
+Stand: 9. August 2026
 
-## Kurzfazit
+## Vorgehen
 
-Die Aufteilung in sieben Fachbereiche ist fachlich richtig und deutlich verständlicher als ein einziger überladener Editor. Der größte Bedienbruch lag nicht im Svelte-State, sondern darin, dass Auswahl, Fachbereich und Navigation bisher nicht als eigener Zustand existierten. Ein Canvas-Klick konnte den Arbeitsbereich wechseln, ohne dass Browser-Zurück, Reload oder ein teilbarer Link den vorherigen Kontext wiederherstellen konnten.
+Der Editor wurde nicht nur anhand vorhandener Tests beurteilt. Die sieben Arbeitsbereiche wurden auf Desktop und 390-Pixel-Mobile geöffnet und als Benutzer durchgespielt: Projekt laden, Szene auswählen, Objekt anlegen, Sprite zeichnen, Figur erstellen und platzieren, Cutscene bearbeiten, Ereignis auslösen, Testlauf starten und Veröffentlichung öffnen. Gefundene Sackgassen wurden zunächst reproduziert, dann neu gestaltet und anschließend als Regressionstest festgehalten.
 
-Die erste Maßnahme ist deshalb ein eigener Studio-Router. Weitere Eingriffe in Auswahlmodell und mobile Informationsarchitektur sollten auf dieser stabilen Grundlage folgen.
+## Gefundene reale Bedienabbrüche
 
-## Vergleich mit etablierten Editoren
-
-| Editor | Bewährtes Muster | Konsequenz für die Levelwerkstatt |
+| Problem | Auswirkung | Änderung |
 | --- | --- | --- |
-| Tiled | Tile-, Objekt- und Bildebenen sind getrennt; Ebenen lassen sich hierarchisch ordnen, sperren und ausblenden. Das Auswahlwerkzeug unterstützt Mehrfachauswahl und überlappende Objekte. | Platzierte Instanzen benötigen mittelfristig einen echten Szenen-/Ebenenbaum mit Sichtbarkeit, Sperre und klarer Z-Reihenfolge. |
-| LDtk | Projekt/World, Ebeneninstanzen und die Palette bleiben als stabile Seitenbereiche erhalten. Definitionen und im Level platzierte Instanzen sind getrennte Konzepte. | Objektbibliothek und „Objekte im Level“ müssen visuell und begrifflich konsequent als Asset versus Instanz behandelt werden. |
-| Godot | Die Auswahl im Szenenbaum bestimmt den Inspector; ein Kontextwechsel geschieht bewusst und nicht als Nebenwirkung einer Eigenschaftsauswahl. | Einfacher Klick wählt zuerst. Das Öffnen einer Spezialwerkstatt sollte eine sichtbare, bewusste Aktion sein. |
-| Aseprite | In der Timeline liegen Frames horizontal und Ebenen vertikal; Auswahl, Playhead und Bearbeitungskontext sind jederzeit sichtbar. | Cutscene- und Sprite-Timelines sollten dieselbe Zeitsprache und dieselben Playback-Konventionen verwenden. |
+| „Neues Asset“ speicherte sofort einen Dummy | Abbrechen hinterließ unlöschbare Geistereinträge | Transaktionaler Assistent; Persistenz erst nach „Sprite übernehmen“ |
+| Objekteditor startete mit 12×12 | Detaillierte 24×24-Figuren waren über das UI nicht reproduzierbar | 24×24 als Standard sowie 8/12/16/24-Auswahl |
+| Pixelwerkzeuge waren auf Einzelpixel und Auswahl begrenzt | 24×24-Zeichnungen waren praktisch nicht herstellbar | Linie, Rechteck, gefülltes Rechteck, Flood Fill, Pipette, Copy/Paste, Palette bearbeiten/löschen |
+| Undo/Redo galt nicht zuverlässig für globale Definitionen | Asset- und Figurenänderungen ließen sich nicht sicher zurücknehmen | Gemeinsame `StudioHistory` für Level, Objekte und Figuren |
+| Canvas hatte keine Kameraarbeit | Große/ungünstige Layouts ließen sich nicht präzise bearbeiten | Zoom, Mausrad, Pan, Leertaste, mittlere Maustaste und Einpassen |
+| Tests klickten bei Letterboxing neben Objekte | Auswahl- und Transformtests waren scheinbar zufällig | Browser-Tooling verwendet nun die echte Renderer-Kameraprojektion |
+| Mobile Navigation versteckte hinter horizontalem Scrollen mehrere Bereiche | Testspiel, Ereignisse und Live waren ohne Vorwissen kaum auffindbar | Sichtbarer Bereichswähler mit allen sieben Arbeitsbereichen |
+| Objekt-Cutscene-Track war ohne Objekt anlegbar | Ungültiger leerer Target-Track | Aktion deaktiviert, erklärender Hinweis und Store-Guard |
+| Keyframes wurden nur am Trackende angelegt | Der sichtbare Playhead war für Autorinnen bedeutungslos | „Keyframe bei x.xx s“, inklusive Kopie des vorherigen Zustands |
+| Cutscene-Objekte/Figuren hatten nur X/Y | Rendererfähigkeiten waren nicht editierbar | Skalierung, Drehung, Deckkraft und Sichtbarkeit im Inspector |
+| Ereigniszonen waren nur Textzeilen | Zonen konnten weder korrigiert noch gelöscht werden | Direkte X/Y/Breite/Höhe-Felder und Löschen pro Zone |
+| Richtungsfolgen verlangten fehleranfällige Freitexteingabe | Unklare gültige Werte | Pfeil-Composer mit Rückschritt und Leeren |
+| Früher Klick auf „Testlauf starten“ ging verloren | Oberfläche reagierte scheinbar nicht | Start wird vorgemerkt und nach Grafikinitialisierung automatisch ausgeführt |
 
-Quellen:
+## Verwendete Editorprinzipien
 
-- [Tiled: Layers](https://doc.mapeditor.org/en/stable/manual/layers/)
-- [Tiled: Working with Objects](https://doc.mapeditor.org/en/stable/manual/objects/)
-- [LDtk: Editor interface](https://ldtk.io/docs/general/editor-components/)
-- [LDtk: Entities](https://ldtk.io/docs/general/editor-components/entities/)
-- [Godot: Inspector dock](https://docs.godotengine.org/en/stable/tutorials/editor/inspector_dock.html)
-- [Godot: Using TileMaps](https://docs.godotengine.org/en/latest/tutorials/2d/using_tilemaps.html)
-- [Aseprite: Timeline](https://www.aseprite.org/docs/timeline/)
+- **Definition versus Instanz:** Wie in LDtk sind globale Vorlagen und platzierte Levelobjekte sichtbar verschiedene Kontexte.
+- **Szenenbaum bestimmt Auswahl:** Wie in Godot/Tiled führt eine Szenenauswahl zum passenden Inspector; Sichtbarkeit, Sperre und Reihenfolge bleiben am Element.
+- **Playhead ist Wahrheit:** Wie in Aseprite entstehen Keyframes an der sichtbaren Zeit, nicht an einer unsichtbaren Standardposition.
+- **Abbrechen ist sicher:** Assistenten schreiben erst bei ausdrücklicher Bestätigung.
+- **Direkte Manipulation:** Sichtbare Objekte werden am Canvas bewegt/skaliert; präzise Zahlenfelder bleiben parallel verfügbar.
+- **Mobile Entdeckbarkeit:** Primäre Bereiche dürfen nicht von einem unsichtbaren horizontalen Scrollzustand abhängen.
 
-## Umgesetzte Navigationsarchitektur
+## Verbleibende bewusste Grenzen
 
-Die Navigation ist Teil der URL und wird zusätzlich im Browser-`localStorage` gespeichert. Beispiel:
+- Remote-Löschungen gemeinsamer Cloud-Inhalte bleiben bewusst explizite, bestätigte Aktionen. Ein lokales Undo darf nicht stillschweigend gemeinsam genutzte Daten löschen.
+- Die Spezialstudios werden jetzt als eigene Chunks geladen; der initiale JavaScript-Chunk sank von rund 537 kB auf 394 kB. Renderer und Levelkern bleiben bewusst im Start-Chunk, weil der erste sichtbare Canvas sie sofort benötigt.
+- Pixel- und Cutscene-Editor sind jetzt praktisch verwendbar, ersetzen aber keinen vollständigen Aseprite- oder Videoeditor. Ihr Funktionsumfang ist auf das gemeinsame Spielformat begrenzt.
 
-```text
-?level=zauberberg&workspace=cutscenes&cutscene=soundcheck&track=camera&keyframe=intro
-```
+## Akzeptanzkriterien
 
-Gespeichert werden abhängig vom Arbeitsbereich:
-
-- Level und Fachbereich,
-- ausgewähltes Asset oder platzierte Objektinstanz,
-- Figur,
-- Ereignis,
-- Cutscene, Track und Keyframe.
-
-Wechsel von Level oder Fachbereich erzeugen einen Eintrag in der Browser-Historie. Häufige Detailauswahlen ersetzen nur den aktuellen Eintrag. Dadurch funktionieren Zurück/Vorwärts sinnvoll, ohne für jeden Keyframe Dutzende Historieneinträge anzulegen.
-
-Der Router verwendet Query-Parameter und kein Hash-Routing. Der URL-Fragment ist bereits für das kurzlebige Publisher-Session-Token reserviert. Query-Parameter funktionieren außerdem ohne Server-Fallback auf GitHub Pages. Eine Migration zu SvelteKit ist dafür nicht erforderlich.
-
-Referenz:
-
-- [SvelteKit: Routing](https://svelte.dev/docs/kit/routing)
-- [SvelteKit: Static site generation](https://svelte.dev/docs/kit/adapter-static)
-
-## Priorisierte nächste UX-Schritte
-
-### 1. Auswahl und Fachbereich entkoppeln
-
-Ein Klick im Canvas sollte ein Element auswählen und seinen kompakten Inspector zeigen. Eine deutliche Aktion wie „In Objektwerkstatt öffnen“ wechselt anschließend bewusst die Disziplin. Ein Doppelklick kann dieselbe Abkürzung anbieten. Browser-Zurück funktioniert bereits als Sicherheitsnetz, ersetzt diese Entkopplung aber nicht.
-
-### 2. Szenenbaum statt horizontaler Objektleiste
-
-Ein dauerhaft sichtbarer Szenenbaum sollte Spieler, Katzen, Ereignisse, Dekoration, Texte und Theme-Elemente enthalten. Benötigt werden:
-
-- Suche und Typfilter,
-- Sichtbarkeit und Sperre,
-- Z-Reihenfolge und Gruppierung,
-- Auswahl überlappender Elemente,
-- stabile IDs für jede platzierte Instanz.
-
-### 3. Mobile Fokusansicht
-
-Die aktuelle mobile Oberfläche stapelt weitgehend die Desktop-Panels. Besser ist pro Fachbereich eine primäre Arbeitsfläche mit einer unteren Werkzeugleiste. Bibliothek, Szenenbaum und Inspector öffnen als fokussierte Sheets; der Canvas bleibt dabei sichtbar und verliert weder Kamera noch Auswahl.
-
-### 4. Gemeinsame Interaktionsregeln
-
-Alle visuellen Editoren sollten dieselben Regeln verwenden: Escape hebt Auswahl auf, Shift erweitert die Auswahl, Alt wählt das nächste überlappende Element, Leertaste verschiebt die Kamera, und ein einheitliches Snap-Menü steuert Raster, Pixel und freie Positionierung.
-
-## Erfolgskennzahlen
-
-- Nach Reload ist derselbe Fachbereich mit demselben Element aktiv.
-- Zurück führt zum vorherigen Fachbereich, nicht aus dem Editor heraus.
-- Ein neues Objekt ist ohne Anleitung in höchstens drei bewussten Aktionen platzierbar.
-- Auf Mobile bleibt der Canvas während Auswahl und Inspektoränderung sichtbar.
-- Kein geschlossener Drawer bleibt per Tastatur oder Screenreader bedienbar.
+- Abbrechen eines Erstellassistenten verändert weder Bibliothek noch Browserstorage.
+- Eine neue 24×24-Definition kann ausschließlich über das UI erstellt, gezeichnet, gespeichert, platziert, bewegt und skaliert werden.
+- Jede bestätigte lokale Änderung ist nachvollziehbar rückgängig/wiederholbar.
+- Kein Arbeitsbereich ist auf 390 px versteckt.
+- Canvas-Klick, Auswahlrahmen und Rendererbild verwenden dieselbe Kamera.
+- Ein Cutscene-Track kann keinen unerfüllbaren Zielzustand erzeugen.
+- Jede Ereigniszone ist nachträglich editier- und löschbar.
+- Der erste Klick auf den Testlauf startet zuverlässig, auch bei langsamer GPU-Initialisierung.

@@ -9,6 +9,7 @@
   let sidebarMode = $state('tools');
   let mobilePanel = $state('canvas');
   let selectedWall = $derived(studio.selection?.kind === 'wall' ? studio.level.board.walls[studio.selection.index] : null);
+  let selectedCharacter = $derived(studio.selection?.kind === 'character' ? studio.level.actors.characters?.[studio.selection.index] : null);
   let selectedWallCount = $derived(studio.selections.filter((selection) => selection.kind === 'wall').length);
   const tools = [
     ['select', '↖', 'Auswahl', 'V'], ['transform', '↔', 'Bewegen', 'M'], ['wall', '▦', 'Stift', 'B'], ['line', '╱', 'Linie', 'L'], ['rectangle', '▰', 'Rechteck', 'R'], ['fill', '◩', 'Füllen', 'F'], ['erase', '◇', 'Radierer', 'E'],
@@ -23,7 +24,7 @@
 
   $effect(() => {
     studio.selectionRevision;
-    if (studio.workspace === 'level' && studio.selection) mobilePanel = 'inspector';
+    if (studio.workspace === 'level' && studio.selection) mobilePanel = studio.tool === 'transform' ? 'canvas' : 'inspector';
   });
 </script>
 
@@ -59,11 +60,21 @@
       </div>
       {#if studio.tool === 'character' && studio.selectedCharacterAsset}<div class="character-placement-banner" role="status"><span>◎</span><div><strong>{studio.selectedCharacterAsset.name} platzieren</strong><small>Klicke auf ein freies Feld. Die Figur wird nicht als Katze gezählt.</small></div><button onclick={() => studio.setTool('select')}>Abbrechen</button></div>{/if}
       <LevelCanvas {studio} />
-      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? studio.selection ? 'Erkannt · passende Details geöffnet · Alt wählt dahinter' : 'Element anklicken · Typ und Details werden automatisch erkannt' : studio.tool === 'character' ? `${studio.selectedCharacterAsset?.name ?? 'Figur'} auf ein freies Feld setzen` : studio.tool === 'transform' ? 'Objekt ziehen · Eckgriff ziehen zum Skalieren' : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
+      <footer class="canvas-status"><span>{studio.cursorCopy}</span><span>{studio.tool === 'select' ? studio.selection ? 'Erkannt · passende Details geöffnet · Alt wählt dahinter' : 'Element anklicken · Typ und Details werden automatisch erkannt' : studio.tool === 'character' ? `${studio.selectedCharacterAsset?.name ?? 'Figur'} auf ein freies Feld setzen` : studio.tool === 'transform' ? `${studio.selection?.kind === 'character' ? 'Figur' : 'Objekt'} ziehen · Eckgriff ziehen zum Skalieren` : 'Ziehen oder klicken, um zu bearbeiten'}</span><strong>{studio.saveStatus}</strong></footer>
     </div>
 
     <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel" data-focus-panel="inspector">
       <SelectionSummary {studio} />
+      {#if selectedCharacter}
+        <section class="character-instance-inspector" aria-label="Ausgewählte Figur positionieren">
+          <div class="property-section"><span class="section-number">FIG</span><h3>{selectedCharacter.name}</h3></div>
+          <p class="hint">Die Figur ist im Canvas hervorgehoben. Mit „Bewegen“ ziehst du sie direkt; die vier Eckgriffe skalieren sie.</p>
+          <div class="field-row"><label>X<input aria-label="Figur X" type="number" min="0" max={studio.level.board.columns - 1} value={selectedCharacter.x} onchange={(event) => studio.updateSelected(['x'], number(event), 'Figur positionieren')} /></label><label>Y<input aria-label="Figur Y" type="number" min="0" max={studio.level.board.rows - 1} value={selectedCharacter.y} onchange={(event) => studio.updateSelected(['y'], number(event), 'Figur positionieren')} /></label></div>
+          <label>Skalierung<input aria-label="Figur Skalierung im Level" type="range" min="0.5" max="4" step="0.05" value={selectedCharacter.scale ?? 1} oninput={(event) => studio.updateSelected(['scale'], number(event), 'Figur skalieren')} /><output>{Number(selectedCharacter.scale ?? 1).toFixed(2)}×</output></label>
+          <div class="character-instance-actions"><button class="primary" onclick={() => studio.transformSelectedInLevel()}>↔ Bewegen & skalieren</button><button onclick={() => studio.openSelectionWorkspace()}>Sprite & Details öffnen</button></div>
+          <button class="danger" onclick={() => studio.deleteSelection()}>Figur aus Level entfernen</button>
+        </section>
+      {/if}
       {#if selectedWall}
         <section class="wall-instance-inspector" aria-label="Ausgewählte Wand bearbeiten">
           <div class="property-section"><span class="section-number">WALL</span><h3>{selectedWallCount > 1 ? selectedWallCount + ' Wände' : selectedWall.name || 'Wand ' + (studio.selection.index + 1)}</h3></div>

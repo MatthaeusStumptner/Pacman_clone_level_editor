@@ -30,6 +30,13 @@ async function openObjectLibrary(page) {
   await expect(page.locator('.asset-list')).toBeVisible();
 }
 
+async function switchWorkspace(page, id) {
+  const mobilePicker = page.getByLabel('Arbeitsbereich auswählen');
+  if (await mobilePicker.isVisible()) await mobilePicker.selectOption(id);
+  else await page.locator(`[data-workspace="${id}"]`).click();
+  await expect(page.locator(`[data-workspace="${id}"]`)).toHaveAttribute('aria-current', 'page');
+}
+
 async function selectAssetForPlacement(page, id) {
   await page.locator(`[data-asset-id="${id}"]`).click();
   await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'asset');
@@ -86,7 +93,9 @@ async function openConflictingCloudEditor(page, { dirty = false } = {}) {
 
 async function canvasHasVisiblePixels(locator) {
   return locator.evaluate((canvas) => {
-    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const context = canvas.getContext('2d');
+    if (!context) return canvas.dataset.rendered === 'true';
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     for (let index = 3; index < pixels.length; index += 4) if (pixels[index] > 0) return true;
     return false;
   });
@@ -114,15 +123,32 @@ const storyCases = [
 ];
 
 async function canvasPoint(page, x, y) {
-  const box = await page.locator('#level-canvas').boundingBox();
-  if (!box) throw new Error('Canvas besitzt keine sichtbare Bounding Box.');
-  return { x: box.x + ((x + 0.5) / 25) * box.width, y: box.y + ((y + 0.5) / 25) * box.height };
+  return canvasExactPoint(page, x + 0.5, y + 0.5);
 }
 
 async function canvasExactPoint(page, x, y) {
-  const box = await page.locator('#level-canvas').boundingBox();
+  const canvas = page.locator('#level-canvas');
+  const box = await canvas.boundingBox();
   if (!box) throw new Error('Canvas besitzt keine sichtbare Bounding Box.');
-  return { x: box.x + (x / 25) * box.width, y: box.y + (y / 25) * box.height };
+  await expect.poll(() => canvas.evaluate((element) => Number(element.dataset.cameraSourceWidth) || 0)).toBeGreaterThan(0);
+  const metrics = await canvas.evaluate((element) => ({
+    width: element.width,
+    height: element.height,
+    viewportX: Number(element.dataset.cameraViewportX),
+    viewportY: Number(element.dataset.cameraViewportY),
+    viewportWidth: Number(element.dataset.cameraViewportWidth),
+    viewportHeight: Number(element.dataset.cameraViewportHeight),
+    sourceX: Number(element.dataset.cameraSourceX),
+    sourceY: Number(element.dataset.cameraSourceY),
+    sourceWidth: Number(element.dataset.cameraSourceWidth),
+    sourceHeight: Number(element.dataset.cameraSourceHeight),
+    tileSize: Number(element.dataset.tileSize),
+  }));
+  const densityX = metrics.width / box.width; const densityY = metrics.height / box.height;
+  return {
+    x: box.x + (metrics.viewportX + ((x * metrics.tileSize - metrics.sourceX) / metrics.sourceWidth) * metrics.viewportWidth) / densityX,
+    y: box.y + (metrics.viewportY + ((y * metrics.tileSize - metrics.sourceY) / metrics.sourceHeight) * metrics.viewportHeight) / densityY,
+  };
 }
 
 test('URL router restores level, discipline and selection with browser history', async ({ page }) => {
@@ -199,6 +225,24 @@ test('one reactive document keeps drawing, history, autosave and reload synchron
   await page.getByRole('button', { name: 'Entwurf Meine Ilz-Runde löschen' }).click();
   await expect(page.locator('#project-drawer')).not.toContainText('Meine Ilz-Runde');
   await expect(page.locator('#level-id')).toHaveValue('meine-ilz-runde');
+  expect(errors).toEqual([]);
+});
+
+test('the level canvas can zoom, pan and return to a complete overview', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  const frame = page.locator('.level-canvas-frame');
+  await expect(frame).toHaveAttribute('data-viewport-zoom', '1.00');
+  await page.getByRole('button', { name: 'Ansicht vergrößern' }).click();
+  await expect(frame).toHaveAttribute('data-viewport-zoom', '1.25');
+  const beforeCenter = await frame.getAttribute('data-viewport-center');
+  await page.locator('.canvas-viewport-controls button').first().click();
+  const canvas = page.locator('#level-canvas'); const box = await canvas.boundingBox();
+  if (!box) throw new Error('Canvas besitzt keine sichtbare Bounding Box.');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 40, { steps: 6 }); await page.mouse.up();
+  await expect.poll(() => frame.getAttribute('data-viewport-center')).not.toBe(beforeCenter);
+  await page.getByRole('button', { name: 'Ganzes Level einpassen' }).click();
+  await expect(frame).toHaveAttribute('data-viewport-zoom', '1.00');
   expect(errors).toEqual([]);
 });
 
@@ -307,11 +351,15 @@ test('universal objects can be created as pixel assets and placed into any map',
   const errors = await openCleanEditor(page);
   await page.locator('[data-workspace="objects"]').click();
   await page.locator('#create-object').click();
+  const creator = page.getByRole('dialog', { name: 'Was soll im Level erscheinen?' });
+  await expect(creator).toContainText('Abbrechen hinterlässt keinen leeren Bibliothekseintrag');
+  await creator.getByLabel('Name').fill('Mein Pixelobjekt');
+  await creator.getByRole('button', { name: /Im Sprite-Studio gestalten/ }).click();
   await expect(page.locator('.sprite-studio')).toBeVisible();
   await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
   await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
-  await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
+  await expect(page.locator('.asset-list')).toContainText('Mein Pixelobjekt');
   await loadTemplate(page, 'hals');
   await openObjectLibrary(page);
   await selectAssetForPlacement(page, 'music-note');
@@ -322,7 +370,51 @@ test('universal objects can be created as pixel assets and placed into any map',
   await page.reload();
   await expect(page.locator('.scene-tree')).toContainText('Musiknote');
   await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ }).click();
-  await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
+  await expect(page.locator('.asset-list')).toContainText('Mein Pixelobjekt');
+  expect(errors).toEqual([]);
+});
+
+test('asset creation is transactional, supports practical 24px drawing tools and joins global history', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await switchWorkspace(page, 'objects');
+  const assets = page.locator('.asset-list [data-asset-id]');
+  const originalCount = await assets.count();
+
+  await page.locator('#create-object').click();
+  const creator = page.getByRole('dialog', { name: 'Was soll im Level erscheinen?' });
+  await expect(creator.locator('input[type="radio"][value="24"]')).toBeChecked();
+  await creator.getByLabel('Name').fill('Verworfener Entwurf');
+  await creator.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(assets).toHaveCount(originalCount);
+  await expect(page.locator('.asset-list')).not.toContainText('Verworfener Entwurf');
+
+  await page.locator('#create-object').click();
+  await creator.getByLabel('Name').fill('Werkzeugprobe');
+  await creator.getByRole('button', { name: /Im Sprite-Studio gestalten/ }).click();
+  await expect(page.getByLabel('Sprite-Auflösung')).toHaveValue('24');
+  await expect(page.locator('.pixel-grid button')).toHaveCount(24 * 24);
+  const firstPixel = page.locator('.pixel-grid button[data-x="0"][data-y="0"]');
+  const lastPixel = page.locator('.pixel-grid button[data-x="23"][data-y="23"]');
+  const emptyColor = await lastPixel.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await page.getByRole('button', { name: /Füllen/ }).click(); await firstPixel.click();
+  await expect.poll(() => lastPixel.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(emptyColor);
+  await page.getByRole('button', { name: 'Sprite-Änderung rückgängig' }).click();
+  await expect.poll(() => lastPixel.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(emptyColor);
+
+  await page.getByRole('button', { name: /Linie/ }).click();
+  const lineStart = await firstPixel.boundingBox(); const lineEnd = await page.locator('.pixel-grid button[data-x="23"][data-y="0"]').boundingBox();
+  if (!lineStart || !lineEnd) throw new Error('Pixelwerkzeug besitzt keine sichtbare Zeichenfläche.');
+  await page.mouse.move(lineStart.x + lineStart.width / 2, lineStart.y + lineStart.height / 2); await page.mouse.down();
+  await page.mouse.move(lineEnd.x + lineEnd.width / 2, lineEnd.y + lineEnd.height / 2, { steps: 12 }); await page.mouse.up();
+  await expect(page.locator('.sprite-layout')).toHaveAttribute('data-pixel-selection-count', '24');
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await expect(assets).toHaveCount(originalCount + 1);
+  await expect(page.locator('.asset-list')).toContainText('Werkzeugprobe');
+
+  await page.locator('.topbar-status button[title^="Rückgängig"]').click();
+  await expect(assets).toHaveCount(originalCount);
+  await page.locator('.topbar-status button[title^="Wiederholen"]').click();
+  await expect(assets).toHaveCount(originalCount + 1);
   expect(errors).toEqual([]);
 });
 
@@ -447,9 +539,21 @@ test('global character wizard creates a reusable non-cat figure and places a sel
   await page.locator('#create-character').click();
   await expect(page.getByRole('dialog', { name: 'Wer soll Passau bereichern?' })).toBeVisible();
   await page.locator('#character-name').fill('Passauer Postler');
+  await expect(page.getByRole('dialog').locator('input[type="radio"][value="24"]')).toBeChecked();
+  await expect(page.getByRole('dialog')).toContainText('Maximale Details');
   await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
   await expect(page.locator('.sprite-studio')).toBeVisible();
   await expect(page.locator('.state-tabs button')).toHaveCount(5);
+  await expect(page.getByLabel('Sprite-Auflösung')).toHaveValue('24');
+  await expect(page.locator('.pixel-grid button')).toHaveCount(24 * 24);
+  const authoredPixel = page.locator('.pixel-grid button[data-x="23"][data-y="0"]');
+  const emptyPixel = await authoredPixel.evaluate((button) => getComputedStyle(button).backgroundColor);
+  await authoredPixel.click();
+  await expect.poll(() => authoredPixel.evaluate((button) => getComputedStyle(button).backgroundColor)).not.toBe(emptyPixel);
+  await page.getByRole('button', { name: 'Sprite-Änderung rückgängig' }).click();
+  await expect.poll(() => authoredPixel.evaluate((button) => getComputedStyle(button).backgroundColor)).toBe(emptyPixel);
+  await page.getByRole('button', { name: 'Sprite-Änderung wiederholen' }).click();
+  await expect.poll(() => authoredPixel.evaluate((button) => getComputedStyle(button).backgroundColor)).not.toBe(emptyPixel);
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
 
   const globalCharacter = page.locator('[data-character-id="passauer-postler"]');
@@ -462,6 +566,17 @@ test('global character wizard creates a reusable non-cat figure and places a sel
   const point = await canvasPoint(page, 5, 5);
   await page.mouse.click(point.x, point.y);
   await expect(page.locator('.character-placement-banner')).toHaveCount(0);
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selected-entity', 'character:0');
+  await expect(page.locator('#level-canvas')).toHaveClass(/transform-tool/);
+  await expect(page.locator('.character-instance-inspector')).toContainText('Passauer Postler');
+
+  const moveFrom = await canvasExactPoint(page, 5.5, 5.5); const moveTo = await canvasExactPoint(page, 8.5, 7.5);
+  await page.mouse.move(moveFrom.x, moveFrom.y); await page.mouse.down(); await page.mouse.move(moveTo.x, moveTo.y, { steps: 6 }); await page.mouse.up();
+  await expect(page.getByLabel('Figur X')).toHaveValue('8');
+  await expect(page.getByLabel('Figur Y')).toHaveValue('7');
+  const scaleFrom = await canvasExactPoint(page, 9, 8); const scaleTo = await canvasExactPoint(page, 10, 9);
+  await page.mouse.move(scaleFrom.x, scaleFrom.y); await page.mouse.down(); await page.mouse.move(scaleTo.x, scaleTo.y, { steps: 6 }); await page.mouse.up();
+  await expect(page.getByLabel('Figur Skalierung im Level')).toHaveValue('2');
 
   await page.locator('[data-workspace="characters"]').click();
   await expect(page.locator('[data-level-character-id]')).toHaveCount(1);
@@ -470,6 +585,7 @@ test('global character wizard creates a reusable non-cat figure and places a sel
   await page.locator('[data-level-character-id]').click();
   await expect(page.locator('.property-panel').getByLabel('Name')).toHaveValue('Passauer Postler');
   await expect(page.locator('.property-panel')).toContainText('als Darsteller in Cutscenes');
+  await expect(page.getByLabel('Figur Skalierung')).toHaveValue('2');
 
   await loadTemplate(page, 'home');
   await page.locator('[data-workspace="characters"]').click();
@@ -483,7 +599,7 @@ test('global character wizard creates a reusable non-cat figure and places a sel
 
 test('character creation stays usable on a phone viewport @mobile', async ({ page }) => {
   const errors = await openCleanEditor(page);
-  await page.locator('[data-workspace="characters"]').click();
+  await switchWorkspace(page, 'characters');
   await expect(page.locator('#create-character')).toBeVisible();
   await page.locator('#create-character').click();
   const dialog = page.getByRole('dialog', { name: 'Wer soll Passau bereichern?' });
@@ -543,6 +659,35 @@ test('level-bound cutscenes combine camera, actors, objects, dialogue and timeli
   expect(errors).toEqual([]);
 });
 
+test('cutscene authoring prevents broken tracks and edits a keyframe at the visible playhead', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await switchWorkspace(page, 'cutscenes');
+  await page.locator('#add-cutscene').click();
+  const objectTrack = page.locator('.track-add-grid').getByRole('button', { name: /Objekt/ });
+  await expect(objectTrack).toBeDisabled();
+  await expect(page.locator('.track-browser')).toContainText('Objektspuren werden verfügbar');
+
+  await page.locator('.track-add-grid').getByRole('button', { name: /Figur/ }).click();
+  const selectedTrack = page.locator('.track-browser > button.active');
+  await expect(selectedTrack).toContainText('Figur');
+  const transport = page.locator('.cutscene-transport input');
+  await transport.evaluate((input) => { input.value = '1.5'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.getByRole('button', { name: /Keyframe bei 1\.50 s/ }).click();
+  await expect(page.locator('.timeline-row').last().locator('.timeline-lane > button')).toHaveCount(2);
+  await expect(page.getByLabel('Zeit', { exact: true })).toHaveValue('1.5');
+
+  const trackId = page.getByLabel('Track-ID');
+  await trackId.fill('hauptdarsteller'); await trackId.blur();
+  await expect(page.locator('.track-browser')).toContainText('hauptdarsteller');
+  await page.getByLabel('Skalierung').fill('1.75');
+  await page.getByLabel('Drehung').fill('15');
+  await page.getByLabel('Deckkraft').fill('0.6');
+  await expect(page.getByLabel('Skalierung')).toHaveValue('1.75');
+  await expect(page.getByLabel('Drehung')).toHaveValue('15');
+  await expect(page.getByLabel('Deckkraft')).toHaveValue('0.6');
+  expect(errors).toEqual([]);
+});
+
 test('events keep triggers, both language variants and visual placement in one discipline', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'home');
@@ -556,7 +701,19 @@ test('events keep triggers, both language variants and visual placement in one d
   await page.getByRole('button', { name: /Zone im Canvas/ }).click();
   const start = await canvasPoint(page, 2, 2); const end = await canvasPoint(page, 4, 3);
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 3 }); await page.mouse.up();
-  await expect(page.locator('.zone-list span')).toHaveCount(2);
+  await expect(page.locator('.zone-list fieldset')).toHaveCount(2);
+  await page.getByLabel('Zone 2 Breite').fill('4'); await page.getByLabel('Zone 2 Breite').blur();
+  await expect(page.getByLabel('Zone 2 Breite')).toHaveValue('4');
+  await page.getByRole('button', { name: 'Zone 1 löschen' }).click();
+  await expect(page.locator('.zone-list fieldset')).toHaveCount(1);
+  await page.getByLabel('Auslösertyp').selectOption('direction-sequence');
+  await page.getByRole('button', { name: 'Oben hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Rechts hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Unten hinzufügen' }).click();
+  await expect(page.getByRole('status', { name: 'Richtungsfolge', exact: true })).toHaveText('↑ → ↓');
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('status', { name: 'Richtungsfolge', exact: true })).toHaveText('↑ →');
+  await page.getByLabel('Auslösertyp').selectOption('zone');
   await page.getByRole('button', { name: /Symbol setzen/ }).click(); const visual = await canvasPoint(page, 6, 6); await page.mouse.click(visual.x, visual.y);
   await expect(page.locator('.property-panel').getByLabel('X', { exact: true })).toHaveValue('6.5');
   expect(errors).toEqual([]);
@@ -565,8 +722,8 @@ test('events keep triggers, both language variants and visual placement in one d
 test('testplay runs the same intro, camera and direct controls as the game', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await page.locator('[data-workspace="cutscenes"]').click(); await page.locator('#add-cutscene').click();
-  await page.locator('[data-workspace="playtest"]').click(); await page.locator('#start-playtest').click();
-  await expect(page.locator('.playtest-top-overlay')).toContainText('CUTSCENE');
+  await switchWorkspace(page, 'playtest'); await page.locator('#start-playtest').click();
+  await expect(page.locator('.playtest-top-overlay')).toContainText('CUTSCENE', { timeout: 15_000 });
   await page.getByRole('button', { name: /Intro überspringen/ }).click();
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => page.locator('#playtest-canvas').getAttribute('data-player-direction')).toBe('right');
@@ -659,6 +816,9 @@ test('all visible controls have accessible names', async ({ page }) => {
 
 test('@mobile studio has no page overflow and keeps project, navigation and direct controls usable', async ({ page }) => {
   const errors = await openCleanEditor(page);
+  await expect(page.getByLabel('Arbeitsbereich auswählen')).toBeVisible();
+  await expect(page.getByLabel('Arbeitsbereich auswählen').locator('option')).toHaveCount(7);
+  await expect(page.locator('.discipline-nav')).toBeHidden();
   const sizes = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, width: innerWidth }));
   expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.width + 1);
   await openProject(page); await expect(page.locator('[data-template-id]')).toHaveCount(9);
@@ -679,8 +839,10 @@ test('@mobile studio has no page overflow and keeps project, navigation and dire
   await expect(page.locator('[data-focus-panel="inspector"].mobile-active')).toBeVisible();
   await focusTabs.getByRole('button', { name: /Canvas/ }).click();
   await expect(page.locator('#level-canvas')).toBeVisible();
-  await page.locator('[data-workspace="playtest"]').click(); await page.locator('#start-playtest').click();
-  await page.getByRole('button', { name: /Intro überspringen/ }).click();
+  await switchWorkspace(page, 'playtest'); await page.locator('#start-playtest').click();
+  await expect(page.locator('.playtest-top-overlay')).toBeVisible({ timeout: 15_000 });
+  const skipIntro = page.getByRole('button', { name: /Intro überspringen/ });
+  if (await skipIntro.isVisible()) await skipIntro.click();
   await expect(page.locator('.mobile-dpad')).toBeVisible();
   await page.locator('.mobile-dpad button').first().tap();
   expect(errors).toEqual([]);
@@ -704,7 +866,7 @@ test('@mobile one scene selection opens the inferred specialist and its detail s
 test('@mobile assets open visibly, can be edited and require an explicit placement action', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'hals');
-  await page.locator('[data-workspace="objects"]').click();
+  await switchWorkspace(page, 'objects');
   const library = page.locator('.object-sidebar.mobile-active');
   await expect(library).toBeVisible();
   await expect(library.locator('.asset-list')).toBeVisible();

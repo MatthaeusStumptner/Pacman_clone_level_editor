@@ -7,6 +7,8 @@
   let canvas;
   let stage;
   let renderer;
+  let rendererReady = $state(false);
+  let pendingStart = $state(false);
   let engine = $state.raw(null);
   let loop = $state.raw(null);
   let frame;
@@ -22,7 +24,8 @@
 
   function start() {
     if (!studio.validation.ok) { studio.notify('Bitte zuerst die Level-Fehler beheben'); studio.workspace = 'level'; return; }
-    if (!renderer) { studio.notify('Die Grafik wird noch initialisiert'); return; }
+    if (!renderer) { pendingStart = true; studio.notify('Grafik wird vorbereitet · der Test startet gleich automatisch'); return; }
+    pendingStart = false;
     renderer.setLevel(studio.level); paused = false; lastTimestamp = 0; cutsceneTime = 0;
     if (intro) mode = 'cutscene'; else startGame();
   }
@@ -74,7 +77,8 @@
     window.addEventListener('keydown', keyboard); const resize = new ResizeObserver(() => renderer?.resize()); resize.observe(stage);
     PassauPixelRenderer.create(canvas, { zoom: 1.12, backend: 'auto', preferWebGPU: true, quality: 'auto', powerPreference: 'low-power' }).then((instance) => {
       if (disposed) { instance.destroy(); return; }
-      renderer = instance; renderer.setLevel(studio.level); frame = requestAnimationFrame(tick);
+      renderer = instance; rendererReady = true; renderer.setLevel(studio.level); frame = requestAnimationFrame(tick);
+      if (pendingStart) queueMicrotask(start);
     });
     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('keydown', keyboard); resize.disconnect(); renderer?.destroy(); };
   });
@@ -82,8 +86,8 @@
 </script>
 
 <section class="workspace playtest-workspace" aria-labelledby="playtest-workspace-title">
-  <header class="workspace-header"><div><span class="eyebrow">GAME-SIMULATION · 120 TICKS</span><h2 id="playtest-workspace-title">Testspiel</h2><p>Dieselbe Simulation, Kamera, Cutscene und Steuerung wie im fertigen Spiel.</p></div><div><select bind:value={studio.difficulty}><option value="easy">Spaziergang</option><option value="normal">Gassirunde</option><option value="hard">Abenteuer</option></select><button class="primary" id="start-playtest" onclick={start}>▶ Mit Intro starten</button></div></header>
-  <div class="playtest-stage" bind:this={stage} class:running={mode !== 'stopped'} role="application" aria-label="Interaktive Spielsimulation" onpointerdown={pointerDown} onpointermove={pointerMove} onpointerup={pointerUp} onpointercancel={() => swipe.cancel()}>
+  <header class="workspace-header"><div><span class="eyebrow">GAME-SIMULATION · 120 TICKS</span><h2 id="playtest-workspace-title">Testspiel</h2><p>Dieselbe Simulation, Kamera, Cutscene und Steuerung wie im fertigen Spiel.</p></div><div><select bind:value={studio.difficulty}><option value="easy">Spaziergang</option><option value="normal">Gassirunde</option><option value="hard">Abenteuer</option></select><button class="primary" id="start-playtest" onclick={start}>{pendingStart ? '◌ Start wird vorbereitet …' : '▶ Mit Intro starten'}</button></div></header>
+  <div class="playtest-stage" bind:this={stage} class:running={mode !== 'stopped'} role="application" aria-label="Interaktive Spielsimulation" data-renderer-ready={rendererReady} onpointerdown={pointerDown} onpointermove={pointerMove} onpointerup={pointerUp} onpointercancel={() => swipe.cancel()}>
     <canvas bind:this={canvas} id="playtest-canvas" aria-label="Spielbare Levelvorschau"></canvas>
     {#if mode === 'stopped'}<div class="playtest-empty"><span>▶</span><h3>Bereit für die echte Spielerfahrung</h3><p>{intro ? `Intro „${intro.name.standard}“ wird vor dem Level abgespielt.` : 'Dieses Level besitzt noch kein Intro. Der Test startet direkt.'}</p><button class="primary" onclick={start}>Testlauf starten</button></div>{/if}
     {#if mode !== 'stopped'}

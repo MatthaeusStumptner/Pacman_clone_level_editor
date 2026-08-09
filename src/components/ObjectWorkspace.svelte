@@ -8,15 +8,23 @@
   import SceneTree from './SceneTree.svelte';
   import SelectionSummary from './SelectionSummary.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
+  import { resizeAppearance } from '../sprite-appearance.js';
 
   let { studio } = $props();
   let editingAsset = $state(false);
+  let editingAssetDraft = $state.raw(null);
+  let editingNewAsset = $state(false);
   let editingPlacedSprite = $state(false);
   let editingMotion = $state(false);
   let motionSource = $state('selection');
   let sidebarMode = $state('library');
   let mobilePanel = $state('scene');
   let assetSearch = $state('');
+  let creatorOpen = $state(false);
+  let creatorName = $state('');
+  let creatorCategory = $state('Eigene Objekte');
+  let creatorResolution = $state(24);
+  let creatorTemplate = $state('blank');
   let selected = $derived.by(() => studio.selectedEntity());
   let asset = $derived(studio.selectedAsset);
   let filteredAssets = $derived.by(() => {
@@ -36,6 +44,7 @@
     ? studio.assets.find((entry) => entry.id === (selected?.id === 'stage-note' ? 'zauberberg-note' : 'stage-lights')) ?? selected
     : motionTarget);
   const animationTypes = [['none', 'Keine'], ['bob', 'Schweben'], ['pulse', 'Pulsieren'], ['blink', 'Blinken'], ['spin', 'Drehen'], ['keyframes', 'Eigene Keyframes']];
+  const clone = (value) => JSON.parse(JSON.stringify(value));
 
   function selectAsset(id) {
     studio.selectedAssetId = id;
@@ -53,13 +62,35 @@
     studio.setTool('object');
     mobilePanel = 'canvas';
   }
-  function createAsset() {
-    const created = studio.createAsset();
-    selectAsset(created.id);
-    editingAsset = true;
+  function openCreator() {
+    creatorName = '';
+    creatorCategory = asset?.category || 'Eigene Objekte';
+    creatorResolution = 24;
+    creatorTemplate = asset?.appearance ? 'selected' : 'blank';
+    creatorOpen = true;
   }
+  function createAssetDraft() {
+    const draft = studio.createObjectDraft(creatorName.trim(), creatorResolution, creatorCategory.trim() || 'Eigene Objekte');
+    if (creatorTemplate === 'selected' && asset?.appearance) {
+      draft.appearance = resizeAppearance(clone(asset.appearance), creatorResolution);
+      draft.color = asset.color;
+      draft.label = asset.label;
+      draft.animation = clone(asset.animation);
+      draft.effects = clone(asset.effects ?? []);
+    }
+    editingAssetDraft = draft;
+    editingNewAsset = true;
+    editingAsset = true;
+    creatorOpen = false;
+  }
+  function openAssetEditor() { if (asset) { editingAssetDraft = clone(asset); editingNewAsset = false; editingAsset = true; } }
   function number(event) { const value = Number(event.currentTarget.value); return event.currentTarget.value === '' || !Number.isFinite(value) ? undefined : value; }
-  function saveAssetAppearance(appearance) { studio.saveAsset({ ...asset, appearance }); editingAsset = false; }
+  function saveAssetAppearance(appearance) {
+    const saved = studio.saveAsset({ ...editingAssetDraft, appearance }, editingNewAsset ? 'Objektvorlage erstellen' : 'Objekt-Sprite bearbeiten');
+    studio.selectedAssetId = saved.id;
+    editingAssetDraft = null; editingNewAsset = false; editingAsset = false;
+  }
+  function cancelAssetEditor() { editingAssetDraft = null; editingNewAsset = false; editingAsset = false; }
   function savePlacedAppearance(appearance) { studio.updateSelected(['appearance'], appearance, 'Objekt-Sprite speichern'); editingPlacedSprite = false; }
   function openMotion(source = 'selection') { motionSource = source; editingMotion = true; }
   function saveMotion(animation) {
@@ -80,11 +111,11 @@
 <section class="workspace object-workspace" aria-labelledby="object-workspace-title">
   <header class="workspace-header">
     <div><span class="eyebrow">ASSETS & LEVELOBJEKTE</span><h2 id="object-workspace-title">Objektwerkstatt</h2><p>Erstelle globale Vorlagen, bearbeite sie zentral und platziere daraus unabhängig auswählbare Level-Instanzen.</p></div>
-    <button class="primary" id="create-object" onclick={createAsset}>＋ Neues Asset</button>
+    <button class="primary" id="create-object" onclick={openCreator}>＋ Neues Asset</button>
   </header>
 
-  {#if editingAsset && asset}
-    <SpriteSheetEditor appearance={asset.appearance} title={`Objekt gestalten · ${asset.name}`} showStates={false} onsave={saveAssetAppearance} oncancel={() => editingAsset = false} />
+  {#if editingAsset && editingAssetDraft}
+    <SpriteSheetEditor appearance={editingAssetDraft.appearance} title={`Objekt gestalten · ${editingAssetDraft.name}`} showStates={false} onsave={saveAssetAppearance} oncancel={cancelAssetEditor} />
   {:else if editingPlacedSprite && selected?.appearance}
     <SpriteSheetEditor appearance={selected.appearance} title={`Objekt gestalten · ${selected.name}`} showStates={false} onsave={savePlacedAppearance} oncancel={() => editingPlacedSprite = false} />
   {:else if editingMotion && motionTarget}
@@ -99,7 +130,7 @@
           <div class="asset-library-heading">
             <div class="panel-title"><strong>Globale Assets</strong><span>{studio.assets.length}</span></div>
             <p>Einmal erstellen, zentral bearbeiten und in allen Leveln verwenden.</p>
-            <button class="primary" data-action="create-asset" onclick={createAsset}>＋ Neues Asset erstellen</button>
+            <button class="primary" data-action="create-asset" onclick={openCreator}>＋ Neues Asset erstellen</button>
           </div>
           <label class="asset-search">Assets durchsuchen<input type="search" placeholder="Name, Kategorie …" bind:value={assetSearch} /></label>
           <div class="asset-list">
@@ -165,15 +196,16 @@
             <span class="context-badge">GLOBALE ASSET-VORLAGE</span>
             <div class="asset-inspector-title"><span class="asset-inspector-preview"><ObjectThumbnail asset={asset} language={studio.language} /></span><div><h3>{asset.name}</h3><p>In allen Leveln verfügbar · live verknüpft</p></div></div>
           </div>
-          <div class="asset-primary-actions"><button class="primary" data-action="place-asset" onclick={() => placeAsset()}>＋ Im Level platzieren</button>{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite bearbeiten</button>{/if}</div>
+          <div class="asset-primary-actions"><button class="primary" data-action="place-asset" onclick={() => placeAsset()}>＋ Im Level platzieren</button>{#if asset.appearance}<button onclick={openAssetEditor}>▦ Sprite bearbeiten</button>{/if}</div>
           <p class="asset-live-hint">✦ Änderungen erscheinen sofort in allen verknüpften Instanzen. Bewusste lokale Abweichungen bleiben erhalten.</p>
           <label>Name<input data-asset-setting="name" value={asset.name} oninput={(event) => studio.updateAsset(['name'], event.currentTarget.value)} /></label>
           <label>Kategorie<input data-asset-setting="category" value={asset.category} oninput={(event) => studio.updateAsset(['category'], event.currentTarget.value)} /></label>
           <label>Beschreibung<textarea data-asset-setting="description" rows="3" value={asset.description} oninput={(event) => studio.updateAsset(['description'], event.currentTarget.value)}></textarea></label>
           <div class="field-row"><label>Breite<input data-asset-setting="width" type="number" min="0.25" max="24" step="0.05" value={asset.width} oninput={(event) => studio.updateAsset(['width'], number(event))} /></label><label>Höhe<input data-asset-setting="height" type="number" min="0.25" max="24" step="0.05" value={asset.height} oninput={(event) => studio.updateAsset(['height'], number(event))} /></label></div>
           <label>Grundfarbe<input data-asset-setting="color" type="color" value={asset.color} oninput={(event) => studio.updateAsset(['color'], event.currentTarget.value)} /></label>
-          <div class="asset-editor-actions">{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button></div>
+          <div class="asset-editor-actions">{#if asset.appearance}<button onclick={openAssetEditor}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button></div>
           <VisualEffectsEditor effects={asset.effects ?? []} title="Asset-Effekte" onchange={(effects) => studio.saveAsset({ ...asset, effects })} />
+          <div class="library-management-actions"><button onclick={() => studio.duplicateAsset(asset.id)}>⧉ Vorlage duplizieren</button><button onclick={() => studio.exportAsset(asset.id)}>↓ Vorlage exportieren</button>{#if studio.isCustomAsset(asset.id)}<button class="danger-subtle" onclick={() => { if (window.confirm(studio.isBuiltInAsset(asset.id) ? 'Eigene Änderungen dieser mitgelieferten Vorlage zurücksetzen?' : `Globale Vorlage „${asset.name}“ löschen? Platzierte Instanzen bleiben erhalten.`)) studio.removeAssetDefinition(asset.id); }}>{studio.isBuiltInAsset(asset.id) ? 'Eigene Änderungen zurücksetzen' : 'Vorlage löschen'}</button>{/if}</div>
         {:else}
           <div class="empty-inspector"><span>◆</span><strong>Asset oder Level-Objekt auswählen</strong><p>Wähle links eine globale Vorlage zum Bearbeiten oder direkt im Canvas eine platzierte Instanz.</p><button class="primary" onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>Assets öffnen</button></div>
         {/if}
@@ -184,3 +216,18 @@
     </div>
   {/if}
 </section>
+
+{#if creatorOpen}
+  <div class="modal-scrim asset-creator-scrim" role="presentation" onclick={(event) => { if (event.currentTarget === event.target) creatorOpen = false; }}>
+    <div class="asset-creator" role="dialog" aria-modal="true" aria-labelledby="asset-creator-title">
+      <header><span class="eyebrow">NEUE OBJEKTVORLAGE</span><h2 id="asset-creator-title">Was soll im Level erscheinen?</h2><p>Erst nach „Sprite übernehmen“ wird die Vorlage gespeichert. Abbrechen hinterlässt keinen leeren Bibliothekseintrag.</p></header>
+      <div class="field-row"><label>Name<input id="asset-name" bind:value={creatorName} placeholder="z. B. Passauer Laterne" /></label><label>Kategorie<input bind:value={creatorCategory} placeholder="z. B. Altstadt" /></label></div>
+      <fieldset class="character-template-options"><legend>Startpunkt</legend>
+        <label class:active={creatorTemplate === 'blank'}><input type="radio" bind:group={creatorTemplate} value="blank" /><span><b>Leere Leinwand</b><small>Mit Füllen, Linie, Rechteck, Pipette und Auswahl von Grund auf zeichnen</small></span></label>
+        <label class:active={creatorTemplate === 'selected'} class:disabled={!asset?.appearance}><input type="radio" bind:group={creatorTemplate} value="selected" disabled={!asset?.appearance} /><span><b>Aus „{asset?.name ?? 'Vorlage'}“ ableiten</b><small>Eine unabhängige Kopie als Ausgangspunkt verwenden</small></span></label>
+      </fieldset>
+      <fieldset class="character-resolution-options"><legend>Pixelauflösung</legend>{#each [8, 12, 16, 24] as size}<label class:active={creatorResolution === size}><input type="radio" bind:group={creatorResolution} value={size} /><b>{size} × {size}</b>{#if size === 24}<small>Maximale Details</small>{/if}</label>{/each}</fieldset>
+      <footer><button onclick={() => creatorOpen = false}>Abbrechen</button><button class="primary" disabled={!creatorName.trim()} onclick={createAssetDraft}>Im Sprite-Studio gestalten →</button></footer>
+    </div>
+  </div>
+{/if}

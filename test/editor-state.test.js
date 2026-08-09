@@ -59,10 +59,11 @@ test('supports empty cat lists, decorations and custom actor pixels', () => {
 
 test('adds, selects, edits and removes custom characters independently from cats', () => {
   const state = new EditorState(createStarterLevel());
-  const character = { id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', appearance: { width: 4, height: 4, palette: ['transparent', '#ffffff'], pixels: ['0110', '1111', '0110', '1001'] } };
+  const character = { id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', scale: 2.25, appearance: { width: 4, height: 4, palette: ['transparent', '#ffffff'], pixels: ['0110', '1111', '0110', '1001'] } };
   state.mutate('Figur setzen', (draft) => draft.addCharacter({ x: 7, y: 8 }, character));
   assert.equal(state.toDocument().actors.cats.length, 0);
   assert.equal(state.toDocument().actors.characters[0].name, 'Passauer Postler');
+  assert.equal(state.toDocument().actors.characters[0].scale, 2.25);
   assert.deepEqual(state.selectAt({ x: 7, y: 8 }), { kind: 'character', index: 0 });
   state.mutate('Sprite', (draft) => draft.setSelectedAppearance({ ...character.appearance, pixels: ['1111', '1001', '1001', '1111'] }));
   assert.deepEqual(state.toDocument().actors.characters[0].appearance.pixels[0], '1111');

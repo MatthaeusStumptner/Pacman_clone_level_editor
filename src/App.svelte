@@ -1,12 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import CharacterWorkspace from './components/CharacterWorkspace.svelte';
-  import CutsceneWorkspace from './components/CutsceneWorkspace.svelte';
-  import EventWorkspace from './components/EventWorkspace.svelte';
   import LevelWorkspace from './components/LevelWorkspace.svelte';
-  import ObjectWorkspace from './components/ObjectWorkspace.svelte';
-  import PlaytestWorkspace from './components/PlaytestWorkspace.svelte';
-  import PublishWorkspace from './components/PublishWorkspace.svelte';
   import { StudioState } from './studio/store.svelte.js';
   import { StudioRouter } from './studio-router.js';
   import { applyStudioRoute, routeFromStudio } from './studio-navigation.js';
@@ -30,11 +24,38 @@
     ['playtest', '●', 'Testspiel', 'Echte Simulation'],
     ['publish', '↑', 'Live', 'Veröffentlichen'],
   ];
+  const workspaceLoaders = {
+    objects: () => import('./components/ObjectWorkspace.svelte'),
+    characters: () => import('./components/CharacterWorkspace.svelte'),
+    cutscenes: () => import('./components/CutsceneWorkspace.svelte'),
+    events: () => import('./components/EventWorkspace.svelte'),
+    playtest: () => import('./components/PlaytestWorkspace.svelte'),
+    publish: () => import('./components/PublishWorkspace.svelte'),
+  };
+  const workspaceCache = new Map([['level', LevelWorkspace]]);
+  let ActiveWorkspace = $state.raw(LevelWorkspace);
+  let loadingWorkspace = $state('');
+  let workspaceRequest = 0;
 
   let activeWorkspace = $derived(workspaces.find(([id]) => id === studio.workspace) ?? workspaces[0]);
   let routerReady = $state(false);
   let applyingRoute = false;
   let router;
+
+  async function resolveWorkspace(id) {
+    const request = ++workspaceRequest;
+    if (workspaceCache.has(id)) { ActiveWorkspace = workspaceCache.get(id); loadingWorkspace = ''; return; }
+    loadingWorkspace = id;
+    try {
+      const module = await workspaceLoaders[id]();
+      workspaceCache.set(id, module.default);
+      if (request === workspaceRequest && studio.workspace === id) { ActiveWorkspace = module.default; loadingWorkspace = ''; }
+    } catch (error) {
+      if (request === workspaceRequest) { loadingWorkspace = ''; studio.notify(`Arbeitsbereich konnte nicht geladen werden: ${error.message}`); studio.workspace = 'level'; }
+    }
+  }
+
+  $effect(() => { resolveWorkspace(studio.workspace); });
 
   $effect(() => {
     const route = routeFromStudio(studio);
@@ -67,6 +88,7 @@
 
   function keyboard(event) {
     const editing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
+    if (document.querySelector('.sprite-studio') && (event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? studio.redo() : studio.undo(); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); studio.redo(); return; }
     if (editing || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -114,6 +136,7 @@
     <button class="brand" onclick={() => projectOpen = !projectOpen} aria-expanded={projectOpen} aria-controls="project-drawer"><span class="brand-mark">FL</span><span><b>Franz & Lola</b><small>GAME STUDIO</small></span><i>⌄</i></button>
     <div class="document-identity" data-level-id={studio.level.id}><span>{studio.level.icon}</span><div><strong>{studio.level.name.standard}</strong><small>{studio.level.location.area} · {activeWorkspace[2]} · {studio.level.board.columns}×{studio.level.board.rows}</small></div></div>
     <div class="topbar-status"><span class:invalid={!studio.validation.ok}>{studio.validation.ok ? '✓ SPIELBAR' : `⚠ ${studio.validation.errors.length} FEHLER`}</span>{#if studio.cloudStatus === 'conflict'}<button class="cloud-status cloud-warning conflict-link" title={studio.cloudError} onclick={() => studio.workspace = 'publish'}>⚠ CLOUD-KONFLIKT · LÖSEN</button>{:else}<span class:cloud-warning={studio.cloudStatus === 'offline'} class="cloud-status">{studio.cloudStatus === 'shared' ? '☁ GEMEINSAM' : studio.cloudStatus === 'syncing' ? '☁ SYNCHRONISIERT …' : studio.cloudStatus === 'offline' ? '○ NUR LOKAL' : studio.saveStatus}</span>{/if}<button onclick={() => studio.undo()} disabled={!studio.canUndo} title="Rückgängig (Strg+Z)">↶</button><button onclick={() => studio.redo()} disabled={!studio.canRedo} title="Wiederholen (Strg+Y)">↷</button></div>
+    <label class="mobile-workspace-select"><span>Bereich</span><select aria-label="Arbeitsbereich auswählen" value={studio.workspace} onchange={(event) => switchWorkspace(event.currentTarget.value)}>{#each workspaces as [id, icon, label]}<option value={id}>{icon} {label}</option>{/each}</select></label>
     <button class="mobile-project-button" onclick={() => projectOpen = !projectOpen}>☰ Projekt</button>
   </header>
 
@@ -135,13 +158,7 @@
   </nav>
 
   <main class="studio-main">
-    {#if studio.workspace === 'level'}<LevelWorkspace {studio} />
-    {:else if studio.workspace === 'objects'}<ObjectWorkspace {studio} />
-    {:else if studio.workspace === 'characters'}<CharacterWorkspace {studio} />
-    {:else if studio.workspace === 'cutscenes'}<CutsceneWorkspace {studio} />
-    {:else if studio.workspace === 'events'}<EventWorkspace {studio} />
-    {:else if studio.workspace === 'playtest'}<PlaytestWorkspace {studio} />
-    {:else if studio.workspace === 'publish'}<PublishWorkspace {studio} />{/if}
+    {#if loadingWorkspace}<div class="workspace-loading" role="status"><span></span><strong>{workspaces.find(([id]) => id === loadingWorkspace)?.[2]} wird geladen …</strong></div>{:else}<ActiveWorkspace {studio} />{/if}
   </main>
 
   {#if studio.toast}<div class="toast" role="status">{studio.toast}</div>{/if}
