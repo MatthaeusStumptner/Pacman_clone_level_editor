@@ -32,13 +32,15 @@ async function canvasPoint(page, x, y) {
 test('Textblock bleibt bei Retina-Auflösung scharf und frei transformierbar @visual', async ({ page }) => {
   await openCleanEditor(page);
   await page.locator('[data-workspace="objects"]').click();
-  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ }).click();
   await page.locator('[data-asset-id="text-block"]').click();
+  await page.locator('.object-inspector [data-action="place-asset"]').click();
   const placement = await canvasPoint(page, 7.5, 7.5); await page.mouse.click(placement.x, placement.y);
-  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Level-Objekte/ }).click();
   await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Freier Textblock' }).click();
   await expect(page.getByLabel('Rahmen ausblenden')).toBeChecked();
   await page.locator('.object-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
+  await page.locator('.secondary-inspector').click();
   await page.locator('.edge-effect-editor').getByRole('button', { name: '＋ Rand-Effekt' }).click();
   await page.locator('.edge-effect-card select').first().selectOption('fish');
   await page.locator('.object-inspector').getByLabel('Text', { exact: true }).fill('ILZ · Franz & Lola gehen mit Gutti nach Passau');
@@ -126,8 +128,8 @@ test('Alter Browser-Entwurf übernimmt automatisch die gemeinsame Cloud-Basis @v
   await page.locator('[data-workspace="publish"]').click();
   await expect(page.locator('.cloud-conflict-resolver')).toHaveCount(0);
   await expect(page.locator('.topbar-status')).toContainText('GEMEINSAM');
-  const workspace = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2')));
-  expect(workspace.drafts.zauberberg.sync).toEqual({ baseRevision: 2, dirty: false, source: 'cloud' });
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2')).drafts.zauberberg.sync))
+    .toEqual({ baseRevision: 2, dirty: false, source: 'cloud' });
   const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: innerWidth }));
   expect(widths.page).toBeLessThanOrEqual(widths.viewport + 1);
   await page.screenshot({ path: 'output/playwright/cloud-basis-automatisch.png', fullPage: true });
@@ -233,7 +235,7 @@ test('Individuelle Wandstile und saubere Glitch-Effekte sind direkt sichtbar @vi
 
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="objects"]').click();
-  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Szene/ }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Level-Objekte/ }).click();
   await expect(page.locator('[data-scene-key*="note"]')).toHaveCount(0);
   await expect(page.locator('[data-scene-key="theme-element:stage-note"]')).toHaveCount(0);
   await expect(page.locator('[data-scene-key="decoration:zauberberg-box"]')).toBeVisible();

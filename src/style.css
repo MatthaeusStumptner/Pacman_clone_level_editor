@@ -267,7 +267,13 @@ details summary { cursor: pointer; color: var(--gold); font-size: .62rem; }
 .mobile-focus-tabs, .mobile-panel-scrim { display: none; }
 
 /* Objektwerkstatt */
-.object-grid { display: grid; grid-template-columns: 250px minmax(410px, 1fr) minmax(270px, 310px); min-height: 0; }
+.object-grid { display: grid; grid-template-columns: 270px minmax(410px, 1fr) minmax(290px, 330px); min-height: 0; }
+.asset-library-heading { margin: .25rem 0 .65rem; border: 1px solid #31545c; border-radius: 8px; padding: .65rem; background: linear-gradient(145deg, #102b33, #0a1d24); }
+.asset-library-heading .panel-title { margin: 0; }
+.asset-library-heading p { margin: .35rem 0 .55rem; color: var(--muted); font-size: .58rem; line-height: 1.45; }
+.asset-library-heading button { width: 100%; }
+.asset-search { display: grid; gap: .28rem; margin: 0 0 .65rem; color: var(--muted); font-size: .57rem; font-weight: 750; }
+.asset-search input { width: 100%; }
 .asset-list { display: grid; gap: .35rem; }
 .asset-list button { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: .45rem; min-height: 50px; padding: .4rem; text-align: left; }
 .asset-list button.active { border-color: var(--accent); background: #143139; }
@@ -277,12 +283,24 @@ details summary { cursor: pointer; color: var(--gold); font-size: .62rem; }
 .asset-list strong, .asset-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asset-list strong { font-size: .68rem; }
 .asset-list small, .asset-list em { color: var(--muted); font-size: .54rem; font-style: normal; }
-.asset-summary { margin-top: .75rem; border: 1px solid #3a5c62; border-radius: 8px; padding: .65rem; background: #10242b; }
-.asset-summary strong { display: block; margin-top: .18rem; color: var(--gold); font-size: .75rem; }
-.asset-summary p { margin: .25rem 0 .5rem; color: var(--muted); font-size: .61rem; line-height: 1.4; }
-.asset-summary button { width: 100%; font-size: .62rem; }
-.asset-summary label { display: grid; gap: .24rem; margin: .45rem 0; color: var(--muted); font-size: .58rem; }
-.asset-summary input, .asset-summary textarea { width: 100%; }
+.empty-library { display: grid; gap: .25rem; border: 1px dashed #3b5b61; border-radius: 7px; padding: .8rem; text-align: center; }
+.empty-library strong { color: var(--gold); font-size: .64rem; }
+.empty-library span { color: var(--muted); font-size: .55rem; line-height: 1.45; }
+.context-heading { margin-bottom: .7rem; border-bottom: 1px solid var(--line); padding-bottom: .65rem; }
+.context-heading h3 { margin: .28rem 0 .2rem; font-size: 1rem; }
+.context-heading p { margin: 0; color: var(--muted); font-size: .58rem; line-height: 1.45; }
+.context-badge { display: inline-flex; border: 1px solid #477078; border-radius: 999px; padding: .2rem .38rem; color: var(--accent); background: #0d252c; font: 850 .49rem/1 ui-monospace, monospace; letter-spacing: .06em; }
+.instance-context .context-badge { border-color: #766b48; color: var(--gold); background: #292314; }
+.asset-inspector-title { display: flex; align-items: center; gap: .6rem; margin-top: .5rem; }
+.asset-inspector-title h3 { margin-top: 0; }
+.asset-inspector-preview { display: grid; flex: 0 0 54px; width: 54px; height: 54px; overflow: hidden; place-items: center; border: 1px solid #4d747a; border-radius: 7px; padding: 3px; background: #07151b; }
+.asset-primary-actions, .asset-editor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; margin-bottom: .65rem; }
+.asset-primary-actions button, .asset-editor-actions button { min-height: 39px; }
+.asset-live-hint { margin: 0 0 .7rem; border-left: 3px solid var(--accent); padding: .55rem; color: #c6d8d5; background: #102a31; font-size: .57rem; line-height: 1.5; }
+.linked-instance .edit-linked-asset { border-color: #5a858d; color: var(--accent); }
+.secondary-inspector { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.secondary-inspector summary { cursor: pointer; color: var(--muted); font-size: .59rem; font-weight: 800; }
+.secondary-inspector[open] summary { margin-bottom: .65rem; color: var(--accent); }
 .linked-instance { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin: 0 0 .75rem; padding: .55rem; border: 1px solid #42646c; border-left: 3px solid var(--accent); border-radius: 6px; background: #0c2027; }
 .linked-instance strong { flex: 1 0 100%; color: var(--accent); font-size: .63rem; }
 .linked-instance span { margin-right: auto; color: var(--muted); font-size: .56rem; }
