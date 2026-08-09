@@ -4,7 +4,7 @@ import { chooseSceneCandidate, sceneCandidatesAt, sceneGroups, sceneSelectionKey
 
 const level = {
   board: { walls: [{ id: 'wall-center', name: 'Mauerblock', x: 3, y: 3, width: 1, height: 1 }] },
-  actors: { player: { id: 'player', x: 3, y: 3 }, cats: [{ id: 'rock-katze', x: 3, y: 3, behavior: { strategy: 'guard' } }], characters: [{ id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', x: 3, y: 3 }] },
+  actors: { player: { id: 'player', x: 3, y: 3 }, cats: [{ id: 'rock-katze', x: 3, y: 3, behavior: { strategy: 'guard' } }], characters: [{ id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', x: 3, y: 3, scale: 2 }] },
   decorations: [
     { id: 'bank', name: 'Bank', type: 'bench', layer: 'scenery', x: 2, y: 2, width: 3, height: 2 },
     { id: 'text', name: 'Text', type: 'text', layer: 'foreground', x: 3, y: 3, width: 2, height: 1 },
@@ -81,8 +81,15 @@ test('derives one complete editing context for every selectable level entity', (
   const character = selectionContext(level, { kind: 'character', index: 0 });
   assert.equal(character.workspace, 'characters');
   assert.equal(character.kindLabel, 'Eigene Figur');
+  assert.equal(character.primaryTool, 'transform');
+  assert.match(character.detail, /2.00×/);
 
   const wall = selectionContext(level, { kind: 'wall', index: 0 });
   assert.equal(wall.workspace, 'level');
   assert.equal(wall.primaryTool, '');
+});
+
+test('selects a scaled character across its complete visible footprint', () => {
+  const candidates = sceneCandidatesAt(level, { x: 2.75, y: 3 });
+  assert.equal(candidates.some((selection) => sceneSelectionKey(level, selection) === 'character:postler-1'), true);
 });

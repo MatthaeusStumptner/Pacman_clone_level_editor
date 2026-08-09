@@ -9,9 +9,12 @@
   let { studio } = $props();
   let editing = $state(false);
   let editingAsset = $state.raw(null);
+  let editingNewDefinition = $state(false);
   let creatorOpen = $state(false);
   let creatorName = $state('');
   let creatorTemplate = $state('pixel');
+  let creatorResolution = $state(24);
+  let characterSearch = $state('');
   let mobilePanel = $state('canvas');
   let selectedLevelKind = $derived(['player', 'cat', 'character'].includes(studio.selection?.kind) ? studio.selection.kind : '');
   let definition = $derived(studio.characterAssets.find((entry) => entry.id === studio.selectedCharacterId) ?? null);
@@ -21,6 +24,10 @@
   let appearance = $derived(actor?.appearance ?? (targetKind === 'player' ? createFranzLolaAppearance() : null));
   let title = $derived(targetKind === 'player' ? 'Franz & Lola' : targetKind === 'cat' ? `Katze ${targetIndex + 1}` : actor?.name || `Figur ${targetIndex + 1}`);
   let profile = $derived(studio.level.gameplay.difficulties[studio.difficulty]);
+  let filteredCharacterAssets = $derived.by(() => {
+    const query = characterSearch.trim().toLocaleLowerCase('de');
+    return query ? studio.characterAssets.filter((entry) => `${entry.name} ${entry.description ?? ''}`.toLocaleLowerCase('de').includes(query)) : studio.characterAssets;
+  });
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function select(kind, index) { studio.selectedCharacterId = ''; studio.selectEntity(kind, index); editing = false; editingAsset = null; mobilePanel = 'inspector'; }
@@ -36,22 +43,24 @@
   }
   function editSprite() {
     editingAsset = targetKind === 'definition' ? clone(definition) : null;
+    editingNewDefinition = false;
     editing = true;
   }
   function saveSprite(next) {
-    if (editingAsset) studio.saveCharacterDefinition({ ...editingAsset, appearance: next });
+    if (editingAsset) studio.saveCharacterDefinition({ ...editingAsset, appearance: next }, editingNewDefinition ? 'Figurenvorlage erstellen' : 'Figuren-Sprite bearbeiten');
     else studio.setActorAppearance(targetKind, targetIndex, next);
-    editingAsset = null;
+    editingAsset = null; editingNewDefinition = false;
     editing = false;
   }
-  function cancelSprite() { editingAsset = null; editing = false; }
-  function openCreator() { creatorName = ''; creatorTemplate = 'pixel'; creatorOpen = true; }
+  function cancelSprite() { editingAsset = null; editingNewDefinition = false; editing = false; }
+  function openCreator() { creatorName = ''; creatorTemplate = 'pixel'; creatorResolution = 24; creatorOpen = true; }
   function createCharacter() {
     if (!creatorName.trim()) return;
-    editingAsset = studio.createCharacterDraft(creatorName.trim(), creatorTemplate);
+    editingAsset = studio.createCharacterDraft(creatorName.trim(), creatorTemplate, creatorResolution);
     creatorOpen = false;
     studio.clearSelection();
     studio.selectedCharacterId = '';
+    editingNewDefinition = true;
     editing = true;
   }
 
@@ -64,7 +73,7 @@
 <section class="workspace character-workspace" aria-labelledby="character-workspace-title">
   <header class="workspace-header character-workspace-header">
     <div><span class="eyebrow">CHARAKTERATELIER</span><h2 id="character-workspace-title">Figuren & Sprite-Sheets</h2><p>Erstelle eigenständige Figuren einmal global und setze sie anschließend in beliebig vielen Levels ein.</p></div>
-    <button class="primary create-character-button" id="create-character" onclick={openCreator}>＋ Neue Figur</button>
+    <div class="character-header-actions"><div class="history-actions" aria-label="Änderungsverlauf"><button onclick={() => studio.undo()} disabled={!studio.canUndo} aria-label="Rückgängig">↶</button><button onclick={() => studio.redo()} disabled={!studio.canRedo} aria-label="Wiederholen">↷</button></div><button class="primary create-character-button" id="create-character" onclick={openCreator}>＋ Neue Figur</button></div>
   </header>
 
   {#if editing && (actor || editingAsset)}
@@ -93,7 +102,8 @@
         <div class="panel-title global-character-title"><strong>Globale Bibliothek</strong><span>{studio.characterAssets.length}</span></div>
         <p class="library-explainer">Diese Vorlagen stehen in jedem Level bereit. Platzierte Figuren werden vollständig in das Level eingebettet.</p>
         <button class="character-library-create" onclick={openCreator}>＋ Neue globale Figur</button>
-        {#each studio.characterAssets as entry}
+        <label class="asset-search">Figuren durchsuchen<input type="search" placeholder="Name oder Beschreibung …" bind:value={characterSearch} /></label>
+        {#each filteredCharacterAssets as entry}
           <button class:active={targetKind === 'definition' && definition?.id === entry.id} data-character-id={entry.id} onclick={() => selectDefinition(entry.id)}><span class="actor-avatar actual"><ActorThumbnail actor={entry} kind="character" state="idle" label={`${entry.name} aus der Figurenbibliothek`} /></span><span><b>{entry.name}</b><small>Global · in allen Levels</small></span></button>
         {/each}
         {#if !studio.characterAssets.length}<div class="character-library-empty"><strong>Noch keine eigene Figur</strong><span>Lege hier deinen ersten vollständig neuen Charakter an.</span></div>{/if}
@@ -103,7 +113,7 @@
         {#if actor}
           <div class="character-hero" data-character-source={targetKind === 'definition' ? 'global' : 'level'}>
             <ActorThumbnail actor={actor} {appearance} kind={targetKind === 'definition' ? 'character' : targetKind} state={actor.state ?? 'idle'} class="actor-preview-large" label={`${title} in Spieldarstellung`} />
-            <div><span class="eyebrow">{targetKind === 'definition' ? 'GLOBALE FIGURENVORLAGE' : 'AKTIVE FIGUR IM LEVEL'}</span><h3>{title}</h3><p>{appearance ? `${appearance.width} × ${appearance.height} Pixel · ${appearance.animations.length} Animationen` : 'Standard-Pixelrenderer'}</p><button class="primary" onclick={editSprite}>Sprite-Sheet bearbeiten</button>{#if targetKind === 'definition'}<button class="place-character-button" onclick={() => studio.placeCharacter(definition.id)}>＋ Im Level platzieren</button>{:else if targetKind === 'player'}<button onclick={() => studio.resetPlayerAppearance()}>Originalvorlage laden</button>{/if}</div>
+            <div><span class="eyebrow">{targetKind === 'definition' ? 'GLOBALE FIGURENVORLAGE' : 'AKTIVE FIGUR IM LEVEL'}</span><h3>{title}</h3><p>{appearance ? `${appearance.width} × ${appearance.height} Pixel · ${appearance.animations.length} Animationen` : 'Standard-Pixelrenderer'}{targetKind === 'character' ? ` · ${Number(actor.scale ?? 1).toFixed(2)}× im Level` : ''}</p><button class="primary" onclick={editSprite}>Sprite-Sheet bearbeiten</button>{#if targetKind === 'definition'}<button class="place-character-button" onclick={() => studio.placeCharacter(definition.id)}>＋ Im Level platzieren</button>{:else if targetKind === 'character'}<button class="place-character-button" onclick={() => studio.transformSelectedInLevel()}>↔ Im Level bewegen & skalieren</button>{:else if targetKind === 'player'}<button onclick={() => studio.resetPlayerAppearance()}>Originalvorlage laden</button>{/if}</div>
           </div>
           <div class="state-matrix">
             <header><strong>Player States</strong><span>Jeder Zustand verweist eindeutig auf eine Animation.</span></header>
@@ -126,7 +136,7 @@
           <p class="hint">Freie Figuren stehen im normalen Spiel. Bewegung und Zustandswechsel werden gezielt in Cutscenes inszeniert.</p>
           <VisualEffectsEditor effects={definition.effects ?? []} title="Vorlageneffekte" onchange={(effects) => updateDefinition(['effects'], effects)} />
           <button class="primary" onclick={() => studio.placeCharacter(definition.id)}>＋ Im Level platzieren</button>
-          <button class="danger" onclick={() => studio.removeCharacterDefinition(definition.id)}>Globale Vorlage löschen</button>
+          <div class="library-management-actions"><button onclick={() => studio.duplicateCharacterDefinition(definition.id)}>⧉ Figur duplizieren</button><button onclick={() => studio.exportCharacterDefinition(definition.id)}>↓ Figur exportieren</button><button class="danger" onclick={() => { if (window.confirm(`Globale Figur „${definition.name}“ löschen? Bereits platzierte Figuren bleiben im Level erhalten.`)) studio.removeCharacterDefinition(definition.id); }}>Globale Vorlage löschen</button></div>
         {:else if actor}
           <div class="property-section"><span class="section-number">{targetKind === 'character' ? 'FIG' : 'AI'}</span><h3>{targetKind === 'character' ? 'Eigene Figur' : 'Verhalten'}</h3></div>
           {#if targetKind === 'character'}<label>Name<input value={actor.name} onchange={(event) => update(['name'], event.currentTarget.value)} /></label>{/if}
@@ -139,7 +149,9 @@
             <div class="field-row"><label>Fell<input type="color" value={actor.color} oninput={(event) => update(['color'], event.currentTarget.value)} /></label><label>Akzent<input type="color" value={actor.accent} oninput={(event) => update(['accent'], event.currentTarget.value)} /></label></div>
           {:else}
             <label>Grundzustand<select value={actor.state} onchange={(event) => update(['state'], event.currentTarget.value)}>{#each PLAYER_STATES as state}<option value={state}>{state}</option>{/each}</select></label>
-            <p class="hint">Diese Figur kann als Darsteller in Cutscenes bewegt und animiert werden.</p>
+            <label>Größe im Level<input aria-label="Figur Skalierung" type="range" min="0.5" max="4" step="0.05" value={actor.scale ?? 1} oninput={(event) => update(['scale'], number(event))} /><output>{Number(actor.scale ?? 1).toFixed(2)}×</output></label>
+            <button class="primary" onclick={() => studio.transformSelectedInLevel()}>↔ Im Level bewegen & skalieren</button>
+            <p class="hint">Diese Figur kann frei skaliert und als Darsteller in Cutscenes bewegt und animiert werden.</p>
           {/if}
           {#if targetKind !== 'character'}<label>Tempo-Multiplikator<input type="number" min="0.1" max="4" step="0.1" value={actor.behavior.speedMultiplier} onchange={(event) => update(['behavior', 'speedMultiplier'], number(event))} /></label>{/if}
           <VisualEffectsEditor effects={actor.effects ?? []} title="Figureneffekte" onchange={(effects) => update(['effects'], effects)} />
@@ -162,10 +174,11 @@
       <header><span class="eyebrow">NEUE GLOBALE FIGUR</span><h2 id="character-creator-title">Wer soll Passau bereichern?</h2><p>Die Vorlage steht anschließend in jedem Level bereit. Erst beim Platzieren entsteht eine unabhängige Levelinstanz.</p></header>
       <label>Figurenname<input id="character-name" bind:value={creatorName} placeholder="z. B. Passauer Postler" /></label>
       <fieldset class="character-template-options"><legend>Startvorlage</legend>
-        <label class:active={creatorTemplate === 'pixel'}><input type="radio" bind:group={creatorTemplate} value="pixel" /><span><b>Pixelwesen</b><small>Sichtbare neutrale Figur als guter Startpunkt</small></span></label>
-        <label class:active={creatorTemplate === 'empty'}><input type="radio" bind:group={creatorTemplate} value="empty" /><span><b>Leere Leinwand</b><small>Komplett von Null zeichnen</small></span></label>
+        <label class:active={creatorTemplate === 'pixel'}><input type="radio" bind:group={creatorTemplate} value="pixel" /><span><b>Detaillierte Figur</b><small>24×24-Pixel-Vorlage mit Schattierung, elf Farben und animierten Bewegungszuständen</small></span></label>
+        <label class:active={creatorTemplate === 'empty'}><input type="radio" bind:group={creatorTemplate} value="empty" /><span><b>Leere Leinwand</b><small>Komplett von Null in der gewählten Auflösung zeichnen</small></span></label>
         <label class:active={creatorTemplate === 'franz-lola'}><input type="radio" bind:group={creatorTemplate} value="franz-lola" /><span><b>Franz & Lola kopieren</b><small>Vorhandene fünf Bewegungszustände umbauen</small></span></label>
       </fieldset>
+      <fieldset class="character-resolution-options"><legend>Arbeitsauflösung</legend>{#each [8, 12, 16, 24] as size}<label class:active={creatorResolution === size}><input type="radio" bind:group={creatorResolution} value={size} /><b>{size} × {size}</b>{#if size === 24}<small>Maximale Details</small>{/if}</label>{/each}</fieldset>
       <footer><button onclick={() => creatorOpen = false}>Abbrechen</button><button class="primary" disabled={!creatorName.trim()} onclick={createCharacter}>Weiter zum Sprite-Studio →</button></footer>
     </div>
   </div>

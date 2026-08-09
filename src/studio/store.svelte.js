@@ -5,10 +5,11 @@ import { createStarterLevel, EditorState } from '../editor-state.js';
 import { floodFillPoints, linePoints, moveRectangle, previewGuttis, rectangleContains, rectanglePoints, scaleRectangle, transformHandleAt } from '../editor-tools.js';
 import { createFranzLolaAppearance } from '../character-template.js';
 import { CharacterLibrary, characterPlacement, createBlankCharacterAsset } from '../character-library.js';
-import { ObjectLibrary, applyAssetToPlacement, createBlankObjectAsset, overridePlacementValue, placementFromAsset, recolorAppearance } from '../object-library.js';
+import { DEFAULT_OBJECT_ASSETS, ObjectLibrary, applyAssetToPlacement, createBlankObjectAsset, overridePlacementValue, placementFromAsset, recolorAppearance } from '../object-library.js';
 import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, selectionContext as buildSelectionContext } from '../scene-model.js';
 import { migrateLegacyLevel } from '../level-migrations.js';
 import { planCloudDraftAdoption } from '../cloud-draft-policy.js';
+import { StudioHistory } from './history.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const slug = (value, fallback = 'eintrag') => String(value || fallback)
@@ -24,6 +25,22 @@ function setAt(root, path, value) {
   parent[path.at(-1)] = value;
 }
 
+function actorScale(actor) {
+  return Math.max(0.5, Math.min(4, Number(actor?.scale) || 1));
+}
+
+function characterRectangle(actor) {
+  const scale = actorScale(actor);
+  return actor ? { x: actor.x + (1 - scale) / 2, y: actor.y + (1 - scale) / 2, width: scale, height: scale } : null;
+}
+
+function uniqueId(baseValue, existing = new Set()) {
+  const base = slug(baseValue);
+  let candidate = base; let suffix = 2;
+  while (existing.has(candidate)) { candidate = `${base}-${suffix}`; suffix += 1; }
+  return candidate;
+}
+
 export class StudioState {
   workspace = $state('level');
   level = $state.raw(null);
@@ -37,6 +54,8 @@ export class StudioState {
   showGrid = $state(true);
   showGuttis = $state(true);
   showEvents = $state(true);
+  viewportZoom = $state(1);
+  viewportCenter = $state.raw({ x: 12.5, y: 12.5 });
   cursor = $state.raw(null);
   cursorCopy = $state('Feld —');
   saveStatus = $state('GESPEICHERT');
@@ -57,11 +76,12 @@ export class StudioState {
   cloudUser = $state.raw(null);
   cloudError = $state('');
   levelSync = $state.raw({ baseRevision: null, dirty: false, source: 'legacy' });
+  historyRevision = $state(0);
 
   validation = $derived.by(() => this.level ? validateLevelDocument(this.level) : { ok: false, errors: [], warnings: [], metrics: {} });
   pellets = $derived.by(() => this.level ? previewGuttis(this.level, this.difficulty) : new Set());
-  canUndo = $derived(this.revision >= 0 && Boolean(this.engine?.history.length));
-  canRedo = $derived(this.revision >= 0 && Boolean(this.engine?.future.length));
+  canUndo = $derived(this.historyRevision >= 0 && Boolean(this.history?.canUndo));
+  canRedo = $derived(this.historyRevision >= 0 && Boolean(this.history?.canRedo));
   selectedAsset = $derived.by(() => this.assets.find((asset) => asset.id === this.selectedAssetId) ?? this.assets[0] ?? null);
   selectedCharacterAsset = $derived.by(() => this.characterAssets.find((asset) => asset.id === this.selectedCharacterId) ?? null);
   selectedEvent = $derived.by(() => this.level?.events.find((event) => event.id === this.selectedEventId) ?? null);
@@ -91,10 +111,12 @@ export class StudioState {
     this.assets = this.library.list();
     this.characterLibrary = new CharacterLibrary(storage);
     this.characterAssets = this.characterLibrary.list();
+    this.history = new StudioHistory();
     const activeDraft = this.drafts.activeEntry();
     this.engine = new EditorState(activeDraft?.level ?? createStarterLevel());
     this.levelSync = activeDraft?.sync ?? { baseRevision: null, dirty: false, source: 'legacy' };
     this.level = this.engine.toDocument();
+    this.viewportCenter = { x: this.level.board.columns / 2, y: this.level.board.rows / 2 };
     this.selectedEventId = this.level.events[0]?.id ?? '';
     this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
     this.saveTimer = null;
@@ -110,6 +132,7 @@ export class StudioState {
     this.cloudQueue = Promise.resolve();
     this.toastTimer = null;
     this.gesture = null;
+    this.historySuppressed = false;
   }
 
   sync({ save = true, preserveSelection = true, cloud = true, markDirty = save } = {}) {
@@ -147,9 +170,55 @@ export class StudioState {
     this.toastTimer = setTimeout(() => { this.toast = ''; }, 2800);
   }
 
+  studioSnapshot() {
+    return {
+      level: this.engine.toDocument(),
+      objects: this.library.readCustom(),
+      characters: this.characterLibrary.list(),
+      selection: clone(this.selection),
+      selections: clone(this.selections),
+      selectedAssetId: this.selectedAssetId,
+      selectedCharacterId: this.selectedCharacterId,
+      selectedEventId: this.selectedEventId,
+      selectedCutsceneId: this.selectedCutsceneId,
+      selectedTrackId: this.selectedTrackId,
+      selectedKeyframeId: this.selectedKeyframeId,
+    };
+  }
+
+  recordStudioChange(label, before, { key = '', coalesce } = {}) {
+    const context = this.selection ? `${this.selection.kind}:${this.selection.index}` : this.selectedAssetId || this.selectedCharacterId || this.selectedEventId || this.selectedCutsceneId || 'document';
+    const shouldCoalesce = coalesce ?? /(bearbeiten|eigenschaft|aktualisieren|farbe|tempo|grÃ¶ÃŸe|name|beschreibung)/i.test(label);
+    if (this.history.record(label, before, this.studioSnapshot(), { key: key || `${label}:${context}`, coalesce: shouldCoalesce })) this.historyRevision += 1;
+  }
+
+  restoreStudioSnapshot(snapshot) {
+    if (!snapshot?.level) return false;
+    this.library.replaceCustom(snapshot.objects);
+    this.characterLibrary.replace(snapshot.characters);
+    this.assets = this.library.list();
+    this.characterAssets = this.characterLibrary.list();
+    this.engine = new EditorState(createLevelDocument(migrateLegacyLevel(snapshot.level)));
+    this.level = this.engine.toDocument();
+    this.selection = clone(snapshot.selection);
+    this.selections = clone(snapshot.selections ?? (snapshot.selection ? [snapshot.selection] : []));
+    this.selectedAssetId = this.assets.some((entry) => entry.id === snapshot.selectedAssetId) ? snapshot.selectedAssetId : this.assets[0]?.id ?? '';
+    this.selectedCharacterId = this.characterAssets.some((entry) => entry.id === snapshot.selectedCharacterId) ? snapshot.selectedCharacterId : '';
+    this.selectedEventId = this.level.events.some((entry) => entry.id === snapshot.selectedEventId) ? snapshot.selectedEventId : this.level.events[0]?.id ?? '';
+    this.selectedCutsceneId = this.level.cutscenes.some((entry) => entry.id === snapshot.selectedCutsceneId) ? snapshot.selectedCutsceneId : this.level.cutscenes[0]?.id ?? '';
+    this.selectedTrackId = this.selectedCutscene?.tracks.some((entry) => entry.id === snapshot.selectedTrackId) ? snapshot.selectedTrackId : this.selectedCutscene?.tracks[0]?.id ?? '';
+    this.selectedKeyframeId = this.selectedTrack?.keyframes.some((entry) => entry.id === snapshot.selectedKeyframeId) ? snapshot.selectedKeyframeId : this.selectedTrack?.keyframes[0]?.id ?? '';
+    this.revision += 1;
+    this.selectionRevision += 1;
+    this.scheduleSave();
+    return true;
+  }
+
   mutate(label, mutator, options) {
+    const before = this.historySuppressed ? null : this.studioSnapshot();
     this.engine.mutate(label, mutator);
     this.sync(options);
+    if (before) this.recordStudioChange(label, before);
   }
 
   update(path, value, label = 'Eigenschaft ändern') {
@@ -170,6 +239,10 @@ export class StudioState {
     this.selectedTrackId = '';
     this.selectedKeyframeId = '';
     this.levelSync = sync;
+    this.viewportZoom = 1;
+    this.viewportCenter = { x: this.engine.document.board.columns / 2, y: this.engine.document.board.rows / 2 };
+    this.history.clear();
+    this.historyRevision += 1;
     this.sync({ cloud, markDirty: false });
     this.notify(message);
   }
@@ -439,8 +512,38 @@ export class StudioState {
     return { drafts, items };
   }
 
-  undo() { if (this.engine.undo()) this.sync(); }
-  redo() { if (this.engine.redo()) this.sync(); }
+  undo() {
+    const entry = this.history.undo();
+    if (entry && this.restoreStudioSnapshot(entry.snapshot)) {
+      this.historyRevision += 1;
+      this.notify(`RÃ¼ckgÃ¤ngig: ${entry.label}`);
+    }
+  }
+
+  redo() {
+    const entry = this.history.redo();
+    if (entry && this.restoreStudioSnapshot(entry.snapshot)) {
+      this.historyRevision += 1;
+      this.notify(`Wiederholt: ${entry.label}`);
+    }
+  }
+
+  setViewportZoom(value, focus = this.viewportCenter) {
+    this.viewportZoom = Math.max(1, Math.min(6, Number(value) || 1));
+    this.viewportCenter = {
+      x: Math.max(0, Math.min(this.level.board.columns, Number(focus?.x) || this.level.board.columns / 2)),
+      y: Math.max(0, Math.min(this.level.board.rows, Number(focus?.y) || this.level.board.rows / 2)),
+    };
+  }
+
+  panViewport(dx, dy) {
+    this.viewportCenter = {
+      x: Math.max(0, Math.min(this.level.board.columns, this.viewportCenter.x + dx)),
+      y: Math.max(0, Math.min(this.level.board.rows, this.viewportCenter.y + dy)),
+    };
+  }
+
+  fitViewport() { this.setViewportZoom(1, { x: this.level.board.columns / 2, y: this.level.board.rows / 2 }); }
 
   setTool(tool) {
     this.tool = tool;
@@ -510,10 +613,18 @@ export class StudioState {
     this.tool = 'select';
   }
 
+  transformSelectedInLevel() {
+    if (!this.selection || !['character', 'decoration'].includes(this.selection.kind)) return false;
+    this.workspace = 'level';
+    this.tool = 'transform';
+    this.notify(this.selection.kind === 'character' ? 'Figur ziehen · Eckgriff skaliert sie' : 'Objekt ziehen · Eckgriff skaliert es');
+    return true;
+  }
+
   activateSelectionTool() {
     const context = this.selectionContext();
     if (!context?.primaryTool) return;
-    this.workspace = context.workspace;
+    this.workspace = context.primaryTool === 'transform' && context.selection.kind === 'character' ? 'level' : context.workspace;
     this.tool = context.primaryTool;
   }
 
@@ -549,9 +660,12 @@ export class StudioState {
   }
 
   transformSelection() {
-    if (this.selection?.kind !== 'decoration') return null;
-    const item = this.level.decorations[this.selection.index];
-    return item ? { x: item.x, y: item.y, width: item.width, height: item.height } : null;
+    if (this.selection?.kind === 'character') return characterRectangle(this.level.actors.characters?.[this.selection.index]);
+    if (this.selection?.kind === 'decoration') {
+      const item = this.level.decorations[this.selection.index];
+      return item ? { x: item.x, y: item.y, width: item.width, height: item.height } : null;
+    }
+    return null;
   }
 
   decorationAt(point) {
@@ -561,19 +675,35 @@ export class StudioState {
     return -1;
   }
 
+  characterAt(point) {
+    for (let index = (this.level.actors.characters?.length ?? 0) - 1; index >= 0; index -= 1) {
+      if (rectangleContains(characterRectangle(this.level.actors.characters[index]), point)) return index;
+    }
+    return -1;
+  }
+
   beginTransform(point, pointerId) {
-    let index = this.selection?.kind === 'decoration' ? this.selection.index : -1;
-    let item = index >= 0 ? this.level.decorations[index] : null;
-    let handle = item ? transformHandleAt(item, point) : null;
-    if (!handle && (!item || !rectangleContains(item, point))) {
-      index = this.decorationAt(point); item = index >= 0 ? this.level.decorations[index] : null;
-      if (item) this.selectEntity('decoration', index);
+    const before = this.studioSnapshot();
+    let kind = ['character', 'decoration'].includes(this.selection?.kind) ? this.selection.kind : '';
+    let index = kind ? this.selection.index : -1;
+    let item = kind === 'character' ? this.level.actors.characters?.[index] : kind === 'decoration' ? this.level.decorations[index] : null;
+    let rectangle = kind === 'character' ? characterRectangle(item) : item;
+    let handle = rectangle ? transformHandleAt(rectangle, point) : null;
+    if (!handle && (!rectangle || !rectangleContains(rectangle, point))) {
+      const characterIndex = this.characterAt(point);
+      const decorationIndex = this.decorationAt(point);
+      kind = characterIndex >= 0 ? 'character' : decorationIndex >= 0 ? 'decoration' : '';
+      index = kind === 'character' ? characterIndex : decorationIndex;
+      item = kind === 'character' ? this.level.actors.characters[index] : kind === 'decoration' ? this.level.decorations[index] : null;
+      rectangle = kind === 'character' ? characterRectangle(item) : item;
+      if (item) this.selectEntity(kind, index);
     }
     if (!item) { this.selection = null; return; }
-    if (item.locked) { this.notify('Dieses Objekt ist gesperrt'); return; }
-    handle ??= transformHandleAt(item, point);
-    this.engine.beginTransaction(item.type === 'text' ? 'Textblock transformieren' : 'Objekt transformieren');
-    this.gesture = { pointerId, start: point, last: point, mode: 'transform', action: handle ? 'scale' : 'move', handle, index, original: clone(item) };
+    if (kind === 'decoration' && item.locked) { this.notify('Dieses Objekt ist gesperrt'); return; }
+    handle ??= transformHandleAt(rectangle, point);
+    const historyLabel = kind === 'character' ? 'Figur transformieren' : item.type === 'text' ? 'Textblock transformieren' : 'Objekt transformieren';
+    this.engine.beginTransaction(historyLabel);
+    this.gesture = { pointerId, start: point, last: point, mode: 'transform', action: handle ? 'scale' : 'move', handle, kind, index, original: clone(item), originalRectangle: clone(rectangle), before, historyLabel };
     this.cursor = null;
   }
 
@@ -582,23 +712,31 @@ export class StudioState {
     if (mode === 'select') { this.selectAt(point, { ...modifiers, reveal: !modifiers.additive }); return; }
     if (mode === 'transform') { this.beginTransform(precisePoint, pointerId); return; }
     if (mode === 'wall' || mode === 'erase') {
-      this.engine.beginTransaction(mode === 'wall' ? 'Wände zeichnen' : 'Wände radieren');
+      const historyLabel = mode === 'wall' ? 'Wände zeichnen' : 'Wände radieren';
+      const before = this.studioSnapshot();
+      this.engine.beginTransaction(historyLabel);
       this.engine.setWall(point.x, point.y, mode === 'wall');
-      this.gesture = { pointerId, start: point, last: point, mode };
+      this.gesture = { pointerId, start: point, last: point, mode, before, historyLabel };
     } else if (['line', 'rectangle', 'event-zone'].includes(mode)) {
       if (mode === 'event-zone' && !this.selectedEvent) { this.notify('Bitte zuerst ein Ereignis auswählen'); return; }
-      this.gesture = { pointerId, start: point, last: point, mode };
+      const historyLabel = mode === 'line' ? 'Wandlinie' : mode === 'rectangle' ? 'Wandrechteck' : 'Triggerzone zeichnen';
+      this.gesture = { pointerId, start: point, last: point, mode, before: this.studioSnapshot(), historyLabel };
     } else if (mode === 'fill') {
+      const before = this.studioSnapshot();
       this.engine.beginTransaction('Fläche füllen');
       const points = floodFillPoints(point, this.engine.wallCells, this.level.board.columns, this.level.board.rows);
       this.engine.applyWallPoints(points, !this.engine.wallCells.has(tileKey(point.x, point.y)));
-      this.engine.endTransaction(); this.sync();
+      this.engine.endTransaction(); this.sync(); this.recordStudioChange('Fläche füllen', before, { coalesce: false });
     } else if (mode === 'player') { this.mutate('Startpunkt setzen', (draft) => draft.setPlayer(point));
     } else if (mode === 'cat') { this.mutate('Katze setzen', (draft) => draft.addCat(point));
     } else if (mode === 'character' && this.selectedCharacterAsset) {
-      this.mutate('Figur platzieren', (draft) => draft.addCharacter(point, characterPlacement(this.selectedCharacterAsset, point, draft.document.actors.characters?.length ?? 0)));
-      this.tool = 'select';
-      this.notify(`${this.selectedCharacterAsset.name} wurde als eigenständige Figur platziert`);
+      const placement = characterPlacement(this.selectedCharacterAsset, point, this.level.actors.characters?.length ?? 0);
+      this.mutate('Figur platzieren', (draft) => draft.addCharacter(point, placement));
+      const index = this.level.actors.characters.findIndex((character) => character.id === placement.id);
+      this.selectEntity('character', index);
+      this.tool = 'transform';
+      this.workspace = 'level';
+      this.notify(`${this.selectedCharacterAsset.name} platziert · jetzt direkt ziehen oder am Eckgriff skalieren`);
     } else if (mode === 'power') { this.mutate('Power-Up setzen', (draft) => draft.togglePowerUp(point));
     } else if (mode === 'object' && this.selectedAsset) {
       const placement = placementFromAsset(this.selectedAsset, point, this.level.decorations.length);
@@ -615,18 +753,26 @@ export class StudioState {
     this.cursorCopy = this.tool === 'transform' ? `Position ${precisePoint.x.toFixed(2)}, ${precisePoint.y.toFixed(2)}` : `Feld ${point.x}, ${point.y}`;
     if (this.gesture?.pointerId === pointerId) {
       if (this.gesture.mode === 'transform') {
-        const gesture = this.gesture; const target = this.engine.document.decorations[gesture.index];
+        const gesture = this.gesture;
+        const target = gesture.kind === 'character' ? this.engine.document.actors.characters?.[gesture.index] : this.engine.document.decorations[gesture.index];
         if (!target) return;
         if (gesture.action === 'move') {
-          const rectangle = moveRectangle(gesture.original, gesture.start, precisePoint, this.level.board);
-          target.x = rectangle.x; target.y = rectangle.y;
+          const rectangle = moveRectangle(gesture.originalRectangle, gesture.start, precisePoint, this.level.board);
+          if (gesture.kind === 'character') {
+            target.x = rectangle.x + (rectangle.width - 1) / 2; target.y = rectangle.y + (rectangle.height - 1) / 2;
+          } else { target.x = rectangle.x; target.y = rectangle.y; }
         }
         else {
           const originalFontSize = Number(gesture.original.textStyle?.fontSize) || 0.5;
-          const maximumScale = target.type === 'text' ? 4 / originalFontSize : Infinity;
-          const result = scaleRectangle(gesture.original, gesture.handle, precisePoint, this.level.board, { maximumScale });
-          target.x = result.rectangle.x; target.y = result.rectangle.y; target.width = result.rectangle.width; target.height = result.rectangle.height;
-          if (target.type === 'text') {
+          const maximumScale = gesture.kind === 'character' ? 4 / gesture.originalRectangle.width : target.type === 'text' ? 4 / originalFontSize : Infinity;
+          const result = scaleRectangle(gesture.originalRectangle, gesture.handle, precisePoint, this.level.board, { minimumSize: gesture.kind === 'character' ? 0.5 : 0.25, maximumScale });
+          if (gesture.kind === 'character') {
+            target.scale = result.rectangle.width;
+            target.x = result.rectangle.x + (result.rectangle.width - 1) / 2; target.y = result.rectangle.y + (result.rectangle.height - 1) / 2;
+          } else {
+            target.x = result.rectangle.x; target.y = result.rectangle.y; target.width = result.rectangle.width; target.height = result.rectangle.height;
+          }
+          if (gesture.kind === 'decoration' && target.type === 'text') {
             target.textStyle.fontSize = Math.round(Math.max(0.15, Math.min(4, originalFontSize * result.scale)) * 1000) / 1000;
             target.textStyle.padding = Math.round(Math.max(0, Math.min(2, (Number(gesture.original.textStyle.padding) || 0) * result.scale)) * 1000) / 1000;
           }
@@ -653,6 +799,7 @@ export class StudioState {
       this.engine.mutate('Triggerzone zeichnen', (draft) => { const event = draft.document.events.find((entry) => entry.id === this.selectedEventId); event.trigger.type = 'zone'; event.trigger.zones.push(zone); });
     } else this.engine.endTransaction();
     this.gesture = null; this.cursor = { ...point }; this.sync();
+    this.recordStudioChange(gesture.historyLabel, gesture.before, { coalesce: false });
   }
 
   cursorFor(point) {
@@ -714,7 +861,8 @@ export class StudioState {
     }, { preserveSelection: true });
   }
 
-  saveAsset(asset) {
+  saveAsset(asset, label = 'Objektvorlage bearbeiten') {
+    const before = this.studioSnapshot();
     const previous = this.assets.find((entry) => entry.id === asset.id);
     const prepared = asset.color !== previous?.color && asset.appearance === previous?.appearance
       ? { ...asset, appearance: recolorAppearance(asset.appearance, previous?.color, asset.color) }
@@ -722,12 +870,18 @@ export class StudioState {
     const saved = this.library.save(prepared);
     this.assets = this.library.list(); this.selectedAssetId = saved.id;
     const hasInstances = this.level.decorations.some((entry) => entry.assetId === saved.id);
-    if (hasInstances) this.mutate('Globale Objektvorlage aktualisieren', (draft) => {
-      draft.document.decorations.forEach((entry, index) => {
-        if (entry.assetId === saved.id) draft.document.decorations[index] = applyAssetToPlacement(entry, saved);
-      });
-    }, { preserveSelection: true });
+    if (hasInstances) {
+      this.historySuppressed = true;
+      try {
+        this.mutate('Globale Objektvorlage aktualisieren', (draft) => {
+          draft.document.decorations.forEach((entry, index) => {
+            if (entry.assetId === saved.id) draft.document.decorations[index] = applyAssetToPlacement(entry, saved);
+          });
+        }, { preserveSelection: true });
+      } finally { this.historySuppressed = false; }
+    }
     this.queueContentSave('object', saved);
+    this.recordStudioChange(label, before, { key: `${label}:object:${saved.id}` });
     this.notify(hasInstances ? 'Objektvorlage und verknüpfte Instanzen sofort aktualisiert' : 'Objekt in der Bibliothek gespeichert');
     return saved;
   }
@@ -738,7 +892,7 @@ export class StudioState {
     const previousColor = asset.color;
     setAt(asset, path, value);
     if (path[0] === 'color') asset.appearance = recolorAppearance(asset.appearance, previousColor, value);
-    return this.saveAsset(asset);
+    return this.saveAsset(asset, `Objektvorlage ${path.join('.')} bearbeiten`);
   }
 
   resetSelectedAssetOverride(field) {
@@ -754,41 +908,76 @@ export class StudioState {
     return true;
   }
 
-  createAsset() {
-    const asset = createBlankObjectAsset(`Eigenes Objekt ${this.assets.length + 1}`);
-    const saved = this.library.save(asset); this.assets = this.library.list(); this.selectedAssetId = saved.id;
-    this.queueContentSave('object', saved);
-    return saved;
+  createObjectDraft(name, resolution = 24, category = 'Eigene Objekte') {
+    const asset = createBlankObjectAsset(name, resolution, category);
+    asset.id = uniqueId(asset.id, new Set(this.assets.map((entry) => entry.id)));
+    return asset;
   }
 
-  createCharacterDraft(name, template = 'pixel') {
-    return createBlankCharacterAsset(name, template);
+  duplicateAsset(id) {
+    const source = this.assets.find((entry) => entry.id === id);
+    if (!source) return null;
+    const copy = clone(source);
+    copy.id = uniqueId(`${source.id}-kopie`, new Set(this.assets.map((entry) => entry.id)));
+    copy.name = `${source.name} · Kopie`;
+    return this.saveAsset(copy, 'Objektvorlage duplizieren');
   }
 
-  saveCharacterDefinition(asset) {
+  isCustomAsset(id) { return this.library.readCustom().some((entry) => entry.id === id); }
+  isBuiltInAsset(id) { return DEFAULT_OBJECT_ASSETS.some((entry) => entry.id === id); }
+
+  exportAsset(id) {
+    const asset = this.assets.find((entry) => entry.id === id);
+    if (asset) this.download(createContentDocument('object', asset), `${asset.id}.object.json`);
+  }
+
+  removeAssetDefinition(id) {
+    const before = this.studioSnapshot();
+    const builtIn = DEFAULT_OBJECT_ASSETS.some((entry) => entry.id === id);
+    const custom = this.library.readCustom().some((entry) => entry.id === id);
+    if (!custom) return false;
+    this.library.remove(id);
+    this.assets = this.library.list();
+    this.selectedAssetId = builtIn ? id : this.assets[0]?.id ?? '';
+    this.recordStudioChange(builtIn ? 'Objektvorlage zurücksetzen' : 'Objektvorlage löschen', before, { coalesce: false });
+    this.notify(builtIn ? 'Objektvorlage auf den mitgelieferten Stand zurückgesetzt' : 'Objektvorlage gelöscht · platzierte Instanzen bleiben erhalten');
+    return true;
+  }
+
+  createCharacterDraft(name, template = 'pixel', resolution = 24) {
+    return createBlankCharacterAsset(name, template, resolution);
+  }
+
+  saveCharacterDefinition(asset, label = 'Figurenvorlage bearbeiten') {
+    const before = this.studioSnapshot();
     const saved = this.characterLibrary.save(asset);
     this.characterAssets = this.characterLibrary.list();
     this.selectedCharacterId = saved.id;
     this.queueContentSave('character', saved);
     const hasInstances = (this.level.actors.characters ?? []).some((character) => character.characterId === saved.id);
     if (hasInstances) {
-      this.mutate('Globale Figur aktualisieren', (draft) => {
-        draft.document.actors.characters.forEach((character) => {
-          if (character.characterId !== saved.id) return;
-          character.name = saved.name;
-          character.color = saved.color;
-          character.accent = saved.accent;
-          character.appearance = clone(saved.appearance);
-          character.effects = clone(saved.effects ?? []);
-          character.behavior = clone(saved.behavior ?? { controller: 'stationary', speedMultiplier: 1 });
-        });
-      }, { preserveSelection: true });
+      this.historySuppressed = true;
+      try {
+        this.mutate('Globale Figur aktualisieren', (draft) => {
+          draft.document.actors.characters.forEach((character) => {
+            if (character.characterId !== saved.id) return;
+            character.name = saved.name;
+            character.color = saved.color;
+            character.accent = saved.accent;
+            character.appearance = clone(saved.appearance);
+            character.effects = clone(saved.effects ?? []);
+            character.behavior = clone(saved.behavior ?? { controller: 'stationary', speedMultiplier: 1 });
+          });
+        }, { preserveSelection: true });
+      } finally { this.historySuppressed = false; }
     }
+    this.recordStudioChange(label, before, { key: `${label}:character:${saved.id}` });
     this.notify(hasInstances ? 'Globale Figur und ihre Levelinstanzen aktualisiert' : 'Figur global gespeichert');
     return saved;
   }
 
   removeCharacterDefinition(id) {
+    const before = this.studioSnapshot();
     this.characterLibrary.remove(id);
     this.characterAssets = this.characterLibrary.list();
     if (this.selectedCharacterId === id) this.selectedCharacterId = '';
@@ -804,7 +993,22 @@ export class StudioState {
           this.cloudItems = this.cloudItems.filter((item) => `${item.type}:${item.id}` !== key);
         }).catch((error) => { this.cloudError = error.message; });
     }
+    this.recordStudioChange('Figurenvorlage löschen', before, { coalesce: false });
     this.notify('Figur aus der globalen Bibliothek entfernt · Levelinstanzen bleiben erhalten');
+  }
+
+  duplicateCharacterDefinition(id) {
+    const source = this.characterAssets.find((entry) => entry.id === id);
+    if (!source) return null;
+    const copy = clone(source);
+    copy.id = uniqueId(`${source.id}-kopie`, new Set(this.characterAssets.map((entry) => entry.id)));
+    copy.name = `${source.name} · Kopie`;
+    return this.saveCharacterDefinition(copy, 'Figurenvorlage duplizieren');
+  }
+
+  exportCharacterDefinition(id) {
+    const asset = this.characterAssets.find((entry) => entry.id === id);
+    if (asset) this.download(createContentDocument('character', asset), `${asset.id}.character.json`);
   }
 
   placeCharacter(id) {
@@ -890,19 +1094,38 @@ export class StudioState {
 
   addTrack(type = 'actor') {
     const cutsceneId = this.selectedCutsceneId;
+    if (type === 'object' && !this.level.decorations.length) {
+      this.notify('Objekt-Track nicht angelegt: Platziere zuerst ein Objekt im Level.');
+      return false;
+    }
     const index = (this.selectedCutscene?.tracks.length ?? 0) + 1;
     const target = type === 'object' ? this.level.decorations[0]?.id ?? '' : type === 'camera' ? 'camera' : type === 'dialogue' ? 'dialogue' : 'player';
     const keyframe = type === 'dialogue'
       ? { id: `text-${index}`, time: 0, duration: 2.5, speaker: 'Franz', text: { standard: 'Servus Passau!', dialect: 'Hawedere Passau!' }, easing: 'step' }
-      : { id: `start-${index}`, time: 0, x: this.level.actors.player.x, y: this.level.actors.player.y, zoom: 1.12, state: 'idle', visible: true, easing: 'linear' };
-    const trackId = `${type}-${index}`;
+      : { id: `start-${index}`, time: 0, x: this.level.actors.player.x, y: this.level.actors.player.y, zoom: 1.12, scale: 1, rotation: 0, opacity: 1, state: 'idle', visible: true, easing: 'linear' };
+    let trackId = `${type}-${index}`;
+    let suffix = index + 1;
+    while (this.selectedCutscene?.tracks.some((entry) => entry.id === trackId)) { trackId = `${type}-${suffix}`; suffix += 1; }
     this.mutate('Cutscene-Track anlegen', (draft) => draft.document.cutscenes.find((entry) => entry.id === cutsceneId).tracks.push({ id: trackId, type, target, keyframes: [keyframe] }), { preserveSelection: true });
     this.selectedTrackId = trackId; this.selectedKeyframeId = keyframe.id;
+    return true;
   }
 
   updateTrack(path, value) {
     const cutsceneId = this.selectedCutsceneId; const trackId = this.selectedTrackId;
     this.mutate('Track bearbeiten', (draft) => { const track = draft.document.cutscenes.find((entry) => entry.id === cutsceneId)?.tracks.find((entry) => entry.id === trackId); if (track) setAt(track, path, value); }, { preserveSelection: true });
+  }
+
+  renameTrack(nextId) {
+    const cutsceneId = this.selectedCutsceneId; const currentId = this.selectedTrackId;
+    const clean = String(nextId).trim().replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!clean || clean === currentId) return;
+    if (this.selectedCutscene?.tracks.some((entry) => entry.id === clean)) { this.notify('Track-ID ist bereits vergeben.'); return; }
+    this.mutate('Track umbenennen', (draft) => {
+      const track = draft.document.cutscenes.find((entry) => entry.id === cutsceneId)?.tracks.find((entry) => entry.id === currentId);
+      if (track) track.id = clean;
+    }, { preserveSelection: true });
+    this.selectedTrackId = clean;
   }
 
   deleteTrack() {
@@ -911,10 +1134,13 @@ export class StudioState {
     this.selectedTrackId = this.selectedCutscene?.tracks[0]?.id ?? ''; this.selectedKeyframeId = this.selectedTrack?.keyframes[0]?.id ?? '';
   }
 
-  addKeyframe() {
+  addKeyframe(requestedTime = null) {
     const track = this.selectedTrack; if (!track || !this.selectedCutscene) return;
-    const previous = track.keyframes.at(-1); const time = Math.min(this.selectedCutscene.duration, previous.time + 1);
-    const frame = { ...clone(previous), id: `keyframe-${Date.now()}`, time };
+    const byTime = [...track.keyframes].sort((a, b) => a.time - b.time);
+    const fallbackTime = Math.min(this.selectedCutscene.duration, (byTime.at(-1)?.time ?? -1) + 1);
+    const time = Math.max(0, Math.min(this.selectedCutscene.duration, requestedTime == null ? fallbackTime : Number(requestedTime)));
+    const previous = [...byTime].reverse().find((entry) => entry.time <= time) ?? byTime[0];
+    const frame = { ...clone(previous), id: uniqueId('keyframe'), time };
     this.updateTrack(['keyframes'], [...track.keyframes, frame].sort((a, b) => a.time - b.time));
     this.selectedKeyframeId = frame.id;
   }

@@ -167,11 +167,17 @@ test('Globale Figuren werden sichtbar erstellt und ins Level gesetzt @visual', a
   await page.locator('#character-name').fill('Passauer Postler');
   await page.screenshot({ path: 'output/playwright/figuren-assistent.png' });
   await page.getByRole('button', { name: /Weiter zum Sprite-Studio/ }).click();
+  await expect(page.getByLabel('Sprite-Auflösung')).toHaveValue('24');
+  await expect(page.locator('.pixel-grid button')).toHaveCount(576);
   await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await page.screenshot({ path: 'output/playwright/figuren-24px-studio.png' });
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
   await page.locator('.character-hero .place-character-button').click();
   const box = await page.locator('#level-canvas').boundingBox();
   await page.mouse.click(box.x + box.width * .25, box.y + box.height * .25);
+  await expect(page.locator('#level-canvas')).toHaveClass(/transform-tool/);
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selected-entity', 'character:0');
+  await page.screenshot({ path: 'output/playwright/figur-direkt-transformieren.png' });
   await page.locator('[data-workspace="characters"]').click();
   await page.locator('[data-level-character-id]').click();
   await page.waitForTimeout(500);
@@ -181,7 +187,8 @@ test('Globale Figuren werden sichtbar erstellt und ins Level gesetzt @visual', a
 test('Der Figuren-Assistent bleibt auf kleinen Handys verständlich @visual', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openCleanEditor(page);
-  await page.locator('[data-workspace="characters"]').click();
+  await page.getByLabel('Arbeitsbereich auswählen').selectOption('characters');
+  await expect(page.locator('[data-workspace="characters"]')).toHaveAttribute('aria-current', 'page');
   await page.locator('#create-character').click();
   await page.locator('#character-name').fill('Donaunixe');
   await page.screenshot({ path: 'output/playwright/figuren-assistent-mobile.png' });

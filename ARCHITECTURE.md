@@ -1,70 +1,76 @@
 # Architektur des Franz-&-Lola-Studios
 
-Die Oberfläche verwendet Svelte 5 als dünne, statisch baubare UI-Schicht. Fachlogik, Dokumentzustand und Canvas-Rendering bleiben davon getrennt. Der Editor ist weiterhin eine reine GitHub-Pages-Anwendung ohne eigenen Server.
+Die Anwendung ist eine statisch baubare Svelte-5-Oberfläche. Sie benötigt zur Laufzeit keinen eigenen Webserver und bleibt damit GitHub-Pages-kompatibel. Cloud-Funktionen sind ein optionaler Publisher-Dienst; Bearbeiten, Testen, Import und Export funktionieren weiterhin lokal.
 
-## Ein Dokument, sieben Arbeitsbereiche
+## Architekturgrenzen
 
-`StudioState` ist die einzige schreibende Instanz für das aktive Level. Jede Änderung läuft über `EditorState`, erzeugt eine neue Dokumentversion, aktualisiert Undo/Redo und wird anschließend automatisch in `localStorage` gespeichert. Komponenten besitzen keine konkurrierenden Kopien des Levels.
+Die Anwendung unterscheidet vier Zustandsarten, die nicht mehr unkontrolliert ineinander schreiben:
 
-Die Oberfläche trennt die benötigten Disziplinen bewusst:
+1. **Dokumentzustand** – das aktive Level im gemeinsamen `franz-lola-level`-Format.
+2. **Globale Definitionen** – Objekt- und Figurenvorlagen, unabhängig von einem Level.
+3. **Studio-Kontext** – Auswahl, Fachbereich, aktiver Track, aktives Asset und Canvas-Kamera.
+4. **Flüchtige Editorzustände** – noch nicht bestätigte Assistenten, Sprite-Gesten, Playhead und offene Dialoge.
 
-1. **Level** – Raster, Wände, Startpunkte, Regeln und Theme
-2. **Objekte** – universelle Assetbibliothek, Platzierung und Animation
-3. **Figuren** – globale Figurenbibliothek, Erstellassistent, Sprite-Sheets, Player States und Verhalten
-4. **Cutscenes** – levelgebundene Tracks, Keyframes, Kamera und Dialoge
-5. **Ereignisse** – Trigger, Visuals und beide Sprachfassungen
-6. **Testspiel** – dieselbe Kamera, Simulation und Cutscene-Wiedergabe wie im Spiel
-7. **Live** – sicherer, geführter Publisher
+`StudioState` koordiniert diese Grenzen. Geometrieänderungen laufen durch `EditorState`; globale Vorlagen durch `ObjectLibrary` beziehungsweise `CharacterLibrary`. `StudioHistory` legt vor einem bestätigten Kommando einen vollständigen Snapshot von Level und globalen Definitionen an. Dadurch können auch Änderungen außerhalb des Levels mit demselben Undo/Redo rückgängig gemacht werden.
 
-## Module
+Ein Assistent darf niemals durch bloßes Öffnen persistente Daten erzeugen. Neue Assets und Figuren sind lokale Entwürfe, bis „Sprite übernehmen“ bestätigt wurde. Abbrechen ist garantiert nebenwirkungsfrei.
 
-- `src/App.svelte`: Studio-Shell, Projektleiste, Arbeitsbereichnavigation und Tastenkürzel
-- `src/studio/store.svelte.js`: zentraler reaktiver Dokumentzustand und alle Studio-Kommandos
-- `src/components/`: eigenständige Arbeitsbereiche und fokussierte Editoren
-- `src/editor-state.js`: Levelzustand, Wandzellen, Transaktionen und History
-- `src/editor-tools.js`: reine Geometrie, Flood Fill, Gutti-Vorschau und Bildschirmkoordinaten
-- `src/object-library.js`: universelle, erweiterbare Sprite-Objektbibliothek in `localStorage`
-- `src/character-template.js`: ursprüngliche Franz-&-Lola-Komposition mit fünf Player States
-- `src/character-library.js`: persistente globale Figurenentwürfe und selbstenthaltende `actors.characters`-Levelinstanzen
+## Arbeitsbereiche
+
+1. **Level** – Raster, Wände, Startpunkte, Regeln, Theme und Szenenbaum
+2. **Objekte** – globale Assetdefinitionen und klar getrennte Levelinstanzen
+3. **Figuren** – globale Figuren, Levelinstanzen, Sprite-Sheets, States und Verhalten
+4. **Cutscenes** – levelgebundene Tracks, Playhead, Keyframes, Kamera und Dialoge
+5. **Ereignisse** – Triggerzonen, Richtungsfolgen, Visuals und beide Sprachfassungen
+6. **Testspiel** – dieselbe Simulation, Kamera und Cutscene-Wiedergabe wie im Spiel
+7. **Live** – lokale Entwürfe, gemeinsame Revisionen und geführte Veröffentlichung
+
+Auf kleinen Viewports werden alle sieben Bereiche über einen sichtbaren Bereichswähler erreicht. Der Desktop-Navigator wird dort nicht nur horizontal abgeschnitten. Bibliothek, Canvas und Inspector bleiben als fokussierte mobile Sheets erhalten.
+
+## Zentrale Module
+
+- `src/App.svelte`: Shell, Projektleiste, responsive Fachbereichnavigation und Tastaturkommandos
+- `src/studio/store.svelte.js`: Orchestrierung bestätigter Studio-Kommandos
+- `src/studio/history.js`: bereichsübergreifende, begrenzte und koaleszierbare History
+- `src/editor-state.js`: Leveltransaktionen und Wandgeometrie
+- `src/editor-tools.js`: reine Geometrie und Bildschirm-/Weltkoordinaten
+- `src/pixel-selection.js`: Pixel-Auswahl, Linie, Rechteck, Füllen sowie Copy/Paste
+- `src/object-library.js` und `src/character-library.js`: globale Definitionen
+- `src/scene-model.js`: Szenenbaum, Hit-Testing und Auswahlkontext
 - `src/playtest-engine.js`: deterministische Spielsimulation
-- `src/draft-repository.js`: mehrere lokale Levelentwürfe
-- `src/publisher-client.js`: kurzlebige Publisher-Sitzung ohne Browser-Secrets
-- `src/data/passau-levels.json`: verlustfreier Katalog der neun Passauer Level
+- `src/draft-repository.js`: lokale Levelentwürfe und sichere Migration
+- `src/publisher-client.js`: optionale gemeinsame Revisionen ohne Browser-Secrets
+- `src/components/`: Fachbereiche und transaktionale Spezialeditoren
 
-## Datenfluss
+## Kommandofluss
 
 ```text
-Passau-Vorlage / Import
-          │
-          ▼
-     EditorState  ◄──── Undo / Redo
-          │
-          ▼
-  StudioState (Svelte-Rune)
-    │       │        │
-    │       │        └── localStorage-Entwürfe
-    │       └─────────── Live-Validierung
-    └─────────────────── gemeinsamer Renderer
-                              │
-                 ┌────────────┼────────────┐
-                 ▼            ▼            ▼
-             Canvas       Cutscene      Testspiel
+Benutzeraktion
+    │
+    ├── flüchtig ──► Dialog-/Gesture-State ──► Abbrechen: verwerfen
+    │                                      └─► Bestätigen
+    │
+    └── bestätigt ─► Snapshot vorher
+                     ├─► Levelkommando / Bibliothekskommando
+                     ├─► verknüpfte Instanzen aktualisieren
+                     ├─► Snapshot nachher in StudioHistory
+                     └─► lokales Autosave + optionale Cloud-Synchronisation
 ```
 
-Svelte-Effekte werden nur an Browsergrenzen verwendet: Canvas-Lebenszyklus, ResizeObserver, Animation Frame und Autosave-Timer. Ableitbare UI-Werte sind `$derived`; das Level selbst bleibt ein unveränderlicher Snapshot aus `EditorState`.
+Laufende Eingaben wie Farbregler werden nach Kontext koalesziert, bleiben aber sofort sichtbar. Eine Zeichen-, Transformations- oder Pan-Geste ist jeweils ein verständlicher History-Schritt.
 
-## Gemeinsames Zwischenformat
+## Renderer und Canvas
 
-Renderer, Editor und Spiel verwenden `franz-lola-level` mit `schemaVersion: 1`. Erweiterungen sind optionale, rückwärtskompatible Felder:
+Editor, Cutscene-Vorschau, Testspiel und fertiges Spiel verwenden denselben Renderer. Der Level-Canvas unterstützt Einpassen, Zoom, Mausrad, Handwerkzeug, mittlere Maustaste und Leertaste. Hit-Testing verwendet die reale Kamera samt Letterboxing. Für Browsertests exportiert der Canvas die berechnete Source-/Viewport-Projektion als Diagnoseattribute; Testklicks benutzen daher exakt dieselbe Projektion wie ein sichtbarer Klick.
 
-- `decorations[].appearance` enthält ein selbstständiges Sprite-Sheet.
-- `appearance.stateAnimations` verbindet `idle`, `up`, `right`, `down` und `left` mit frei benannten Animationen.
-- `cutscenes[]` gehört immer genau zu einem Level.
-- Cutscene-Tracks besitzen die Typen `camera`, `actor`, `object` und `dialogue`.
-- Spezialobjekte werden beim Platzieren vollständig eingebettet. Das Spiel benötigt die lokale Editorbibliothek daher nicht.
+Der Testlauf merkt einen Startwunsch vor, falls WebGL/WebGPU noch initialisiert. Ein früher Klick geht nicht mehr verloren, sondern startet nach der Initialisierung automatisch.
 
-Der gemeinsame Renderer sampelt Cutscenes und zeichnet dieselben Zwischenstände in Editor und Spiel. Positionen dürfen dabei Bruchteile eines Tiles besitzen. Simulation und Cutscene-Zeit verwenden feste Updates und bleiben bei 60, 120 und 175 Hz gleich schnell.
+## Qualitätsvertrag
 
-## Qualitätsgrenze
+- Reine Fachlogik erhält Node-Tests.
+- Jeder reparierte Bedienabbruch erhält einen Browser-Regressionstest.
+- Desktop und Mobile führen echte Klick-, Drag-, Eingabe-, Undo-, Reload- und Platzierabläufe aus.
+- Visuelle Tests prüfen Renderer-Schärfe, kleine Viewports und komplexe Originallevel.
+- Produktions-Build und alle Tests müssen ohne versteckte Test-Sonderpfade funktionieren.
 
-Reine Fachlogik erhält Node-Tests. Sichtbare Arbeitsabläufe erhalten zusätzlich Chromium-End-to-End-Tests auf Desktop und Mobile. Die vollständige Prüfung umfasst Objektbibliothek, globale Figurenbibliothek, Figuren-Assistent, Platziermodus, Katzen-Abgrenzung, Originalkatalog, History, echte Renderer-Vorschauen aller Figuren, Sprite-States, direkte Elementauswahl, sämtliche neun levelgebundenen Cutscenes und Ereignisse, Testspiel, Publisher, Accessibility und Produktions-Build. Ein separater visueller Playwright-Lauf zeichnet Belege der Figuren-, Ereignis- und Cutscene-Flows unter `output/playwright` auf.
+Die Browsermatrix deckt unter anderem transaktionale Asset-Erstellung, 24×24-Pixelwerkzeuge, globale History, Canvas-Zoom/Pan, Kamera-Hit-Testing, Figurenplatzierung und Skalierung, editierbare Ereigniszonen, Richtungsfolgen, Cutscene-Playhead-Keyframes, Testlauf-Initialisierung, mobile Navigation, Publisher-Flows und Accessibility ab.

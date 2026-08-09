@@ -64,8 +64,9 @@ export function selectionContext(level, selection) {
   };
   if (selection.kind === 'character') return {
     ...common, icon: '◉', kindLabel: 'Eigene Figur', label: entity.name || `Figur ${selection.index + 1}`,
-    detail: 'Levelinstanz · Position und Sprite',
-    hint: 'Die platzierte Figur ist von ihrer globalen Vorlage unterschieden und direkt bearbeitbar.',
+    detail: `Levelinstanz · ${Number(entity.scale ?? 1).toFixed(2)}× · Position und Sprite`,
+    hint: 'Die platzierte Figur kann direkt im Level gezogen und über ihre Eckgriffe skaliert werden.',
+    primaryTool: 'transform', primaryActionLabel: 'Direkt bewegen & skalieren',
   };
   if (selection.kind === 'wall') return {
     ...common, icon: '▦', kindLabel: 'Wand', label: entity.name || `Wand ${selection.index + 1}`,
@@ -133,6 +134,11 @@ export function sceneGroups(level) {
 
 const sameTile = (entity, point) => entity && entity.x === point.x && entity.y === point.y;
 const contains = (item, point) => item && point.x >= item.x && point.x < item.x + item.width && point.y >= item.y && point.y < item.y + item.height;
+export const characterBounds = (character) => {
+  if (!character) return null;
+  const scale = Math.max(0.5, Math.min(4, Number(character.scale) || 1));
+  return { x: character.x + (1 - scale) / 2, y: character.y + (1 - scale) / 2, width: scale, height: scale };
+};
 
 export function sceneCandidatesAt(level, point, { hidden = new Set(), themeBounds = () => null } = {}) {
   const candidates = [];
@@ -142,7 +148,7 @@ export function sceneCandidatesAt(level, point, { hidden = new Set(), themeBound
   };
 
   if (sameTile(level.actors.player, point)) add('player', 0);
-  for (let index = (level.actors.characters?.length ?? 0) - 1; index >= 0; index -= 1) if (sameTile(level.actors.characters[index], point)) add('character', index);
+  for (let index = (level.actors.characters?.length ?? 0) - 1; index >= 0; index -= 1) if (contains(characterBounds(level.actors.characters[index]), point)) add('character', index);
   for (let index = level.actors.cats.length - 1; index >= 0; index -= 1) if (sameTile(level.actors.cats[index], point)) add('cat', index);
   for (let index = level.events.length - 1; index >= 0; index -= 1) {
     const visual = level.events[index].visual;

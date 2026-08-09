@@ -2,10 +2,9 @@
   import { onMount } from 'svelte';
   import { PassauPixelRenderer, sampleCutscene, tileKey } from '@franz-lola/pixel-renderer';
 
-  let { studio, cutscene } = $props();
+  let { studio, cutscene, time = $bindable(0) } = $props();
   let canvas;
   let renderer;
-  let time = $state(0);
   let playing = $state(false);
   let lastTimestamp = 0;
   let frame;
@@ -25,6 +24,7 @@
       elapsed: time,
     }, { cameraEnabled: true, cameraTarget, zoom: sample.camera?.zoom ?? 1.12, language: studio.language });
     canvas.dataset.rendererBackend = result.renderer.backend;
+    canvas.dataset.rendered = 'true';
   }
 
   function tick(timestamp) {

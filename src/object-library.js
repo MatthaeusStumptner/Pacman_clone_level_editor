@@ -1,3 +1,5 @@
+import { normalizeSpriteSize } from './sprite-appearance.js';
+
 const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
 export const LINKED_ASSET_FIELDS = Object.freeze(['name', 'type', 'width', 'height', 'color', 'label', 'appearance', 'spriteAnimation', 'animation', 'effects', 'content', 'textStyle']);
 const slug = (value, fallback = 'objekt') => String(value || fallback)
@@ -117,11 +119,12 @@ export const DEFAULT_OBJECT_ASSETS = Object.freeze([
   { id: 'lola-stick', name: 'Lolas Superstöckchen', category: 'Bschüttpark', description: 'Das legendäre Stöckchen aus dem Bschüttpark.', type: 'custom', width: 2, height: 2, color: '#b4794f', label: '/', appearance: appearance(stickRows, ['transparent', '#b4794f']), animation: { type: 'spin', speed: 0.2, amplitude: 0.04 } },
 ]);
 
-export function createBlankObjectAsset(name = 'Neues Objekt') {
+export function createBlankObjectAsset(name = 'Neues Objekt', resolution = 24, category = 'Eigene Objekte') {
   const id = slug(name, `objekt-${Date.now()}`);
-  const rows = Array.from({ length: 12 }, () => '0'.repeat(12));
+  const size = normalizeSpriteSize(resolution);
+  const rows = Array.from({ length: size }, () => '0'.repeat(size));
   return {
-    id, name, category: 'Eigene Objekte', description: 'Selbst gestaltetes Sprite-Objekt.', type: 'custom', width: 2, height: 2,
+    id, name, category, description: 'Selbst gestaltetes Sprite-Objekt.', type: 'custom', width: 2, height: 2,
     color: '#55d9dd', label: '◆', appearance: appearance(rows, ['transparent', '#55d9dd']), animation: { type: 'none', speed: 1, amplitude: 0.15 }, effects: [],
   };
 }
@@ -159,6 +162,10 @@ export class ObjectLibrary {
   remove(id) {
     const custom = this.readCustom().filter((entry) => entry.id !== id);
     this.storage?.setItem(this.key, JSON.stringify(custom));
+  }
+
+  replaceCustom(entries) {
+    this.storage?.setItem(this.key, JSON.stringify(clone(Array.isArray(entries) ? entries : [])));
   }
 }
 
