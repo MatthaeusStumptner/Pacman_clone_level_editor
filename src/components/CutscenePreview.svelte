@@ -15,7 +15,7 @@
     if (!renderer || !cutscene) return;
     const tile = studio.level.board.tileSize;
     const cameraTarget = sample.camera ? { x: sample.camera.x * tile + tile / 2, y: sample.camera.y * tile + tile / 2 } : undefined;
-    renderer.render({
+    const result = renderer.render({
       player: sample.player,
       cats: sample.cats,
       characters: sample.characters,
@@ -24,6 +24,7 @@
       powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))),
       elapsed: time,
     }, { cameraEnabled: true, cameraTarget, zoom: sample.camera?.zoom ?? 1.12, language: studio.language });
+    canvas.dataset.rendererBackend = result.renderer.backend;
   }
 
   function tick(timestamp) {
@@ -37,10 +38,13 @@
   function toggle() { if (time >= cutscene.duration) time = 0; playing = !playing; lastTimestamp = 0; }
 
   onMount(() => {
-    renderer = new PassauPixelRenderer(canvas, { zoom: 1.12 }); renderer.setLevel(studio.level);
-    frame = requestAnimationFrame(tick);
+    let disposed = false;
     const resize = new ResizeObserver(render); resize.observe(canvas);
-    return () => { cancelAnimationFrame(frame); resize.disconnect(); };
+    PassauPixelRenderer.create(canvas, { zoom: 1.12, backend: 'auto', preferWebGPU: true, quality: 'auto', powerPreference: 'low-power' }).then((instance) => {
+      if (disposed) { instance.destroy(); return; }
+      renderer = instance; renderer.setLevel(studio.level); frame = requestAnimationFrame(tick);
+    });
+    return () => { disposed = true; cancelAnimationFrame(frame); resize.disconnect(); renderer?.destroy(); };
   });
 
   $effect(() => { studio.revision; cutscene; time; studio.language; if (renderer) { renderer.setLevel(studio.level); render(); } });

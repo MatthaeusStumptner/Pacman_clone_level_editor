@@ -22,6 +22,7 @@
 
   function start() {
     if (!studio.validation.ok) { studio.notify('Bitte zuerst die Level-Fehler beheben'); studio.workspace = 'level'; return; }
+    if (!renderer) { studio.notify('Die Grafik wird noch initialisiert'); return; }
     renderer.setLevel(studio.level); paused = false; lastTimestamp = 0; cutsceneTime = 0;
     if (intro) mode = 'cutscene'; else startGame();
   }
@@ -35,15 +36,17 @@
   function renderCutscene() {
     const sample = sampleCutscene(studio.level, intro, cutsceneTime, studio.language); const tile = studio.level.board.tileSize;
     dialogue = sample.dialogue;
-    renderer.render({ player: sample.player, cats: sample.cats, characters: sample.characters, decorations: sample.decorations, pellets: new Set(), powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))), elapsed: cutsceneTime }, {
+    const result = renderer.render({ player: sample.player, cats: sample.cats, characters: sample.characters, decorations: sample.decorations, pellets: new Set(), powerUps: new Set(studio.level.collectibles.powerUps.map((point) => tileKey(point.x, point.y))), elapsed: cutsceneTime }, {
       cameraEnabled: true,
       cameraTarget: sample.camera ? { x: sample.camera.x * tile + tile / 2, y: sample.camera.y * tile + tile / 2 } : undefined,
       zoom: sample.camera?.zoom ?? 1.12,
     });
+    canvas.dataset.rendererBackend = result.renderer.backend;
   }
   function renderGame() {
     if (!snapshot) return;
-    renderer.render(snapshot, { cameraEnabled, zoom: 1.12, alpha: loop?.interpolationAlpha ?? 1 });
+    const result = renderer.render(snapshot, { cameraEnabled, zoom: 1.12, alpha: loop?.interpolationAlpha ?? 1 });
+    canvas.dataset.rendererBackend = result.renderer.backend;
     canvas.dataset.playerDirection = snapshot.player.dir.name; canvas.dataset.playerNextDirection = snapshot.player.nextDir.name;
   }
   function tick(timestamp) {
@@ -67,9 +70,13 @@
   function keyboard(event) { const names = { ArrowUp: 'up', w: 'up', ArrowRight: 'right', d: 'right', ArrowDown: 'down', s: 'down', ArrowLeft: 'left', a: 'left' }; if (names[event.key]) { event.preventDefault(); direction(names[event.key]); } }
 
   onMount(() => {
-    renderer = new PassauPixelRenderer(canvas, { zoom: 1.12 }); renderer.setLevel(studio.level); frame = requestAnimationFrame(tick);
+    let disposed = false;
     window.addEventListener('keydown', keyboard); const resize = new ResizeObserver(() => renderer?.resize()); resize.observe(stage);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', keyboard); resize.disconnect(); };
+    PassauPixelRenderer.create(canvas, { zoom: 1.12, backend: 'auto', preferWebGPU: true, quality: 'auto', powerPreference: 'low-power' }).then((instance) => {
+      if (disposed) { instance.destroy(); return; }
+      renderer = instance; renderer.setLevel(studio.level); frame = requestAnimationFrame(tick);
+    });
+    return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('keydown', keyboard); resize.disconnect(); renderer?.destroy(); };
   });
   $effect(() => { studio.revision; if (renderer && mode === 'stopped') renderer.setLevel(studio.level); });
 </script>

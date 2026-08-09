@@ -55,6 +55,7 @@
       language: studio.language,
       editor: { showGrid: studio.showGrid, showEvents: studio.showEvents, showEventZones: studio.showEvents, cursor: studio.cursor ?? selectionCursor(), selections: selectionOutlines(), transformSelection: studio.tool === 'transform' ? studio.transformSelection() : null },
     });
+    canvas.dataset.rendererBackend = renderResult.renderer.backend;
   }
 
   function animate(timestamp) {
@@ -89,12 +90,16 @@
   }
 
   onMount(() => {
-    renderer = new PassauPixelRenderer(canvas, { zoom: 1 });
-    renderer.setLevel(studio.editorLevel);
-    animationFrame = requestAnimationFrame(animate);
+    let disposed = false;
     const resize = new ResizeObserver(() => draw()); resize.observe(canvas);
     const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) draw(); }); intersection.observe(canvas);
-    return () => { cancelAnimationFrame(animationFrame); resize.disconnect(); intersection.disconnect(); };
+    // Authoring text and transform handles must retain the device pixel ratio even
+    // when CI or a low-core device would select the gameplay performance tier.
+    PassauPixelRenderer.create(canvas, { zoom: 1, backend: 'auto', preferWebGPU: true, quality: 'quality', powerPreference: 'low-power' }).then((instance) => {
+      if (disposed) { instance.destroy(); return; }
+      renderer = instance; renderer.setLevel(studio.editorLevel); animationFrame = requestAnimationFrame(animate);
+    });
+    return () => { disposed = true; cancelAnimationFrame(animationFrame); resize.disconnect(); intersection.disconnect(); renderer?.destroy(); };
   });
 
   $effect(() => {
