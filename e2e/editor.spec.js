@@ -26,13 +26,20 @@ async function loadTemplate(page, id) {
 
 async function openObjectLibrary(page) {
   await page.locator('[data-workspace="objects"]').click();
-  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ }).click();
   await expect(page.locator('.asset-list')).toBeVisible();
+}
+
+async function selectAssetForPlacement(page, id) {
+  await page.locator(`[data-asset-id="${id}"]`).click();
+  await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'asset');
+  await page.locator('.object-inspector [data-action="place-asset"]').click();
+  await expect(page.locator('[data-action="place-asset-toolbar"]')).toHaveClass(/active/);
 }
 
 async function openSceneTree(page) {
   const tabs = page.locator('.sidebar-mode-tabs:visible');
-  await tabs.getByRole('button', { name: /Szene/ }).click();
+  await tabs.getByRole('button', { name: /Level-Objekte|Szene/ }).click();
   await expect(page.locator('.scene-tree:visible')).toBeVisible();
 }
 
@@ -122,6 +129,7 @@ test('URL router restores level, discipline and selection with browser history',
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
   await page.locator('[data-workspace="objects"]').click();
+  await openSceneTree(page);
   await page.locator('[data-scene-key="theme-element:stage-lights"] .scene-node-main').click();
   await expect.poll(() => new URL(page.url()).searchParams.get('workspace')).toBe('objects');
   await expect.poll(() => new URL(page.url()).searchParams.get('selection')).toBe('theme-element:stage-lights');
@@ -306,14 +314,14 @@ test('universal objects can be created as pixel assets and placed into any map',
   await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
   await loadTemplate(page, 'hals');
   await openObjectLibrary(page);
-  await page.locator('[data-asset-id="music-note"]').click();
+  await selectAssetForPlacement(page, 'music-note');
   const target = await canvasPoint(page, 2, 2); await page.mouse.click(target.x, target.y);
   await openSceneTree(page);
   await expect(page.locator('.scene-tree')).toContainText('Musiknote');
   await page.waitForTimeout(250);
   await page.reload();
   await expect(page.locator('.scene-tree')).toContainText('Musiknote');
-  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ }).click();
   await expect(page.locator('.asset-list')).toContainText('Eigenes Objekt');
   expect(errors).toEqual([]);
 });
@@ -355,29 +363,56 @@ test('Franz and Lola use a five-state sprite-sheet and tile-map workflow', async
   expect(errors).toEqual([]);
 });
 
+test('asset selection opens the global editor and placement creates a distinct level instance', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'hals');
+  await page.locator('[data-workspace="objects"]').click();
+  await expect(page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ })).toHaveClass(/active/);
+  await expect(page.locator('.asset-list')).toBeVisible();
+  await page.locator('[data-asset-id="music-note"]').click();
+  await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'asset');
+  await expect(page.locator('.object-inspector')).toContainText('GLOBALE ASSET-VORLAGE');
+  await expect(page.locator('[data-action="place-asset-toolbar"]')).not.toHaveClass(/active/);
+  await page.locator('[data-asset-setting="category"]').fill('Feier-Test');
+  await expect(page.locator('[data-asset-id="music-note"]')).toContainText('Feier-Test');
+
+  await page.locator('[data-action="place-asset"]').click();
+  const target = await canvasPoint(page, 3, 3); await page.mouse.click(target.x, target.y);
+  await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'instance');
+  await expect(page.locator('.object-inspector')).toContainText('LEVEL-INSTANZ');
+  await page.locator('.linked-instance').getByRole('button', { name: /Vorlage bearbeiten/ }).click();
+  await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'asset');
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '0');
+  expect(errors).toEqual([]);
+});
+
 test('linked object settings, instance overrides and selection feedback update on the input event', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'hals');
   await openObjectLibrary(page);
-  await page.locator('[data-asset-id="music-note"]').click();
+  await selectAssetForPlacement(page, 'music-note');
   const target = await canvasPoint(page, 2, 2); await page.mouse.click(target.x, target.y);
 
   await expect(page.locator('#level-canvas')).toHaveAttribute('data-selected-entity', /^decoration:/);
   await openSceneTree(page);
   await expect(page.locator('.scene-node.selected')).toContainText('Musiknote');
-  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Bibliothek/ }).click();
-
-  const globalColor = page.locator('[data-asset-setting="color"]');
   const instanceColor = page.locator('[data-instance-setting="color"]');
+  await page.locator('.linked-instance').getByRole('button', { name: /Vorlage bearbeiten/ }).click();
+  const globalColor = page.locator('[data-asset-setting="color"]');
   await globalColor.evaluate((input) => { input.value = '#ff00aa'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await openSceneTree(page);
+  await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Musiknote' }).click();
   await expect(instanceColor).toHaveValue('#ff00aa');
   await expect(page.locator('.linked-instance')).toContainText('Alle Werte folgen der Vorlage');
 
   await instanceColor.evaluate((input) => { input.value = '#2255dd'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   await expect(page.locator('.linked-instance')).toContainText('1 lokale Abweichung');
+  await page.locator('.linked-instance').getByRole('button', { name: /Vorlage bearbeiten/ }).click();
   await expect(globalColor).toHaveValue('#ff00aa');
 
   await globalColor.evaluate((input) => { input.value = '#33cc44'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await openSceneTree(page);
+  await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Musiknote' }).click();
   await expect(instanceColor).toHaveValue('#2255dd');
   await page.locator('.linked-instance').getByRole('button', { name: /color/ }).click();
   await expect(instanceColor).toHaveValue('#33cc44');
@@ -666,13 +701,33 @@ test('@mobile one scene selection opens the inferred specialist and its detail s
   expect(errors).toEqual([]);
 });
 
+test('@mobile assets open visibly, can be edited and require an explicit placement action', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'hals');
+  await page.locator('[data-workspace="objects"]').click();
+  const library = page.locator('.object-sidebar.mobile-active');
+  await expect(library).toBeVisible();
+  await expect(library.locator('.asset-list')).toBeVisible();
+  await library.locator('[data-asset-id="music-note"]').click();
+  const inspector = page.locator('.object-inspector.mobile-active');
+  await expect(inspector).toHaveAttribute('data-object-context', 'asset');
+  await expect(inspector).toContainText('GLOBALE ASSET-VORLAGE');
+  await inspector.locator('[data-asset-setting="description"]').fill('Sofort mobil bearbeitet');
+  await inspector.locator('[data-action="place-asset"]').click();
+  await expect(page.locator('.object-inspector.mobile-active')).toHaveCount(0);
+  const target = await canvasPoint(page, 3, 3); await page.mouse.click(target.x, target.y);
+  await expect(page.locator('.object-inspector.mobile-active')).toHaveAttribute('data-object-context', 'instance');
+  await expect(page.locator('.object-inspector.mobile-active')).toContainText('LEVEL-INSTANZ');
+  expect(errors).toEqual([]);
+});
+
 test('object previews show renderer output and text blocks stay freely editable', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await openObjectLibrary(page);
   await expect(page.locator('.asset-list .object-thumbnail')).toHaveCount(16);
   await expect(page.locator('[data-asset-id="music-note"] canvas')).toBeVisible();
   await expect(page.locator('[data-asset-id="zauberberg-note"] canvas')).toBeVisible();
-  await page.locator('[data-asset-id="text-block"]').click();
+  await selectAssetForPlacement(page, 'text-block');
   const target = await canvasPoint(page, 8, 8); await page.mouse.click(target.x, target.y);
   await openSceneTree(page);
   await page.locator('.scene-tree .scene-node-main').filter({ hasText: 'Freier Textblock' }).click();
@@ -681,6 +736,7 @@ test('object previews show renderer output and text blocks stay freely editable'
   await expect(page.getByLabel('Rahmen ausblenden')).toBeChecked();
   await page.locator('.object-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
   await expect(page.locator('.object-inspector [data-effect-type="glitch"]')).toHaveCount(1);
+  await page.locator('.secondary-inspector').click();
   await page.locator('.edge-effect-editor').getByRole('button', { name: '＋ Rand-Effekt' }).click();
   await expect(page.locator('.edge-effect-card')).toHaveCount(1);
   await expect(page.locator('#level-canvas')).toHaveAttribute('data-selection-count', '1');

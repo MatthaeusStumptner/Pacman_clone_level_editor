@@ -14,18 +14,50 @@
   let editingPlacedSprite = $state(false);
   let editingMotion = $state(false);
   let motionSource = $state('selection');
-  let sidebarMode = $state('scene');
-  let mobilePanel = $state('canvas');
+  let sidebarMode = $state('library');
+  let mobilePanel = $state('scene');
+  let assetSearch = $state('');
   let selected = $derived.by(() => studio.selectedEntity());
   let asset = $derived(studio.selectedAsset);
+  let filteredAssets = $derived.by(() => {
+    const query = assetSearch.trim().toLocaleLowerCase('de');
+    if (!query) return studio.assets;
+    return studio.assets.filter((entry) => `${entry.name} ${entry.category} ${entry.description ?? ''}`.toLocaleLowerCase('de').includes(query));
+  });
+  let inspectorContext = $derived(selected && studio.selection?.kind === 'decoration'
+    ? 'instance'
+    : selected && studio.selection?.kind === 'theme-element'
+      ? 'theme'
+      : asset
+        ? 'asset'
+        : 'empty');
   let motionTarget = $derived(motionSource === 'asset' ? asset : selected);
   let motionPreview = $derived(studio.selection?.kind === 'theme-element'
     ? studio.assets.find((entry) => entry.id === (selected?.id === 'stage-note' ? 'zauberberg-note' : 'stage-lights')) ?? selected
     : motionTarget);
   const animationTypes = [['none', 'Keine'], ['bob', 'Schweben'], ['pulse', 'Pulsieren'], ['blink', 'Blinken'], ['spin', 'Drehen'], ['keyframes', 'Eigene Keyframes']];
 
-  function selectAsset(id) { studio.selectedAssetId = id; studio.setTool('object'); editingAsset = false; editingMotion = false; mobilePanel = 'canvas'; }
-  function createAsset() { studio.createAsset(); sidebarMode = 'library'; editingAsset = true; }
+  function selectAsset(id) {
+    studio.selectedAssetId = id;
+    studio.clearSelection();
+    studio.setTool('select');
+    sidebarMode = 'library';
+    editingAsset = false;
+    editingMotion = false;
+    mobilePanel = 'inspector';
+  }
+  function placeAsset(id = asset?.id) {
+    if (!id) return;
+    studio.selectedAssetId = id;
+    studio.clearSelection();
+    studio.setTool('object');
+    mobilePanel = 'canvas';
+  }
+  function createAsset() {
+    const created = studio.createAsset();
+    selectAsset(created.id);
+    editingAsset = true;
+  }
   function number(event) { const value = Number(event.currentTarget.value); return event.currentTarget.value === '' || !Number.isFinite(value) ? undefined : value; }
   function saveAssetAppearance(appearance) { studio.saveAsset({ ...asset, appearance }); editingAsset = false; }
   function savePlacedAppearance(appearance) { studio.updateSelected(['appearance'], appearance, 'Objekt-Sprite speichern'); editingPlacedSprite = false; }
@@ -38,14 +70,17 @@
 
   $effect(() => {
     studio.selectionRevision;
-    if (studio.workspace === 'objects' && studio.selection) mobilePanel = 'inspector';
+    if (studio.workspace === 'objects' && studio.selection) {
+      sidebarMode = 'scene';
+      mobilePanel = 'inspector';
+    }
   });
 </script>
 
 <section class="workspace object-workspace" aria-labelledby="object-workspace-title">
   <header class="workspace-header">
-    <div><span class="eyebrow">OBJEKTWERKSTATT</span><h2 id="object-workspace-title">Spezialobjekte & Kulisse</h2><p>Alles außer Wänden ist auswählbar. Baue eigene Objekte einmal und verwende sie in jeder Passauer Karte.</p></div>
-    <button class="primary" id="create-object" onclick={createAsset}>＋ Eigenes Objekt</button>
+    <div><span class="eyebrow">ASSETS & LEVELOBJEKTE</span><h2 id="object-workspace-title">Objektwerkstatt</h2><p>Erstelle globale Vorlagen, bearbeite sie zentral und platziere daraus unabhängig auswählbare Level-Instanzen.</p></div>
+    <button class="primary" id="create-object" onclick={createAsset}>＋ Neues Asset</button>
   </header>
 
   {#if editingAsset && asset}
@@ -57,30 +92,24 @@
   {:else}
     <div class="workspace-grid object-grid focus-layout">
       <aside class:mobile-active={mobilePanel === 'scene'} class="asset-library object-sidebar" data-focus-panel="scene">
-        <div class="sidebar-mode-tabs"><button class:active={sidebarMode === 'scene'} onclick={() => sidebarMode = 'scene'}>☷ Szene</button><button class:active={sidebarMode === 'library'} onclick={() => sidebarMode = 'library'}>◆ Bibliothek</button></div>
+        <div class="sidebar-mode-tabs"><button class:active={sidebarMode === 'library'} onclick={() => sidebarMode = 'library'}>◆ Assets</button><button class:active={sidebarMode === 'scene'} onclick={() => sidebarMode = 'scene'}>☷ Level-Objekte</button></div>
         {#if sidebarMode === 'scene'}
           <SceneTree {studio} onselect={() => mobilePanel = 'inspector'} />
         {:else}
-          <div class="panel-title"><strong>Objektbibliothek</strong><span>{studio.assets.length} Assets</span></div>
-          <p class="hint">Ein Asset auswählen und anschließend ins Level klicken. Platzierte Instanzen stehen im Szenenbaum.</p>
+          <div class="asset-library-heading">
+            <div class="panel-title"><strong>Globale Assets</strong><span>{studio.assets.length}</span></div>
+            <p>Einmal erstellen, zentral bearbeiten und in allen Leveln verwenden.</p>
+            <button class="primary" data-action="create-asset" onclick={createAsset}>＋ Neues Asset erstellen</button>
+          </div>
+          <label class="asset-search">Assets durchsuchen<input type="search" placeholder="Name, Kategorie …" bind:value={assetSearch} /></label>
           <div class="asset-list">
-            {#each studio.assets as entry}
-              <button class:active={entry.id === studio.selectedAssetId} data-asset-id={entry.id} onclick={() => selectAsset(entry.id)}>
+            {#each filteredAssets as entry}
+              <button class:active={entry.id === studio.selectedAssetId && inspectorContext === 'asset'} aria-pressed={entry.id === studio.selectedAssetId && inspectorContext === 'asset'} data-asset-id={entry.id} onclick={() => selectAsset(entry.id)}>
                 <span class="asset-icon actual"><ObjectThumbnail asset={entry} language={studio.language} /></span><span><strong>{entry.name}</strong><small>{entry.category}</small></span><em>{entry.width}×{entry.height}</em>
               </button>
             {/each}
+            {#if !filteredAssets.length}<div class="empty-library"><strong>Kein Asset gefunden</strong><span>Versuche einen anderen Suchbegriff oder erstelle ein neues Asset.</span></div>{/if}
           </div>
-          {#if asset}
-            <div class="asset-summary">
-              <span class="eyebrow">AKTIVE VORLAGE · LIVE VERKNÜPFT</span>
-              <label>Name<input data-asset-setting="name" value={asset.name} oninput={(event) => studio.updateAsset(['name'], event.currentTarget.value)} /></label>
-              <label>Beschreibung<textarea rows="2" value={asset.description} oninput={(event) => studio.updateAsset(['description'], event.currentTarget.value)}></textarea></label>
-              <div class="field-row"><label>Breite<input data-asset-setting="width" type="number" min="0.25" max="24" step="0.05" value={asset.width} oninput={(event) => studio.updateAsset(['width'], number(event))} /></label><label>Höhe<input data-asset-setting="height" type="number" min="0.25" max="24" step="0.05" value={asset.height} oninput={(event) => studio.updateAsset(['height'], number(event))} /></label></div>
-              <label>Grundfarbe<input data-asset-setting="color" type="color" value={asset.color} oninput={(event) => studio.updateAsset(['color'], event.currentTarget.value)} /></label>
-              <p class="hint">Änderungen erscheinen sofort in allen verknüpften Levelinstanzen. Einzelne Instanzwerte bleiben als Abweichung erhalten.</p>
-              {#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button><VisualEffectsEditor effects={asset.effects ?? []} title="Asset-Effekte" onchange={(effects) => studio.saveAsset({ ...asset, effects })} />
-            </div>
-          {/if}
         {/if}
       </aside>
 
@@ -88,19 +117,19 @@
         <div class="canvas-toolbar">
           <button class:active={studio.tool === 'select'} onclick={() => studio.setTool('select')}>↖ Auswählen</button>
           <button class:active={studio.tool === 'transform'} data-tool="transform" onclick={() => studio.setTool('transform')}>↔ Bewegen & skalieren</button>
-          <button class:active={studio.tool === 'object'} onclick={() => studio.setTool('object')}>＋ {asset?.name ?? 'Objekt'} platzieren</button>
-          <button onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>◆ Asset wählen</button>
+          <button class:active={studio.tool === 'object'} data-action="place-asset-toolbar" disabled={!asset} onclick={() => placeAsset()}>＋ {asset?.name ?? 'Asset'} platzieren</button>
+          <button onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>◆ Assets öffnen</button>
           <span class="toolbar-help">Klick erkennt den Typ und öffnet sofort die passenden Details · Shift ergänzt · Alt wählt darunter.</span>
         </div>
         <LevelCanvas {studio} />
         <footer class="canvas-status"><span>{studio.selectionCount ? `${studio.selectionCount} ausgewählt` : 'Keine Auswahl'}</span><span>Instanzen verwaltest du im Szenenbaum</span><strong>{studio.saveStatus}</strong></footer>
       </div>
 
-      <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel object-inspector" data-focus-panel="inspector">
-        <SelectionSummary {studio} />
+      <aside class:mobile-active={mobilePanel === 'inspector'} class="property-panel object-inspector" data-focus-panel="inspector" data-object-context={inspectorContext}>
+        {#if studio.selection}<SelectionSummary {studio} />{/if}
         {#if selected && studio.selection?.kind === 'decoration'}
-          <div class="property-section"><span class="section-number">OBJ</span><h3>{selected.name || selected.label || selected.type}</h3></div>
-          {#if selected.assetId}<div class="linked-instance"><strong>⌁ Mit „{studio.assets.find((entry) => entry.id === selected.assetId)?.name ?? selected.assetId}“ verknüpft</strong><span>{selected.assetOverrides?.length ? `${selected.assetOverrides.length} lokale Abweichung(en)` : 'Alle Werte folgen der Vorlage'}</span>{#each selected.assetOverrides ?? [] as field}<button title="Wieder von der Vorlage übernehmen" onclick={() => studio.resetSelectedAssetOverride(field)}>↺ {field}</button>{/each}</div>{/if}
+          <div class="context-heading instance-context"><span class="context-badge">LEVEL-INSTANZ</span><h3>{selected.name || selected.label || selected.type}</h3><p>Dieses Objekt gehört nur zum geöffneten Level.</p></div>
+          {#if selected.assetId}<div class="linked-instance"><strong>⌁ Verknüpft mit „{studio.assets.find((entry) => entry.id === selected.assetId)?.name ?? selected.assetId}“</strong><span>{selected.assetOverrides?.length ? `${selected.assetOverrides.length} lokale Abweichung(en)` : 'Alle Werte folgen der Vorlage'}</span><button class="edit-linked-asset" onclick={() => selectAsset(selected.assetId)}>Vorlage bearbeiten →</button>{#each selected.assetOverrides ?? [] as field}<button title="Wieder von der Vorlage übernehmen" onclick={() => studio.resetSelectedAssetOverride(field)}>↺ {field}</button>{/each}</div>{/if}
           <label>Name<input value={selected.name} oninput={(event) => studio.updateSelected(['name'], event.currentTarget.value)} /></label>
           <label>Beschriftung<input value={selected.label} maxlength="12" oninput={(event) => studio.updateSelected(['label'], event.currentTarget.value)} /></label>
           {#if selected.type === 'text'}
@@ -130,15 +159,28 @@
           <label>Animation<select aria-label="Bewegungsanimation" value={selected.animation.type} onchange={(event) => studio.updateSelected(['animation', 'type'], event.currentTarget.value)}>{#each animationTypes as [id, name]}<option value={id}>{name}</option>{/each}</select></label>
           <div class="field-row"><label>Tempo<input aria-label="Bewegungsanimation Tempo" type="number" min="0.1" max="12" step="0.1" value={selected.animation.speed} oninput={(event) => studio.updateSelected(['animation', 'speed'], number(event))} /></label><label>Stärke<input aria-label="Bewegungsanimation Stärke" type="number" min="0" max="1" step="0.025" value={selected.animation.amplitude} oninput={(event) => studio.updateSelected(['animation', 'amplitude'], number(event))} /></label></div>
           <button onclick={() => openMotion('selection')}>◆ Keyframe-Bewegung öffnen</button>
-          <button onclick={() => { studio.selectedAssetId = selected.id === 'stage-note' ? 'zauberberg-note' : 'stage-lights'; studio.setTool('object'); }}>In dieser Karte frei platzieren</button>
+          <button onclick={() => placeAsset(selected.id === 'stage-note' ? 'zauberberg-note' : 'stage-lights')}>In dieser Karte frei platzieren</button>
+        {:else if asset}
+          <div class="context-heading asset-context">
+            <span class="context-badge">GLOBALE ASSET-VORLAGE</span>
+            <div class="asset-inspector-title"><span class="asset-inspector-preview"><ObjectThumbnail asset={asset} language={studio.language} /></span><div><h3>{asset.name}</h3><p>In allen Leveln verfügbar · live verknüpft</p></div></div>
+          </div>
+          <div class="asset-primary-actions"><button class="primary" data-action="place-asset" onclick={() => placeAsset()}>＋ Im Level platzieren</button>{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite bearbeiten</button>{/if}</div>
+          <p class="asset-live-hint">✦ Änderungen erscheinen sofort in allen verknüpften Instanzen. Bewusste lokale Abweichungen bleiben erhalten.</p>
+          <label>Name<input data-asset-setting="name" value={asset.name} oninput={(event) => studio.updateAsset(['name'], event.currentTarget.value)} /></label>
+          <label>Kategorie<input data-asset-setting="category" value={asset.category} oninput={(event) => studio.updateAsset(['category'], event.currentTarget.value)} /></label>
+          <label>Beschreibung<textarea data-asset-setting="description" rows="3" value={asset.description} oninput={(event) => studio.updateAsset(['description'], event.currentTarget.value)}></textarea></label>
+          <div class="field-row"><label>Breite<input data-asset-setting="width" type="number" min="0.25" max="24" step="0.05" value={asset.width} oninput={(event) => studio.updateAsset(['width'], number(event))} /></label><label>Höhe<input data-asset-setting="height" type="number" min="0.25" max="24" step="0.05" value={asset.height} oninput={(event) => studio.updateAsset(['height'], number(event))} /></label></div>
+          <label>Grundfarbe<input data-asset-setting="color" type="color" value={asset.color} oninput={(event) => studio.updateAsset(['color'], event.currentTarget.value)} /></label>
+          <div class="asset-editor-actions">{#if asset.appearance}<button onclick={() => editingAsset = true}>▦ Sprite-Keyframes bearbeiten</button>{/if}<button onclick={() => openMotion('asset')}>◆ Bewegung mit Keyframes</button></div>
+          <VisualEffectsEditor effects={asset.effects ?? []} title="Asset-Effekte" onchange={(effects) => studio.saveAsset({ ...asset, effects })} />
         {:else}
-          <div class="empty-inspector"><span>↖</span><strong>Objekt auswählen</strong><p>Wähle ein Element im Canvas oder Szenenbaum. Das gilt auch für Musiknote und Bühnenlicht.</p></div>
+          <div class="empty-inspector"><span>◆</span><strong>Asset oder Level-Objekt auswählen</strong><p>Wähle links eine globale Vorlage zum Bearbeiten oder direkt im Canvas eine platzierte Instanz.</p><button class="primary" onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>Assets öffnen</button></div>
         {/if}
-        <div class="property-section"><span class="section-number">EDGE</span><h3>Levelränder & Atmosphäre</h3></div>
-        <EdgeEffectsEditor effects={studio.level.theme.edgeEffects ?? []} onchange={(effects) => studio.update(['theme', 'edgeEffects'], effects, 'Levelränder bearbeiten')} />
+        <details class="secondary-inspector"><summary>Levelränder & Atmosphäre</summary><EdgeEffectsEditor effects={studio.level.theme.edgeEffects ?? []} onchange={(effects) => studio.update(['theme', 'edgeEffects'], effects, 'Levelränder bearbeiten')} /></details>
       </aside>
       {#if mobilePanel !== 'canvas'}<button class="mobile-panel-scrim" aria-label="Mobile Seitenleiste schließen" onclick={() => mobilePanel = 'canvas'}></button>{/if}
-      <MobileFocusTabs value={mobilePanel} options={[["scene", "☷", "Szene"], ["canvas", "▦", "Canvas"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />
+      <MobileFocusTabs value={mobilePanel} options={[["scene", sidebarMode === 'library' ? "◆" : "☷", sidebarMode === 'library' ? "Assets" : "Szene"], ["canvas", "▦", "Canvas"], ["inspector", "☰", "Details"]]} onchange={(value) => mobilePanel = value} />
     </div>
   {/if}
 </section>
